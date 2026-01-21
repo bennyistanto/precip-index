@@ -1,0 +1,253 @@
+# SPEI - Standardized Precipitation Evapotranspiration Index
+
+> **Note:** This guide references "drought" in some sections due to SPEI's historical use in agricultural drought monitoring, but SPEI is a bidirectional index that monitors **both dry and wet extremes** equally. All analysis functions work for both directions.
+
+## Overview
+
+The Standardized Precipitation Evapotranspiration Index (SPEI) extends SPI by incorporating potential evapotranspiration (PET), making it sensitive to temperature changes and climate warming. Like SPI, it monitors both dry and wet conditions.
+
+**SPEI Values:**
+- **Negative values:** Indicate dry conditions (drought)
+- **Positive values:** Indicate wet conditions (flooding/excess)
+
+**Key Differences from SPI:**
+- Includes temperature effects via PET
+- More sensitive to climate change
+- Better for agricultural drought and water balance
+- Same interpretation as SPI (negative=dry, positive=wet)
+
+## Quick Start
+
+```python
+import xarray as xr
+from indices import spei
+from utils import calculate_pet
+
+# Load data
+precip = xr.open_dataset('input/precipitation.nc')['precip']
+temp = xr.open_dataset('input/temperature.nc')['temp']
+
+# Calculate PET (Thornthwaite method)
+pet = calculate_pet(temp, method='thornthwaite')
+
+# Calculate SPEI-12 (monitors both dry and wet conditions)
+spei_12 = spei(precip, pet=pet, scale=12)
+
+# Negative values = drought (dry)
+# Positive values = wet conditions (flooding/excess)
+
+# Save
+spei_12.to_netcdf('output/netcdf/spei_12.nc')
+```
+
+## PET Methods
+
+### Option 1: Thornthwaite (Temperature-based)
+**Use when:** Only temperature data available
+
+```python
+from utils import calculate_pet
+
+# Requires monthly mean temperature (°C) and latitude
+pet = calculate_pet(temp, method='thornthwaite', latitude=lat_array)
+```
+
+**Pros:** Simple, only needs temperature
+**Cons:** Less accurate in arid regions
+
+### Option 2: Hargreaves (Temperature + Solar)
+**Use when:** Temperature and solar radiation available
+
+```python
+pet = calculate_pet(temp, method='hargreaves',
+                   tmin=tmin, tmax=tmax, latitude=lat_array)
+```
+
+**Pros:** More accurate than Thornthwaite
+**Cons:** Needs min/max temperature
+
+### Option 3: Pre-computed PET
+**Use when:** You have PET from other sources (FAO-56, Penman-Monteith, etc.)
+
+```python
+# Load your PET data
+pet = xr.open_dataset('input/pet.nc')['pet']
+
+# Calculate SPEI directly
+spei_12 = spei(precip, pet=pet, scale=12)
+```
+
+**Best option:** Most accurate if PET quality is good
+
+## Parameters
+
+Same as SPI, plus:
+
+- **`pet`** (xarray.DataArray): Potential evapotranspiration
+  - Same dimensions as precipitation
+  - Units: mm/month
+  - Required (no default)
+
+- **`pe_fitting_params`** (xarray.Dataset, optional): Pre-fitted parameters for operational use
+
+## Examples
+
+### Example 1: With Thornthwaite PET
+
+```python
+import xarray as xr
+from indices import spei
+from utils import calculate_pet
+
+# Load data
+precip = xr.open_dataset('input/chirps.nc')['precip']
+temp = xr.open_dataset('input/temperature.nc')['temp']
+
+# Calculate PET
+pet = calculate_pet(temp, method='thornthwaite')
+
+# Calculate SPEI-12
+spei_12 = spei(precip, pet=pet, scale=12,
+              data_start_year=1991, data_end_year=2020)
+
+# Save
+spei_12.to_netcdf('output/netcdf/spei_12.nc')
+
+# Preview
+print(spei_12)
+spei_12.isel(time=-1).plot(cmap='RdBu', vmin=-3, vmax=3)
+```
+
+### Example 2: With Pre-computed PET
+
+```python
+# Your high-quality PET from another source
+pet = xr.open_dataset('input/pet_penman_monteith.nc')['pet']
+
+# Ensure same dimensions as precipitation
+assert precip.dims == pet.dims
+assert precip.shape == pet.shape
+
+# Calculate SPEI
+spei_6 = spei(precip, pet=pet, scale=6)
+```
+
+### Example 3: Multiple Scales
+
+```python
+from indices import spei_multi_scale
+from utils import calculate_pet
+
+pet = calculate_pet(temp, method='thornthwaite')
+
+# Calculate multiple scales
+scales = [3, 6, 12]
+spei_multi = spei_multi_scale(precip, pet=pet, scales=scales)
+
+# Access different scales
+spei_3 = spei_multi['spei_gamma_3_month']
+spei_12 = spei_multi['spei_gamma_12_month']
+```
+
+## SPEI vs SPI
+
+| Aspect | SPI | SPEI |
+|--------|-----|------|
+| **Input** | Precipitation only | Precipitation + PET |
+| **Temperature** | Not considered | Included via PET |
+| **Climate change** | Less sensitive | More sensitive |
+| **Best for** | Meteorological drought | Agricultural drought |
+| **Data needs** | Minimal | More data needed |
+| **Computation** | Faster | Slower (PET calculation) |
+
+**When to use SPEI:**
+- Agricultural drought monitoring
+- Climate change analysis
+- Temperature effects important
+- Have temperature data
+
+**When to use SPI:**
+- Purely meteorological drought
+- Only precipitation available
+- Simple, fast analysis
+- Standardized comparisons
+
+## Common Issues
+
+### Issue 1: PET Units Mismatch
+**Problem:** SPEI values unrealistic
+**Cause:** PET in different units than precipitation
+
+```python
+# Check units
+print(f"Precip: {precip.mean().values:.1f} mm/month")
+print(f"PET: {pet.mean().values:.1f} mm/month")
+
+# PET should be 30-200 mm/month typically
+# If PET is 1-6, likely mm/day - convert
+if pet.mean() < 10:
+    pet = pet * 30  # Convert mm/day to mm/month (approx)
+```
+
+### Issue 2: Negative P-PET Values
+**Problem:** Many negative P-PET values in arid regions
+**Solution:** This is expected! SPEI handles negative water balance
+
+```python
+# Check water balance
+water_balance = precip - pet
+print(f"Mean P-PET: {water_balance.mean().values:.1f} mm/month")
+# Negative is fine for arid regions
+```
+
+### Issue 3: PET > Precipitation Always
+**Problem:** In deserts, PET always exceeds precipitation
+**Solution:** SPEI is designed for this - shows persistent drought
+
+## Visualization
+
+```python
+from visualization import plot_index
+
+# Single location
+location_spei = spei_12.isel(lat=50, lon=100)
+plot_index(location_spei, threshold=-1.2,
+           title='SPEI-12 Time Series')
+```
+
+## Best Practices
+
+1. **Match spatial resolution:** PET and precipitation same grid
+2. **Match temporal resolution:** Both monthly
+3. **Quality PET:** Use best available method for your region
+4. **Calibration period:** Same 30-year period as SPI
+5. **Units check:** Always verify mm/month
+
+## Performance
+
+PET calculation is the bottleneck:
+
+```python
+# Fastest: Thornthwaite (temp only)
+pet = calculate_pet(temp, method='thornthwaite')  # ~30 sec
+
+# Slower: Hargreaves (temp + solar)
+pet = calculate_pet(temp, method='hargreaves',
+                   tmin=tmin, tmax=tmax)  # ~60 sec
+
+# Use Dask for large datasets
+temp = xr.open_dataset('temp.nc', chunks={'time': 100})['temp']
+pet = calculate_pet(temp, method='thornthwaite')  # Parallel
+```
+
+## References
+
+- Vicente-Serrano, S.M., Beguería, S., López-Moreno, J.I. (2010). A Multiscalar Drought Index Sensitive to Global Warming: The Standardized Precipitation Evapotranspiration Index. Journal of Climate, 23(7), 1696-1718.
+
+- Beguería, S., Vicente-Serrano, S.M., Reig, F., Latorre, B. (2014). Standardized precipitation evapotranspiration index (SPEI) revisited: parameter fitting, evapotranspiration models, tools, datasets and drought monitoring. International Journal of Climatology, 34(10), 3001-3023.
+
+## See Also
+
+- [SPI Guide](spi.md) - For precipitation-only drought
+- [Drought Characteristics](runtheory.md) - Event analysis
+- [Visualization](visualization.md) - Plotting options

@@ -1,0 +1,144 @@
+# Visualization Guide
+
+> **Note:** Examples show both dry (drought) and wet event visualizations. All plotting functions are neutral and work equally well for both climate extremes - just change the threshold direction.
+
+## Overview
+
+The package provides specialized plotting functions for climate indices and climate extreme event characteristics (both drought and wet conditions).
+
+## Available Functions
+
+### 1. Climate Index Time Series
+```python
+from visualization import plot_index
+
+# For drought (dry) monitoring - negative threshold
+plot_index(spi_ts, threshold=-1.2,
+                   title='SPI-12 Time Series - Drought')
+
+# For wet monitoring - positive threshold
+plot_index(spi_ts, threshold=+1.2,
+                   title='SPI-12 Time Series - Wet Events')
+```
+- Color-coded by severity (dry or wet)
+- Automatic threshold line
+- Event periods highlighted
+
+### 2. Climate Extreme Events Timeline
+```python
+from visualization import plot_events
+
+# Drought events (negative threshold)
+plot_events(spi_ts, events_df, threshold=-1.2)
+
+# Wet events (positive threshold)
+plot_events(spi_ts, wet_events_df, threshold=+1.2)
+```
+- Individual events highlighted
+- Peak markers
+- Event shading
+- Works for both dry and wet events
+
+### 3. Event Characteristics
+```python
+from visualization import plot_event_characteristics
+
+plot_event_characteristics(events_df, characteristic='magnitude')
+```
+- Multi-panel analysis
+- Relationships between characteristics
+- Bar charts and scatter plots
+
+### 4. Time-Series Evolution
+```python
+from visualization import plot_event_timeline
+
+plot_event_timeline(timeseries_df)
+```
+- 5-panel plot showing:
+  - Index value
+  - Duration
+  - Magnitude (cumulative) - blue
+  - Magnitude (instantaneous) - red
+  - Intensity
+
+### 5. Spatial Statistics
+```python
+from visualization import plot_spatial_stats
+
+plot_spatial_stats(stats_dataset, variable='num_events')
+```
+- Maps of drought statistics
+- Customizable colormaps
+- Ready for reports
+
+## Complete Example
+
+```python
+import xarray as xr
+from runtheory import (identify_events,
+                       calculate_timeseries,
+                       calculate_period_statistics)
+from visualization import *
+
+# Load data
+spi = xr.open_dataset('output/netcdf/spi_12.nc')['spi_gamma_12_month']
+spi_loc = spi.isel(lat=50, lon=100)
+
+# Analyze drought (dry) events
+dry_events = identify_events(spi_loc, threshold=-1.2)
+dry_ts = calculate_timeseries(spi_loc, threshold=-1.2)
+dry_stats = calculate_period_statistics(spi, threshold=-1.2,
+                                        start_year=2020, end_year=2024)
+
+# Analyze wet events
+wet_events = identify_events(spi_loc, threshold=+1.2)
+wet_stats = calculate_period_statistics(spi, threshold=+1.2,
+                                        start_year=2020, end_year=2024)
+
+# Visualize drought events
+plot_events(spi_loc, dry_events, threshold=-1.2)
+plt.savefig('output/plots/single/dry_events_lat*_lon*.png')
+
+plot_event_timeline(dry_ts)
+plt.savefig('output/plots/single/dry_timeline_lat*_lon*.png')
+
+plot_spatial_stats(dry_stats, variable='num_events')
+plt.savefig('output/plots/spatial/dry_stats_2020-2024.png')
+
+# Visualize wet events
+plot_events(spi_loc, wet_events, threshold=+1.2)
+plt.savefig('output/plots/single/wet_events_lat*_lon*.png')
+
+plot_spatial_stats(wet_stats, variable='num_events')
+plt.savefig('output/plots/spatial/wet_stats_2020-2024.png')
+```
+
+## Customization
+
+All functions return matplotlib objects for further customization:
+
+```python
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(14, 6))
+plot_index(spi_ts, threshold=-1.2, ax=ax)
+ax.set_title('Custom Title')
+ax.grid(alpha=0.3)
+plt.show()
+```
+
+## Output Organization
+
+Plots are saved to organized folders:
+
+- **Single-location plots:** `output/plots/single/plot_*_lat*_lon*.png`
+- **Spatial maps:** `output/plots/spatial/plot_spatial_*.png`
+
+Filenames include coordinates for easy identification.
+
+## See Also
+
+- [Run Theory Guide](runtheory.md) - Analysis functions
+- [SPI Guide](spi.md) - Index calculation
+- [SPEI Guide](spei.md) - Temperature-inclusive index

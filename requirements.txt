@@ -1,0 +1,21 @@
+# Core numerical and scientific computing
+numpy>=1.20.0
+scipy>=1.7.0
+
+# Array processing and NetCDF I/O
+xarray>=0.19.0
+netCDF4>=1.5.7
+
+# Performance optimization
+numba>=0.54.0
+
+# Optional: Parallel/distributed computing
+dask[complete]>=2021.10.0
+
+# Optional: Visualization (for notebooks)
+matplotlib>=3.4.0
+cartopy>=0.20.0
+
+# Optional: Jupyter notebooks
+jupyter>=1.0.0
+ipykernel>=6.0.0

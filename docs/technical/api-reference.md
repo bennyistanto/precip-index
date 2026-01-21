@@ -1,0 +1,734 @@
+# API Reference
+
+Complete function signatures and parameters for all public functions.
+
+## Module: indices
+
+### spi()
+
+Calculate Standardized Precipitation Index for monitoring both dry (drought) and wet (flood/excess) conditions.
+
+```python
+def spi(
+    precip,
+    scale,
+    distribution='gamma',
+    data_start_year=None,
+    data_end_year=None,
+    calibration_start_year=None,
+    calibration_end_year=None,
+    periodicity='monthly',
+    fitting_params=None
+) -> xarray.DataArray
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `precip` | xarray.DataArray | Yes | - | Precipitation data with dimensions (time, lat, lon) |
+| `scale` | int | Yes | - | Time scale in months (1, 3, 6, 12, 24, etc.) |
+| `distribution` | str | No | 'gamma' | Distribution type ('gamma' only) |
+| `data_start_year` | int | No | None | First year of data (auto-detected if None) |
+| `data_end_year` | int | No | None | Last year of data (auto-detected if None) |
+| `calibration_start_year` | int | No | None | Calibration period start (uses full period if None) |
+| `calibration_end_year` | int | No | None | Calibration period end (uses full period if None) |
+| `periodicity` | str | No | 'monthly' | Temporal resolution ('monthly' only) |
+| `fitting_params` | xarray.Dataset | No | None | Pre-fitted parameters for operational use |
+
+**Returns:**
+- `xarray.DataArray`: SPI values with same dimensions as input
+  - Variable name: `spi_gamma_{scale}_month`
+  - Range: typically -3 to +3
+  - Negative values: dry conditions (drought)
+  - Positive values: wet conditions (flooding/excess)
+  - Attributes: scale, distribution, calibration_period
+
+**Raises:**
+- `ValueError`: Invalid input dimensions or parameters
+- `RuntimeError`: Distribution fitting failures
+
+**Example:**
+```python
+import xarray as xr
+from indices import spi
+
+precip = xr.open_dataset('precip.nc')['precip']
+spi_12 = spi(precip, scale=12)
+spi_12.to_netcdf('spi_12.nc')
+```
+
+---
+
+### spi_multi_scale()
+
+Calculate SPI for multiple time scales simultaneously.
+
+```python
+def spi_multi_scale(
+    precip,
+    scales,
+    **kwargs
+) -> xarray.Dataset
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `precip` | xarray.DataArray | Yes | - | Precipitation data |
+| `scales` | list of int | Yes | - | List of time scales [3, 6, 12] |
+| `**kwargs` | - | No | - | Same parameters as `spi()` |
+
+**Returns:**
+- `xarray.Dataset`: Dataset with one variable per scale
+  - Variables: `spi_gamma_3_month`, `spi_gamma_6_month`, etc.
+
+**Example:**
+```python
+from indices import spi_multi_scale
+
+scales = [3, 6, 12]
+spi_all = spi_multi_scale(precip, scales=scales)
+print(spi_all.data_vars)  # All three scales
+```
+
+---
+
+### spei()
+
+Calculate Standardized Precipitation Evapotranspiration Index.
+
+```python
+def spei(
+    precip,
+    pet,
+    scale,
+    distribution='gamma',
+    data_start_year=None,
+    data_end_year=None,
+    calibration_start_year=None,
+    calibration_end_year=None,
+    periodicity='monthly',
+    pe_fitting_params=None
+) -> xarray.DataArray
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `precip` | xarray.DataArray | Yes | - | Precipitation data (mm/month) |
+| `pet` | xarray.DataArray | Yes | - | Potential evapotranspiration (mm/month) |
+| `scale` | int | Yes | - | Time scale in months |
+| All others | - | - | - | Same as `spi()` |
+
+**Returns:**
+- `xarray.DataArray`: SPEI values
+  - Variable name: `spei_gamma_{scale}_month`
+
+**Example:**
+```python
+from indices import spei
+from utils import calculate_pet
+
+pet = calculate_pet(temp, method='thornthwaite')
+spei_12 = spei(precip, pet=pet, scale=12)
+```
+
+---
+
+### spei_multi_scale()
+
+Calculate SPEI for multiple time scales.
+
+```python
+def spei_multi_scale(
+    precip,
+    pet,
+    scales,
+    **kwargs
+) -> xarray.Dataset
+```
+
+**Parameters:** Same pattern as `spi_multi_scale()` but requires `pet`
+
+---
+
+## Module: utils
+
+### calculate_pet()
+
+Calculate potential evapotranspiration.
+
+```python
+def calculate_pet(
+    temp,
+    method='thornthwaite',
+    latitude=None,
+    tmin=None,
+    tmax=None
+) -> xarray.DataArray
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `temp` | xarray.DataArray | Yes | - | Temperature data (°C) |
+| `method` | str | No | 'thornthwaite' | Method: 'thornthwaite' or 'hargreaves' |
+| `latitude` | xarray.DataArray | Conditional | None | Required for both methods |
+| `tmin` | xarray.DataArray | Conditional | None | Required for 'hargreaves' |
+| `tmax` | xarray.DataArray | Conditional | None | Required for 'hargreaves' |
+
+**Returns:**
+- `xarray.DataArray`: PET values (mm/month)
+
+**Methods:**
+- **thornthwaite**: Temperature-based, simpler
+- **hargreaves**: Temperature + solar radiation, more accurate
+
+**Example:**
+```python
+from utils import calculate_pet
+
+# Thornthwaite
+pet = calculate_pet(temp, method='thornthwaite', latitude=lat)
+
+# Hargreaves
+pet = calculate_pet(temp, method='hargreaves',
+                   tmin=tmin, tmax=tmax, latitude=lat)
+```
+
+---
+
+## Module: runtheory
+
+### identify_events()
+
+Identify complete climate extreme events from time series. Works for both dry (drought) and wet (flood/excess) events based on threshold direction.
+
+```python
+def identify_events(
+    index_timeseries,
+    threshold=-1.0,
+    min_duration=1
+) -> pandas.DataFrame
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI time series (single location) |
+| `threshold` | float | No | -1.0 | Event threshold (negative for drought, positive for wet) |
+| `min_duration` | int | No | 1 | Minimum event duration (months) |
+
+**Returns:**
+- `pandas.DataFrame` with columns:
+  - `event_id`: Event number (1, 2, 3, ...)
+  - `start_date`: Event start
+  - `end_date`: Event end
+  - `duration`: Months
+  - `magnitude`: Cumulative deficit
+  - `intensity`: magnitude / duration
+  - `peak`: Minimum SPI/SPEI value
+  - `peak_date`: When peak occurred
+  - `interarrival`: Months since previous event
+
+**Example:**
+```python
+from runtheory import identify_events
+
+spi_loc = spi.isel(lat=50, lon=100)
+
+# Drought events (negative threshold)
+dry_events = identify_events(spi_loc, threshold=-1.2, min_duration=3)
+print(f"Found {len(dry_events)} drought events")
+
+# Wet events (positive threshold)
+wet_events = identify_events(spi_loc, threshold=+1.2, min_duration=3)
+print(f"Found {len(wet_events)} wet events")
+```
+
+---
+
+### calculate_timeseries()
+
+Create month-by-month climate extreme event monitoring time series. Works for both drought (negative threshold) and wet (positive threshold) conditions.
+
+```python
+def calculate_timeseries(
+    index_timeseries,
+    threshold=-1.0
+) -> pandas.DataFrame
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI time series |
+| `threshold` | float | No | -1.0 | Event threshold (negative for drought, positive for wet) |
+
+**Returns:**
+- `pandas.DataFrame` with columns:
+  - `time`: Date
+  - `index_value`: SPI/SPEI value
+  - `is_event`: Boolean
+  - `event_id`: Current event number (or 0)
+  - `duration`: Current drought duration
+  - `magnitude_cumulative`: Accumulated deficit
+  - `magnitude_instantaneous`: Current month's severity
+  - `intensity`: magnitude_cumulative / duration
+
+**Example:**
+```python
+from runtheory import calculate_timeseries
+
+ts = calculate_timeseries(spi_loc, threshold=-1.2)
+
+# Check current status
+current = ts.iloc[-1]
+if current['is_event']:
+    print(f"IN DROUGHT: {current['duration']} months")
+    print(f"Cumulative magnitude: {current['magnitude_cumulative']:.2f}")
+```
+
+---
+
+### calculate_period_statistics()
+
+Calculate gridded climate extreme event statistics for a time period. Works for both drought (negative threshold) and wet (positive threshold) events.
+
+```python
+def calculate_period_statistics(
+    index_data,
+    threshold=-1.0,
+    start_year=None,
+    end_year=None,
+    min_duration=1
+) -> xarray.Dataset
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI (time, lat, lon) |
+| `threshold` | float | No | -1.0 | Drought threshold |
+| `start_year` | int | No | None | Period start (uses all if None) |
+| `end_year` | int | No | None | Period end (uses all if None) |
+| `min_duration` | int | No | 1 | Minimum event duration |
+
+**Returns:**
+- `xarray.Dataset` with variables (lat, lon):
+  - `num_events`: Event count
+  - `total_event_months`: Total months in drought
+  - `total_magnitude`: Sum of all magnitudes
+  - `mean_magnitude`: Average per event
+  - `max_magnitude`: Largest event
+  - `worst_peak`: Most severe value
+  - `mean_intensity`: Average intensity
+  - `max_intensity`: Maximum intensity
+  - `pct_time_in_event`: Percentage in drought
+
+**Example:**
+```python
+from runtheory import calculate_period_statistics
+
+# Statistics for 2023
+stats_2023 = calculate_period_statistics(
+    spi,
+    threshold=-1.2,
+    start_year=2023,
+    end_year=2023
+)
+
+# Plot
+stats_2023.num_events.plot(title='Drought Events in 2023')
+stats_2023.to_netcdf('output/netcdf/stats_2023.nc')
+```
+
+---
+
+### calculate_annual_statistics()
+
+Calculate period statistics for each year.
+
+```python
+def calculate_annual_statistics(
+    index_data,
+    threshold=-1.0,
+    min_duration=1
+) -> xarray.Dataset
+```
+
+**Parameters:** Same as `calculate_period_statistics()` but no start/end year
+
+**Returns:**
+- `xarray.Dataset` with dimensions (year, lat, lon)
+  - Same variables as period statistics
+  - Additional dimension: `year`
+
+**Example:**
+```python
+from runtheory import calculate_annual_statistics
+
+annual = calculate_annual_statistics(spi, threshold=-1.2)
+
+# Access specific year
+stats_2020 = annual.sel(year=2020)
+
+# Time series of regional average
+regional_avg = annual.num_events.mean(dim=['lat', 'lon'])
+regional_avg.plot()
+```
+
+---
+
+### compare_periods()
+
+Compare drought statistics across multiple time periods.
+
+```python
+def compare_periods(
+    index_data,
+    periods,
+    period_names=None,
+    threshold=-1.0,
+    min_duration=1
+) -> xarray.Dataset
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI |
+| `periods` | list of tuples | Yes | - | [(start1, end1), (start2, end2), ...] |
+| `period_names` | list of str | No | None | Names for each period |
+| `threshold` | float | No | -1.0 | Drought threshold |
+| `min_duration` | int | No | 1 | Minimum event duration |
+
+**Returns:**
+- `xarray.Dataset` with dimensions (period, lat, lon)
+  - Same variables as period statistics
+  - Additional dimension: `period`
+
+**Example:**
+```python
+from runtheory import compare_periods
+
+comparison = compare_periods(
+    spi,
+    periods=[(1991, 2020), (2021, 2024)],
+    period_names=['Historical', 'Recent'],
+    threshold=-1.2
+)
+
+# Calculate change
+diff = comparison.sel(period='Recent') - comparison.sel(period='Historical')
+diff.num_events.plot(title='Change in Events', cmap='RdBu_r')
+```
+
+---
+
+### summarize_events()
+
+Calculate summary statistics from events DataFrame.
+
+```python
+def summarize_events(
+    events_df
+) -> dict
+```
+
+**Parameters:**
+- `events_df` (pandas.DataFrame): Output from `identify_events()`
+
+**Returns:**
+- `dict` with keys:
+  - `num_events`: Total count
+  - `mean_duration`: Average duration
+  - `max_duration`: Longest event
+  - `mean_magnitude`: Average magnitude
+  - `max_magnitude`: Largest magnitude
+  - `most_severe_peak`: Worst peak value
+  - `mean_interarrival`: Average time between events
+
+**Example:**
+```python
+from runtheory import identify_events, summarize_events
+
+events = identify_events(spi_loc, threshold=-1.2)
+summary = summarize_events(events)
+print(f"Total events: {summary['num_events']}")
+print(f"Mean duration: {summary['mean_duration']:.1f} months")
+```
+
+---
+
+## Module: visualization
+
+### plot_index()
+
+Plot drought index time series with color-coded severity.
+
+```python
+def plot_index(
+    index_timeseries,
+    threshold=-1.0,
+    title=None,
+    ax=None,
+    figsize=(14, 6)
+) -> matplotlib.figure.Figure
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI data |
+| `threshold` | float | No | -1.0 | Drought threshold line |
+| `title` | str | No | None | Plot title |
+| `ax` | matplotlib.axes.Axes | No | None | Existing axes |
+| `figsize` | tuple | No | (14, 6) | Figure size |
+
+**Returns:**
+- `matplotlib.figure.Figure`: Figure object
+
+**Example:**
+```python
+from visualization import plot_index
+
+plot_index(spi_loc, threshold=-1.2,
+                   title='SPI-12 Time Series')
+plt.savefig('output/plots/single/spi_timeseries.png', dpi=300)
+```
+
+---
+
+### plot_events()
+
+Plot time series with individual events highlighted.
+
+```python
+def plot_events(
+    index_timeseries,
+    events_df,
+    threshold=-1.0,
+    title=None,
+    ax=None,
+    figsize=(14, 6)
+) -> matplotlib.figure.Figure
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | Index data |
+| `events_df` | pandas.DataFrame | Yes | - | From `identify_events()` |
+| `threshold` | float | No | -1.0 | Threshold line |
+| `title` | str | No | None | Plot title |
+| `ax` | matplotlib.axes.Axes | No | None | Existing axes |
+| `figsize` | tuple | No | (14, 6) | Figure size |
+
+**Returns:**
+- `matplotlib.figure.Figure`
+
+**Example:**
+```python
+from visualization import plot_events
+
+events = identify_events(spi_loc, threshold=-1.2)
+plot_events(spi_loc, events, threshold=-1.2)
+plt.savefig(f'output/plots/single/events_lat{lat}_lon{lon}.png')
+```
+
+---
+
+### plot_event_timeline()
+
+Create 5-panel plot showing drought evolution.
+
+```python
+def plot_event_timeline(
+    timeseries_df,
+    title=None,
+    figsize=(14, 12)
+) -> matplotlib.figure.Figure
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `timeseries_df` | pandas.DataFrame | Yes | - | From `calculate_timeseries()` |
+| `title` | str | No | None | Main title |
+| `figsize` | tuple | No | (14, 12) | Figure size |
+
+**Returns:**
+- `matplotlib.figure.Figure` with 5 panels:
+  1. Index value
+  2. Duration
+  3. Magnitude (cumulative) - blue
+  4. Magnitude (instantaneous) - red
+  5. Intensity
+
+**Example:**
+```python
+from visualization import plot_event_timeline
+
+ts = calculate_timeseries(spi_loc, threshold=-1.2)
+plot_event_timeline(ts, title='Drought Evolution')
+plt.savefig('output/plots/single/timeline.png', dpi=300)
+```
+
+---
+
+### plot_spatial_stats()
+
+Plot spatial map of drought statistics.
+
+```python
+def plot_spatial_stats(
+    stats_dataset,
+    variable='num_events',
+    title=None,
+    cmap=None,
+    figsize=(12, 8)
+) -> matplotlib.figure.Figure
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `stats_dataset` | xarray.Dataset | Yes | - | From `calculate_period_statistics()` |
+| `variable` | str | No | 'num_events' | Variable to plot |
+| `title` | str | No | None | Plot title |
+| `cmap` | str | No | None | Colormap (auto-selected if None) |
+| `figsize` | tuple | No | (12, 8) | Figure size |
+
+**Returns:**
+- `matplotlib.figure.Figure`
+
+**Example:**
+```python
+from visualization import plot_spatial_stats
+
+stats = calculate_period_statistics(spi, start_year=2020, end_year=2024)
+plot_spatial_stats(stats, variable='num_events',
+                           title='Drought Events 2020-2024')
+plt.savefig('output/plots/spatial/stats_2020-2024.png', dpi=300)
+```
+
+---
+
+### generate_location_filename()
+
+Generate consistent filename with location coordinates.
+
+```python
+def generate_location_filename(
+    base_name,
+    lat,
+    lon,
+    extension='png'
+) -> str
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `base_name` | str | Yes | - | File base name |
+| `lat` | float | Yes | - | Latitude |
+| `lon` | float | Yes | - | Longitude |
+| `extension` | str | No | 'png' | File extension |
+
+**Returns:**
+- `str`: Filename like `base_name_lat31.82_lon-7.07.png`
+
+**Example:**
+```python
+from visualization import generate_location_filename
+
+filename = generate_location_filename('drought_events', 31.82, -7.07, 'png')
+# Returns: 'drought_events_lat31.82_lon-7.07.png'
+
+full_path = f'output/plots/single/{filename}'
+plt.savefig(full_path, dpi=300)
+```
+
+---
+
+## Complete Workflow Example
+
+```python
+import sys
+sys.path.insert(0, 'src')
+
+import xarray as xr
+from indices import spi
+from utils import calculate_pet
+from runtheory import (identify_events,
+                       calculate_period_statistics,
+                       compare_periods)
+from visualization import (plot_events,
+                          plot_spatial_stats,
+                          generate_location_filename)
+
+# 1. Load data
+precip = xr.open_dataset('input/chirps.nc')['precip']
+
+# 2. Calculate SPI
+spi_12 = spi(precip, scale=12, calibration_start_year=1991,
+             calibration_end_year=2020)
+spi_12.to_netcdf('output/netcdf/spi_12.nc')
+
+# 3. Single location analysis
+lat_idx, lon_idx = 50, 100
+lat_val = spi_12.lat.values[lat_idx]
+lon_val = spi_12.lon.values[lon_idx]
+spi_loc = spi_12.isel(lat=lat_idx, lon=lon_idx)
+
+events = identify_events(spi_loc, threshold=-1.2, min_duration=3)
+filename = generate_location_filename('drought_events', lat_val, lon_val, 'csv')
+events.to_csv(f'output/csv/{filename}')
+
+# 4. Visualize
+plot_events(spi_loc, events, threshold=-1.2)
+filename = generate_location_filename('plot_events', lat_val, lon_val, 'png')
+plt.savefig(f'output/plots/single/{filename}', dpi=300)
+
+# 5. Gridded statistics
+stats_2023 = calculate_period_statistics(spi_12, threshold=-1.2,
+                                         start_year=2023, end_year=2023)
+stats_2023.to_netcdf('output/netcdf/drought_stats_2023.nc')
+
+plot_spatial_stats(stats_2023, variable='num_events',
+                           title='Drought Events in 2023')
+plt.savefig('output/plots/spatial/stats_2023.png', dpi=300)
+
+# 6. Compare periods
+comparison = compare_periods(
+    spi_12,
+    periods=[(1991, 2020), (2021, 2024)],
+    period_names=['Historical', 'Recent']
+)
+
+diff = comparison.sel(period='Recent') - comparison.sel(period='Historical')
+diff.num_events.plot(title='Change in Drought Events', cmap='RdBu_r')
+plt.savefig('output/plots/spatial/comparison.png', dpi=300)
+```
+
+---
+
+## See Also
+
+- [Implementation Details](implementation.md) - Architecture and optimization
+- [Methodology](methodology.md) - Scientific background
+- [User Guides](../user-guide/) - Detailed usage instructions
