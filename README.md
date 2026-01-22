@@ -85,6 +85,13 @@ All event analysis functions work for **both dry and wet conditions**:
 
 **The threshold direction determines which extreme to analyze** - the same tools work for both ends of the precipitation spectrum!
 
+![Run Theory Concept](./images/runtheory.svg)
+
+**Run Theory Framework:** Events are identified when an index crosses a threshold. This example shows **dry events** (below threshold), but the identical analysis applies to **wet events** (above threshold). Key metrics—Duration (D), Magnitude (M), Intensity (I), and Inter-arrival Time (T)—are calculated the same way for both extremes.
+
+*See [Climate Extremes Analysis Guide](docs/user-guide/runtheory.md) for detailed explanation.*
+
+
 ### Three Analysis Modes
 
 **1. Event-Based** - Identify complete extreme events

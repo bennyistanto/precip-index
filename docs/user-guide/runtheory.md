@@ -18,6 +18,27 @@ Run theory provides a framework for analyzing climate extreme events based on co
 
 The mathematics and event characteristics (duration, magnitude, intensity, peak) work identically for both extremes.
 
+## Run Theory Concept
+
+![Run Theory Illustration](../../images/runtheory.svg)
+
+**Figure 1: Run Theory Applied to Climate Extremes**
+
+This illustration demonstrates run theory using **dry events (drought)** as an example, where events occur when the index falls **below** the threshold (x₀). 
+
+**⚠️ Important:** The same framework applies identically to **wet events (flooding/excess)** by using a **positive** threshold—wet events occur when the index rises **above** the threshold. The mathematics, algorithms, and characteristic calculations remain unchanged.
+
+Key characteristics:
+
+- **Duration (D)**: Length of continuous period beyond threshold (D₁, D₂, D₃)
+- **Magnitude (M)**: Total accumulated deviation from threshold (M₁, M₂, M₃)
+- **Intensity (I)**: Average severity per time unit = M/D
+- **Inter-arrival Time (T)**: Time between consecutive events (T₁, T₂)
+
+The "Wet" and "Dry" regions are labeled to show that both extremes can be analyzed using the same methodology.
+
+---
+
 ## Three Modes of Analysis
 
 ### Mode 1: Event-Based Analysis

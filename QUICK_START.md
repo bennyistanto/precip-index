@@ -117,23 +117,32 @@ params = load_fitting_params('spi_params.nc', scale=12, periodicity='monthly')
 spi_12_fast = spi(new_precip, scale=12, fitting_params=params)
 ```
 
-### 5. Drought Analysis
+### 5. Climate Extremes Event Analysis
+
+Identify and analyze complete extreme events using run theory:
 
 ```python
-from indices import classify_drought, get_drought_area_percentage
+from runtheory import identify_events, calculate_period_statistics
+from visualization import plot_events
 
-# Classify drought severity
-drought_categories = classify_drought(spi_12)
+# Identify drought events (negative threshold)
+spi_location = spi_12.isel(lat=50, lon=100)
+drought_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
 
-# Calculate percentage of area under drought
-drought_area = get_drought_area_percentage(spi_12, threshold=-1.0)
+print(f"Found {len(drought_events)} drought events")
+print(drought_events[['start_date', 'end_date', 'duration', 'magnitude', 'peak']])
 
-# Plot drought area over time
-import matplotlib.pyplot as plt
-drought_area.plot()
-plt.title('Drought Area Percentage (SPI ≤ -1.0)')
-plt.ylabel('Area under drought (%)')
-plt.show()
+# Or identify wet events (positive threshold) - same function!
+wet_events = identify_events(spi_location, threshold=+1.2, min_duration=3)
+
+# Visualize events
+from visualization import plot_events
+plot_events(spi_location, drought_events, threshold=-1.2)
+
+# Gridded statistics for a time period
+stats = calculate_period_statistics(spi_12, threshold=-1.2,
+                                    start_year=2020, end_year=2024)
+stats.num_events.plot(title='Number of Drought Events 2020-2024')
 ```
 
 ## Data Requirements
