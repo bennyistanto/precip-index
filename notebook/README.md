@@ -1,6 +1,6 @@
-# Jupyter Notebooks for SPI and SPEI
+# Jupyter Notebooks for SPI, SPEI, and Climate Extremes Analysis
 
-This directory contains example Jupyter notebooks demonstrating how to calculate Standardized Precipitation Index (SPI) and Standardized Precipitation Evapotranspiration Index (SPEI) using the `precip-index` package.
+This directory contains example Jupyter notebooks demonstrating how to calculate climate indices (SPI, SPEI) and analyze extreme events (both drought and flooding) using the `precip-index` package.
 
 ## Notebooks
 
@@ -21,6 +21,23 @@ Complete tutorial for calculating SPEI (Standardized Precipitation Evapotranspir
 - Using pre-computed PET vs calculating from temperature
 - Advanced visualization techniques
 - Comparing SPI vs SPEI results
+
+### 03_event_characteristics.ipynb
+Climate extremes event analysis using run theory:
+- Identifying extreme events (both drought and wet conditions)
+- Calculating event characteristics: duration, magnitude, intensity, peak
+- Time-series monitoring with varying characteristics
+- Period statistics for decision-making (gridded analysis)
+- Event comparison and trend analysis
+- Works for both dry (negative threshold) and wet (positive threshold) events
+
+### 04_visualization_gallery.ipynb
+Comprehensive visualization examples for climate extremes:
+- Event timeline plots with highlighted events
+- Spatial maps of drought/wet characteristics
+- Event characteristic analysis plots
+- Period comparison visualizations
+- All plot types demonstrated with both dry and wet examples
 
 ## Getting Started
 
@@ -63,47 +80,82 @@ jupyter notebook
 
 2. Navigate to the `notebook/` directory
 
-3. Open either:
-   - `01_calculate_spi.ipynb` for SPI examples
-   - `02_calculate_spei.ipynb` for SPEI examples
+3. Open any notebook:
+   - `01_calculate_spi.ipynb` - SPI calculation basics
+   - `02_calculate_spei.ipynb` - SPEI with temperature
+   - `03_event_characteristics.ipynb` - Climate extremes analysis
+   - `04_visualization_gallery.ipynb` - All visualization examples
 
 4. Run cells sequentially (Shift + Enter)
 
+**Recommended Learning Path:**
+1. Start with **01** (SPI basics)
+2. Then **02** (SPEI with PET)
+3. Move to **03** (event analysis)
+4. Explore **04** (visualization gallery)
+
+## Run Theory for Climate Extremes
+
+The notebooks demonstrate **run theory**, a framework for identifying and analyzing climate extreme events. This methodology works for **both dry (drought) and wet (flooding/excess) conditions**.
+
+![Run Theory Framework](../images/runtheory.svg)
+
+**Run Theory Framework:** Events are identified when an index crosses a threshold. This example shows **dry events** (below threshold), but the identical analysis applies to **wet events** (above threshold). Key metrics—Duration (D), Magnitude (M), Intensity (I), and Inter-arrival Time (T)—are calculated the same way for both extremes.
+
+### Bidirectional Application
+
+| Extreme Type | Threshold | Example | Notebooks |
+|--------------|-----------|---------|-----------|
+| **Drought (Dry)** | Negative (e.g., -1.2) | SPI/SPEI < 0 | 01, 02, 03, 04 |
+| **Flooding (Wet)** | Positive (e.g., +1.2) | SPI/SPEI > 0 | 03, 04 |
+
+**💡 Key Point:** The same functions and analysis work for both extremes - only the threshold sign changes!
+
+For detailed methodology, see [../docs/user-guide/runtheory.md](../docs/user-guide/runtheory.md)
+
+---
+
 ## Key Features Demonstrated
 
-### Basic Operations
+### Climate Indices (Notebooks 01-02)
 - ✅ Loading NetCDF climate data
-- ✅ Single-scale index calculation
-- ✅ Multi-scale index calculation
+- ✅ Single-scale and multi-scale index calculation
 - ✅ Parameter saving and reuse
-
-### Advanced Features
 - ✅ CF Convention compliance checking
 - ✅ Custom calibration periods
+- ✅ Drought classification (McKee et al., 1993)
+
+### Climate Extremes Analysis (Notebooks 03-04)
+- ✅ Event identification (both drought and wet conditions)
+- ✅ Duration, magnitude, intensity, peak calculation
+- ✅ Time-series monitoring with varying characteristics
+- ✅ Period statistics (gridded analysis for decision-making)
+- ✅ Event comparison and trend analysis
+- ✅ Comprehensive visualization suite
+
+### Technical Features (All Notebooks)
 - ✅ Parallel processing for gridded data
 - ✅ Memory-efficient processing with Dask
-
-### Analysis & Visualization
-- ✅ Time series plotting
-- ✅ Spatial maps with Cartopy
-- ✅ Drought classification (McKee et al., 1993)
-- ✅ Drought area percentage time series
-- ✅ Comparative analysis (SPI vs SPEI)
+- ✅ Time series and spatial visualization
+- ✅ Comparative analysis (SPI vs SPEI, dry vs wet)
 
 ## Directory Structure
 
 ```
 notebook/
-├── README.md                      # This file
-├── 01_calculate_spi.ipynb         # SPI tutorial
-├── 02_calculate_spei.ipynb        # SPEI tutorial
-├── data/                          # Sample data (optional, git-ignored)
+├── README.md                           # This file
+├── 01_calculate_spi.ipynb              # SPI calculation tutorial
+├── 02_calculate_spei.ipynb             # SPEI calculation tutorial
+├── 03_event_characteristics.ipynb      # Climate extremes analysis (run theory)
+├── 04_visualization_gallery.ipynb      # Visualization examples
+├── data/                               # Sample data (optional, git-ignored)
 │   ├── precip_sample.nc
 │   ├── temp_sample.nc
 │   └── pet_sample.nc
-└── output/                        # Output files (git-ignored)
-    ├── spi_results/
-    └── spei_results/
+└── output/                             # Output files (git-ignored)
+    ├── csv/                            # Event analysis results
+    ├── netcdf/                         # Gridded statistics
+    └── figures/                        # Plots and visualizations
 ```
 
 ## Tips
@@ -135,11 +187,26 @@ ds = xr.open_dataset('large_file.nc', chunks={'time': 12, 'lat': 200, 'lon': 200
 # Verify CF Convention dimension order: (time, lat, lon)
 ```
 
+## Learn More
+
+**Documentation:**
+- [Run Theory Guide](../docs/user-guide/runtheory.md) - Complete framework explanation
+- [SPI Guide](../docs/user-guide/spi.md) - SPI calculation details
+- [SPEI Guide](../docs/user-guide/spei.md) - SPEI methodology
+- [Magnitude Explained](../docs/user-guide/magnitude.md) - Cumulative vs instantaneous
+- [Visualization Guide](../docs/user-guide/visualization.md) - All plot types
+
+**Quick References:**
+- [../QUICK_START.md](../QUICK_START.md) - Quick start examples
+- [../README.md](../README.md) - Main package overview
+
 ## References
 
 - McKee, T.B., Doesken, N.J., & Kleist, J. (1993). The relationship of drought frequency and duration to time scales. *8th Conference on Applied Climatology*.
 
 - Vicente-Serrano, S.M., Beguería, S., & López-Moreno, J.I. (2010). A Multiscalar Drought Index Sensitive to Global Warming: The Standardized Precipitation Evapotranspiration Index. *Journal of Climate*, 23(7), 1696-1718.
+
+- Yevjevich, V. (1967). An objective approach to definitions and investigations of continental hydrologic droughts. Hydrology Papers 23, Colorado State University.
 
 ## Support
 
