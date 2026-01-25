@@ -3,6 +3,8 @@
 Run all integration tests for precip-index package.
 
 This script executes all test files in sequence and provides a summary.
+
+Tests use TerraClimate Bali data (1958-2024) from input/ folder.
 """
 
 import sys
@@ -33,15 +35,15 @@ def run_test(test_file):
         elapsed = time.time() - start_time
 
         if result.returncode == 0:
-            print(f"\n✅ PASSED ({elapsed:.1f}s)")
+            print(f"\n[OK] PASSED ({elapsed:.1f}s)")
             return True
         else:
-            print(f"\n❌ FAILED ({elapsed:.1f}s)")
+            print(f"\n[X] FAILED ({elapsed:.1f}s)")
             return False
 
     except Exception as e:
         elapsed = time.time() - start_time
-        print(f"\n❌ ERROR ({elapsed:.1f}s): {e}")
+        print(f"\n[X] ERROR ({elapsed:.1f}s): {e}")
         return False
 
 def main():
@@ -49,13 +51,35 @@ def main():
     print("\n" + "="*70)
     print("PRECIP-INDEX TEST SUITE")
     print("="*70)
-    print("Running all integration tests...\n")
+    print("Running all integration tests...")
+    print("Dataset: TerraClimate Bali (1958-2024)")
+    print("Source: input/ folder\n")
+
+    # Check input data exists
+    required_files = [
+        'input/terraclimate_bali_ppt_1958_2024.nc',
+        'input/terraclimate_bali_tmean_1958_2024.nc',
+        'input/terraclimate_bali_pet_1958_2024.nc'
+    ]
+
+    print("Checking input data files...")
+    for file in required_files:
+        file_path = os.path.join(os.path.dirname(__file__), '..', file)
+        if os.path.exists(file_path):
+            size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            print(f"  [OK] {file} ({size_mb:.1f} MB)")
+        else:
+            print(f"  [X] {file} NOT FOUND!")
+            print(f"\nERROR: Required input data missing.")
+            print(f"Please ensure TerraClimate Bali data is in the input/ folder.")
+            sys.exit(1)
 
     # Define test files
     tests = [
         'tests/test_spi.py',
         'tests/test_spei_with_pet.py',
-        'tests/test_drought_characteristics.py'
+        'tests/test_drought_characteristics.py',
+        'tests/test_complete_analysis.py'
     ]
 
     # Track results
@@ -79,7 +103,7 @@ def main():
     failed = len(results) - passed
 
     for test_name, success in results.items():
-        status = "✅ PASSED" if success else "❌ FAILED"
+        status = "[OK] PASSED" if success else "[X] FAILED"
         print(f"{status:12s} - {test_name}")
 
     print("-"*70)
@@ -89,10 +113,12 @@ def main():
 
     # Exit with appropriate code
     if failed > 0:
-        print(f"\n❌ {failed} test(s) failed")
+        print(f"\n[X] {failed} test(s) failed")
         sys.exit(1)
     else:
-        print("\n✅ All tests passed!")
+        print("\n[OK] All tests passed!")
+        print("\nAll test outputs created in:")
+        print("  - test_output/ - NetCDF files, plots, and test results")
         sys.exit(0)
 
 if __name__ == '__main__':

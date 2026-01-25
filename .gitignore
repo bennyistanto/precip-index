@@ -124,8 +124,8 @@ dmypy.json
 .pyre/
 
 # NetCDF and data files
-*.nc
-*.nc4
+# *.nc
+# *.nc4
 *.hdf
 *.h5
 *.grib
@@ -135,12 +135,14 @@ dmypy.json
 *.geotiff
 
 # Output directories
-output/
+# output/
 results/
 figures/
 temp/
 tmp/
 temp_md/
+temp_ipynb/
+test_output/
 
 # IDE settings
 .vscode/

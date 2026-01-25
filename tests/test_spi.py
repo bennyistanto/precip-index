@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Test script for SPI calculation with CHIRPS data
+Test script for SPI calculation with TerraClimate Bali data
 """
 
 import sys
@@ -21,13 +21,13 @@ import xarray as xr
 from indices import spi, spi_multi_scale, save_index_to_netcdf
 
 print("=" * 80)
-print("SPI Calculation Test with CHIRPS Data")
+print("SPI Calculation Test with TerraClimate Bali Data")
 print("=" * 80)
 
 # Load data
-print("\n1. Loading CHIRPS data...")
+print("\n1. Loading TerraClimate precipitation data...")
 try:
-    ds = xr.open_dataset('input/mar_cli_chirps3_month1_1981_2024c.nc')
+    ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
     print("   [OK] Data loaded successfully")
 
     # Display dataset info
@@ -35,8 +35,8 @@ try:
     print(f"   Variables: {list(ds.data_vars)}")
     print(f"   Coordinates: {list(ds.coords)}")
 
-    # Try to identify precipitation variable
-    precip_var_names = ['precip', 'precipitation', 'prcp', 'pr', 'rain', 'rainfall']
+    # Identify precipitation variable
+    precip_var_names = ['ppt', 'precip', 'precipitation', 'prcp', 'pr', 'rain', 'rainfall']
     precip_var = None
 
     for var_name in ds.data_vars:
@@ -99,8 +99,9 @@ try:
     print(f"   Std: {float(spi_3.std()):.3f}")
 
     # Save result
-    save_index_to_netcdf(spi_3, 'output/spi_3_chirps.nc', compress=True)
-    print("   [OK] Saved to: output/spi_3_chirps.nc")
+    os.makedirs('test_output', exist_ok=True)
+    save_index_to_netcdf(spi_3, 'test_output/spi_3_bali_test.nc', compress=True)
+    print("   [OK] Saved to: test_output/spi_3_bali_test.nc")
 
 except Exception as e:
     print(f"   [ERROR] Error calculating SPI-3: {e}")
@@ -132,8 +133,8 @@ try:
             print(f"     Mean: {float(spi_data.mean()):.3f}")
 
     # Save results
-    save_index_to_netcdf(spi_multi, 'output/spi_multi_chirps.nc', compress=True)
-    print("\n   [OK] Saved to: output/spi_multi_chirps.nc")
+    save_index_to_netcdf(spi_multi, 'test_output/spi_multi_bali_test.nc', compress=True)
+    print("\n   [OK] Saved to: test_output/spi_multi_bali_test.nc")
 
 except Exception as e:
     print(f"   [ERROR] Error calculating multi-scale SPI: {e}")
@@ -142,5 +143,8 @@ except Exception as e:
     sys.exit(1)
 
 print("\n" + "=" * 80)
-print("[OK] All tests completed successfully!")
+print("[OK] All SPI tests completed successfully!")
 print("=" * 80)
+print("\nDataset: TerraClimate Bali (1958-2024)")
+print("Location: Bali, Indonesia")
+print("Grid size: 3x4 cells (~4km resolution)")
