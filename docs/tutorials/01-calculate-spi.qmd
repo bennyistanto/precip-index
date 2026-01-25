@@ -56,8 +56,15 @@ from indices import spi, spi_multi_scale, save_index_to_netcdf
 from indices import save_fitting_params, load_fitting_params
 from visualization import plot_index
 
+# Create output directories
+output_plots = repo_root / 'output' / 'plots'
+output_netcdf = repo_root / 'output' / 'netcdf'
+output_plots.mkdir(parents=True, exist_ok=True)
+output_netcdf.mkdir(parents=True, exist_ok=True)
+
 print("✓ All imports successful!")
 print(f"Repository root: {repo_root}")
+print(f"Output directories: {output_plots}, {output_netcdf}")
 ```
 
 ## Step 1: Load Precipitation Data
@@ -131,7 +138,7 @@ fig = plot_index(
     title='SPI-3 Time Series - Bali, Indonesia'
 )
 plt.tight_layout()
-plt.savefig('output/plots/spi_3_timeseries.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_3_timeseries.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -203,7 +210,7 @@ for ax, spi_data, scale in zip(axes, [spi_3_ts, spi_6_ts, spi_9_ts, spi_12_ts], 
 
 axes[-1].set_xlabel('Time')
 plt.tight_layout()
-plt.savefig('output/plots/spi_multi_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_multi_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -212,16 +219,13 @@ plt.show()
 Save the calculated SPI to NetCDF files:
 
 ```{python}
-# Create output directory
-os.makedirs('output/netcdf', exist_ok=True)
-
 # Save single-scale SPI
-save_index_to_netcdf(spi_3, 'output/netcdf/spi_3_bali.nc', compress=True)
-print("✓ Saved SPI-3 to output/netcdf/spi_3_bali.nc")
+save_index_to_netcdf(spi_3, output_netcdf / 'spi_3_bali.nc', compress=True)
+print(f"✓ Saved SPI-3 to {output_netcdf / 'spi_3_bali.nc'}")
 
 # Save multi-scale SPI
-save_index_to_netcdf(spi_multi, 'output/netcdf/spi_multi_scale_bali.nc', compress=True)
-print("✓ Saved multi-scale SPI to output/netcdf/spi_multi_scale_bali.nc")
+save_index_to_netcdf(spi_multi, output_netcdf / 'spi_multi_scale_bali.nc', compress=True)
+print(f"✓ Saved multi-scale SPI to {output_netcdf / 'spi_multi_scale_bali.nc'}")
 ```
 
 ## Step 7: Save & Reuse Parameters
@@ -240,10 +244,9 @@ spi_12, params = spi(
 )
 
 # Save parameters
-os.makedirs('output/netcdf', exist_ok=True)
 save_fitting_params(
     params,
-    'output/netcdf/spi_gamma_params_12_month_bali.nc',
+    output_netcdf / 'spi_gamma_params_12_month_bali.nc',
     scale=12,
     periodicity='monthly',
     index_type='spi',
@@ -327,7 +330,7 @@ spi_multi = spi_multi_scale(
 )
 
 # Save results
-save_index_to_netcdf(spi_multi, 'output/netcdf/spi_multi_scale_bali.nc', compress=True)
+save_index_to_netcdf(spi_multi, output_netcdf / 'spi_multi_scale_bali.nc', compress=True)
 
 print("✓ SPI calculation complete!")
 print(f"Variables: {list(spi_multi.data_vars)}")

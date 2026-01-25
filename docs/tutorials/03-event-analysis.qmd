@@ -72,6 +72,13 @@ from visualization import plot_events, plot_event_timeline
 
 print("✓ Imports successful!")
 print(f"Repository root: {repo_root}")
+# Create output directories
+output_plots = repo_root / 'output' / 'plots'
+output_netcdf = repo_root / 'output' / 'netcdf'
+output_plots.mkdir(parents=True, exist_ok=True)
+output_netcdf.mkdir(parents=True, exist_ok=True)
+
+print(f"Repository root: {repo_root}")
 ```
 
 ## Step 1: Load SPI Data
@@ -208,7 +215,7 @@ ax2.set_title('Event Magnitude Distribution')
 ax2.legend()
 
 plt.tight_layout()
-plt.savefig('repo_root / 'output' /plots/dry_vs_wet_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'dry_vs_wet_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -249,7 +256,7 @@ fig = plot_events(
     title='Drought Events - Bali, Indonesia'
 )
 plt.tight_layout()
-plt.savefig('repo_root / 'output' /plots/drought_events_timeline.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'drought_events_timeline.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -259,7 +266,7 @@ plt.show()
 # Plot 5-panel event evolution
 fig = plot_event_timeline(ts)
 plt.tight_layout()
-plt.savefig('repo_root / 'output' /plots/event_evolution_timeline.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'event_evolution_timeline.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 :::
@@ -298,7 +305,7 @@ stats.pct_time_in_event.plot(ax=axes[1,1], cmap='YlOrRd')
 axes[1,1].set_title('% Time in Drought')
 
 plt.tight_layout()
-plt.savefig('repo_root / 'output' /plots/drought_statistics_2020-2024.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'drought_statistics_2020-2024.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -341,9 +348,6 @@ print("="*50)
 Save events to CSV for further analysis:
 
 ```{python}
-# Create output directory
-os.makedirs('repo_root / 'output' /csv', exist_ok=True)
-
 # Save drought events
 drought_events.to_csv('repo_root / 'output' /csv/drought_events_bali.csv', index=False)
 print("✓ Saved drought events to repo_root / 'output' /csv/drought_events_bali.csv")

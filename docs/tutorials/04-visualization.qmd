@@ -68,6 +68,13 @@ spi_location = spi_12.isel(lat=12, lon=17)
 
 print("✓ Setup complete!")
 print(f"Repository root: {repo_root}")
+# Create output directories
+output_plots = repo_root / 'output' / 'plots'
+output_netcdf = repo_root / 'output' / 'netcdf'
+output_plots.mkdir(parents=True, exist_ok=True)
+output_netcdf.mkdir(parents=True, exist_ok=True)
+
+print(f"Repository root: {repo_root}")
 ```
 
 ## Plot Type 1: Index Time Series
@@ -85,7 +92,7 @@ fig = plot_index(
     title='SPI-12 Time Series - Bali, Indonesia'
 )
 plt.tight_layout()
-plt.savefig('output/plots/spi_basic.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_basic.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -100,7 +107,7 @@ fig = plot_index(
     figsize=(16, 6)
 )
 plt.tight_layout()
-plt.savefig('output/plots/spi_custom.png', dpi=300, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_custom.png', dpi=300, bbox_inches='tight')
 plt.show()
 ```
 
@@ -115,7 +122,7 @@ fig = plot_index(
     title='SPI-12: Recent Trends (2010-2024)'
 )
 plt.tight_layout()
-plt.savefig('output/plots/spi_recent.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_recent.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 :::
@@ -136,7 +143,7 @@ fig = plot_events(
     title='Drought Events - Bali, Indonesia (1958-2024)'
 )
 plt.tight_layout()
-plt.savefig('output/plots/drought_events_highlighted.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'drought_events_highlighted.png', dpi=150, bbox_inches='tight')
 plt.show()
 
 print(f"Highlighted {len(drought_events)} events")
@@ -192,7 +199,7 @@ axes[1,1].set_title('Magnitude Distribution')
 axes[1,1].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('output/plots/event_characteristics.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'event_characteristics.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -207,7 +214,7 @@ ts = calculate_timeseries(spi_location, threshold=-1.2)
 # Create 5-panel evolution plot
 fig = plot_event_timeline(ts)
 plt.tight_layout()
-plt.savefig('output/plots/event_evolution_5panel.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'event_evolution_5panel.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -291,7 +298,7 @@ plot_spatial_stats(
 )
 
 plt.tight_layout()
-plt.savefig('output/plots/spatial_statistics.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spatial_statistics.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -316,7 +323,7 @@ for ax, spi_data, scale in zip(axes, [spi_3, spi_6, spi_12], [3, 6, 12]):
 
 axes[-1].set_xlabel('Time')
 plt.tight_layout()
-plt.savefig('output/plots/multiscale_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'multiscale_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -342,7 +349,7 @@ plot_events(spi_location, wet_events, threshold=+1.2,
 
 ax2.set_xlabel('Time')
 plt.tight_layout()
-plt.savefig('output/plots/dry_vs_wet_events.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'dry_vs_wet_events.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -366,12 +373,12 @@ ax.spines['right'].set_visible(False)
 
 # Save at publication quality
 plt.tight_layout()
-plt.savefig('output/plots/publication_quality.png',
+plt.savefig(output_plots / 'publication_quality.png',
             dpi=300,
             bbox_inches='tight',
             facecolor='white',
             edgecolor='none')
-plt.savefig('output/plots/publication_quality.pdf',  # Vector format
+plt.savefig(output_plots / 'publication_quality.pdf',  # Vector format
             bbox_inches='tight')
 plt.show()
 

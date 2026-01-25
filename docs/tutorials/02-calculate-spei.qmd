@@ -171,7 +171,7 @@ ax.set_title('SPEI-6 Comparison: Pre-computed vs Thornthwaite PET')
 ax.legend()
 ax.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig('output/plots/spei_pet_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spei_pet_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -202,7 +202,7 @@ precip_mean.plot(ax=ax2, cmap='Blues')
 ax2.set_title('Mean Annual Precipitation (mm/month)')
 
 plt.tight_layout()
-plt.savefig('output/plots/pet_vs_precipitation_maps.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'pet_vs_precipitation_maps.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -262,7 +262,7 @@ ax3.set_title('Impact of Evapotranspiration')
 ax3.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('output/plots/spi_vs_spei_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig(output_plots / 'spi_vs_spei_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -322,10 +322,9 @@ Save SPEI to NetCDF files:
 
 ```{python}
 # Create output directory
-os.makedirs('output/netcdf', exist_ok=True)
 
 # Save SPEI-6
-save_index_to_netcdf(spei_6_with_temp, 'output/netcdf/spei_6_bali.nc', compress=True)
+save_index_to_netcdf(spei_6_with_temp, output_netcdf / 'spei_6_bali.nc', compress=True)
 print("✓ Saved SPEI-6")
 
 # Save multi-scale SPEI as dataset
@@ -333,7 +332,7 @@ spei_multi_ds = xr.Dataset({
     f'spei_gamma_{scale}_month': spei_results[scale]
     for scale in scales
 })
-save_index_to_netcdf(spei_multi_ds, 'output/netcdf/spei_multi_scale_bali.nc', compress=True)
+save_index_to_netcdf(spei_multi_ds, output_netcdf / 'spei_multi_scale_bali.nc', compress=True)
 print("✓ Saved multi-scale SPEI")
 
 # Save computed PET for reference
