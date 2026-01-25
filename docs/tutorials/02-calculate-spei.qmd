@@ -64,7 +64,15 @@ from indices import spei, save_index_to_netcdf
 from utils import calculate_pet
 from visualization import plot_index
 
+# Create output directories
+output_plots = repo_root / 'output' / 'plots'
+output_netcdf = repo_root / 'output' / 'netcdf'
+output_plots.mkdir(parents=True, exist_ok=True)
+output_netcdf.mkdir(parents=True, exist_ok=True)
+
 print("✓ All imports successful!")
+print(f"Repository root: {repo_root}")
+print(f"Output directories: {output_plots}, {output_netcdf}")
 ```
 
 ## Step 1: Load Data
