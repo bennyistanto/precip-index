@@ -259,7 +259,7 @@ print("✓ Saved parameters to output/netcdf/spi_gamma_params_12_month_bali.nc")
 ```{python}
 # Load saved parameters
 params_loaded = load_fitting_params(
-    'output/netcdf/spi_gamma_params_12_month_bali.nc',
+    output_netcdf / 'spi_gamma_params_12_month_bali.nc',
     scale=12,
     periodicity='monthly'
 )
