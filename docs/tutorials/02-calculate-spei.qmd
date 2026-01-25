@@ -41,9 +41,19 @@ SPEI is more sensitive to temperature increases and climate change impacts.
 ```{python}
 import sys
 import os
+from pathlib import Path
 
-# Add src directory to path (relative to docs/)
-sys.path.insert(0, os.path.abspath('../src'))
+# Get the notebook directory and find the repository root
+notebook_dir = Path.cwd()
+# Go up to repo root (from docs/tutorials/ or wherever we are)
+repo_root = notebook_dir
+while not (repo_root / 'src').exists() and repo_root != repo_root.parent:
+    repo_root = repo_root.parent
+
+# Add src to path
+src_path = str(repo_root / 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 import numpy as np
 import xarray as xr
@@ -63,15 +73,15 @@ Load precipitation, temperature, and PET data:
 
 ```{python}
 # Load precipitation
-ds_ppt = xr.open_dataset('../input/terraclimate_bali_ppt_1958_2024.nc')
+ds_ppt = xr.open_dataset(repo_root / 'input' / 'terraclimate_bali_ppt_1958_2024.nc')
 precip = ds_ppt['ppt']
 
 # Load temperature
-ds_temp = xr.open_dataset('../input/terraclimate_bali_tmean_1958_2024.nc')
+ds_temp = xr.open_dataset(repo_root / 'input' / 'terraclimate_bali_tmean_1958_2024.nc')
 temperature = ds_temp['tmean']
 
 # Load pre-computed PET (from TerraClimate)
-ds_pet = xr.open_dataset('../input/terraclimate_bali_pet_1958_2024.nc')
+ds_pet = xr.open_dataset(repo_root / 'input' / 'terraclimate_bali_pet_1958_2024.nc')
 pet_precomputed = ds_pet['pet']
 
 print("Data loaded successfully!")

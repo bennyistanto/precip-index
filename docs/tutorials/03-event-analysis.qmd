@@ -45,13 +45,22 @@ This goes beyond simple threshold exceedance by capturing the full evolution of 
 ```{python}
 import sys
 import os
+from pathlib import Path
 
-# Add src directory to path (relative to docs/)
-sys.path.insert(0, os.path.abspath('../src'))
+# Get the notebook directory and find the repository root
+notebook_dir = Path.cwd()
+# Go up to repo root (from docs/tutorials/ or wherever we are)
+repo_root = notebook_dir
+while not (repo_root / 'src').exists() and repo_root != repo_root.parent:
+    repo_root = repo_root.parent
+
+# Add src to path
+src_path = str(repo_root / 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 import xarray as xr
 import matplotlib.pyplot as plt
-import os
 
 from runtheory import (
     identify_events,
@@ -62,6 +71,7 @@ from runtheory import (
 from visualization import plot_events, plot_event_timeline
 
 print("✓ Imports successful!")
+print(f"Repository root: {repo_root}")
 ```
 
 ## Step 1: Load SPI Data
@@ -70,7 +80,7 @@ Load previously calculated SPI-12 data:
 
 ```{python}
 # Load SPI-12
-ds = xr.open_dataset('../output/netcdf/spi_12_bali.nc')
+ds = xr.open_dataset('repo_root / 'output' /netcdf/spi_12_bali.nc')
 spi_12 = ds['spi_gamma_12_month']
 
 # Extract time series for a location
@@ -198,7 +208,7 @@ ax2.set_title('Event Magnitude Distribution')
 ax2.legend()
 
 plt.tight_layout()
-plt.savefig('../output/plots/dry_vs_wet_comparison.png', dpi=150, bbox_inches='tight')
+plt.savefig('repo_root / 'output' /plots/dry_vs_wet_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -239,7 +249,7 @@ fig = plot_events(
     title='Drought Events - Bali, Indonesia'
 )
 plt.tight_layout()
-plt.savefig('../output/plots/drought_events_timeline.png', dpi=150, bbox_inches='tight')
+plt.savefig('repo_root / 'output' /plots/drought_events_timeline.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -249,7 +259,7 @@ plt.show()
 # Plot 5-panel event evolution
 fig = plot_event_timeline(ts)
 plt.tight_layout()
-plt.savefig('../output/plots/event_evolution_timeline.png', dpi=150, bbox_inches='tight')
+plt.savefig('repo_root / 'output' /plots/event_evolution_timeline.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 :::
@@ -288,7 +298,7 @@ stats.pct_time_in_event.plot(ax=axes[1,1], cmap='YlOrRd')
 axes[1,1].set_title('% Time in Drought')
 
 plt.tight_layout()
-plt.savefig('../output/plots/drought_statistics_2020-2024.png', dpi=150, bbox_inches='tight')
+plt.savefig('repo_root / 'output' /plots/drought_statistics_2020-2024.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
 
@@ -332,19 +342,19 @@ Save events to CSV for further analysis:
 
 ```{python}
 # Create output directory
-os.makedirs('../output/csv', exist_ok=True)
+os.makedirs('repo_root / 'output' /csv', exist_ok=True)
 
 # Save drought events
-drought_events.to_csv('../output/csv/drought_events_bali.csv', index=False)
-print("✓ Saved drought events to ../output/csv/drought_events_bali.csv")
+drought_events.to_csv('repo_root / 'output' /csv/drought_events_bali.csv', index=False)
+print("✓ Saved drought events to repo_root / 'output' /csv/drought_events_bali.csv")
 
 # Save wet events
-wet_events.to_csv('../output/csv/wet_events_bali.csv', index=False)
-print("✓ Saved wet events to ../output/csv/wet_events_bali.csv")
+wet_events.to_csv('repo_root / 'output' /csv/wet_events_bali.csv', index=False)
+print("✓ Saved wet events to repo_root / 'output' /csv/wet_events_bali.csv")
 
 # Save time series
-ts.to_csv('../output/csv/drought_timeseries_bali.csv')
-print("✓ Saved time series to ../output/csv/drought_timeseries_bali.csv")
+ts.to_csv('repo_root / 'output' /csv/drought_timeseries_bali.csv')
+print("✓ Saved time series to repo_root / 'output' /csv/drought_timeseries_bali.csv")
 ```
 
 ## Summary

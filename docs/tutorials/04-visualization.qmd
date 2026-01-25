@@ -34,13 +34,22 @@ This tutorial showcases all visualization functions for creating publication-qua
 ```{python}
 import sys
 import os
+from pathlib import Path
 
-# Add src directory to path (relative to docs/)
-sys.path.insert(0, os.path.abspath('../src'))
+# Get the notebook directory and find the repository root
+notebook_dir = Path.cwd()
+# Go up to repo root (from docs/tutorials/ or wherever we are)
+repo_root = notebook_dir
+while not (repo_root / 'src').exists() and repo_root != repo_root.parent:
+    repo_root = repo_root.parent
+
+# Add src to path
+src_path = str(repo_root / 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 import xarray as xr
 import matplotlib.pyplot as plt
-import os
 
 from runtheory import identify_events, calculate_timeseries, calculate_period_statistics
 from visualization import (
@@ -52,11 +61,13 @@ from visualization import (
 )
 
 # Load data
-ds = xr.open_dataset('../output/netcdf/spi_12_bali.nc')
+output_file = repo_root / 'output' / 'netcdf' / 'spi_12_bali.nc'
+ds = xr.open_dataset(output_file)
 spi_12 = ds['spi_gamma_12_month']
 spi_location = spi_12.isel(lat=12, lon=17)
 
 print("✓ Setup complete!")
+print(f"Repository root: {repo_root}")
 ```
 
 ## Plot Type 1: Index Time Series

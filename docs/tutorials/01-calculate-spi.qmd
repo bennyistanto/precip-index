@@ -33,14 +33,23 @@ This tutorial demonstrates how to calculate the **Standardized Precipitation Ind
 ```{python}
 import sys
 import os
+from pathlib import Path
 
-# Add src directory to path (relative to docs/)
-sys.path.insert(0, os.path.abspath('../src'))
+# Get the notebook directory and find the repository root
+notebook_dir = Path.cwd()
+# Go up to repo root (from docs/tutorials/ or wherever we are)
+repo_root = notebook_dir
+while not (repo_root / 'src').exists() and repo_root != repo_root.parent:
+    repo_root = repo_root.parent
+
+# Add src to path
+src_path = str(repo_root / 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-import os
 
 # Import package functions
 from indices import spi, spi_multi_scale, save_index_to_netcdf
@@ -48,6 +57,7 @@ from indices import save_fitting_params, load_fitting_params
 from visualization import plot_index
 
 print("✓ All imports successful!")
+print(f"Repository root: {repo_root}")
 ```
 
 ## Step 1: Load Precipitation Data
@@ -56,7 +66,8 @@ Load the TerraClimate precipitation data for Bali:
 
 ```{python}
 # Load precipitation data
-ds = xr.open_dataset('../input/terraclimate_bali_ppt_1958_2024.nc')
+input_file = repo_root / 'input' / 'terraclimate_bali_ppt_1958_2024.nc'
+ds = xr.open_dataset(input_file)
 precip = ds['ppt']
 
 # Examine the data
@@ -304,7 +315,8 @@ from indices import spi_multi_scale, save_index_to_netcdf
 import matplotlib.pyplot as plt
 
 # Load data
-ds = xr.open_dataset('../input/terraclimate_bali_ppt_1958_2024.nc')
+input_file = repo_root / 'input' / 'terraclimate_bali_ppt_1958_2024.nc'
+ds = xr.open_dataset(input_file)
 precip = ds['ppt']
 
 # Calculate multi-scale SPI
