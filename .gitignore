@@ -142,7 +142,7 @@ temp/
 tmp/
 temp_md/
 temp_ipynb/
-test_output/
+# test_output/
 
 # IDE settings
 .vscode/
