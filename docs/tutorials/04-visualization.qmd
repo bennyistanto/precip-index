@@ -4,10 +4,10 @@ subtitle: "Create Publication-Quality Climate Extreme Visualizations"
 author: "Benny Istanto"
 date: last-modified
 execute:
-  cache: true
   eval: true
   echo: true
   warning: false
+  cache: true
 format:
   html:
     code-fold: show
@@ -33,7 +33,10 @@ This tutorial showcases all visualization functions for creating publication-qua
 
 ```{python}
 import sys
-sys.path.insert(0, 'src')
+import os
+
+# Add src directory to path (relative to docs/)
+sys.path.insert(0, os.path.abspath('../src'))
 
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -49,7 +52,7 @@ from visualization import (
 )
 
 # Load data
-ds = xr.open_dataset('output/netcdf/spi_12_bali.nc')
+ds = xr.open_dataset('../output/netcdf/spi_12_bali.nc')
 spi_12 = ds['spi_gamma_12_month']
 spi_location = spi_12.isel(lat=12, lon=17)
 
@@ -287,7 +290,7 @@ Compare different time scales visually:
 
 ```{python}
 # Load multi-scale SPI
-ds_multi = xr.open_dataset('output/netcdf/spi_multi_scale_bali.nc')
+ds_multi = xr.open_dataset('../output/netcdf/spi_multi_scale_bali.nc')
 
 # Extract time series
 spi_3 = ds_multi['spi_gamma_3_month'].isel(lat=12, lon=17)

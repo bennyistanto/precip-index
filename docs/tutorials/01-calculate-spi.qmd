@@ -32,7 +32,10 @@ This tutorial demonstrates how to calculate the **Standardized Precipitation Ind
 
 ```{python}
 import sys
-sys.path.insert(0, 'src')
+import os
+
+# Add src directory to path (relative to docs/)
+sys.path.insert(0, os.path.abspath('../src'))
 
 import numpy as np
 import xarray as xr
@@ -53,7 +56,7 @@ Load the TerraClimate precipitation data for Bali:
 
 ```{python}
 # Load precipitation data
-ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+ds = xr.open_dataset('../input/terraclimate_bali_ppt_1958_2024.nc')
 precip = ds['ppt']
 
 # Examine the data
@@ -301,7 +304,7 @@ from indices import spi_multi_scale, save_index_to_netcdf
 import matplotlib.pyplot as plt
 
 # Load data
-ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+ds = xr.open_dataset('../input/terraclimate_bali_ppt_1958_2024.nc')
 precip = ds['ppt']
 
 # Calculate multi-scale SPI
