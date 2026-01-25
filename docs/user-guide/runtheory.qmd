@@ -15,6 +15,7 @@ Run theory provides a framework for analyzing climate extreme events based on co
 > **All functions are neutral and work for both dry and wet extremes.** This guide uses "drought" in some examples for historical consistency with run theory literature, but the same functions and concepts apply to wet events by simply using positive thresholds instead of negative ones.
 
 **Threshold Direction:**
+
 - **Negative threshold** (e.g., -1.2): Identifies **dry events (drought)**
 - **Positive threshold** (e.g., +1.2): Identifies **wet events (flooding/excess)**
 
@@ -44,6 +45,7 @@ The "Wet" and "Dry" regions are labeled to show that both extremes can be analyz
 ## Three Modes of Analysis
 
 ### Mode 1: Event-Based Analysis
+
 **Purpose:** Identify and analyze complete climate extreme events
 
 ```python
@@ -56,6 +58,7 @@ events = identify_events(spi_ts, threshold=-1.2, min_duration=3)
 **Use for:** Historical analysis, event comparison, detailed investigation
 
 ### Mode 2: Time-Series Monitoring
+
 **Purpose:** Month-by-month tracking with varying characteristics
 
 ```python
@@ -68,6 +71,7 @@ ts = calculate_timeseries(spi_ts, threshold=-1.2)
 **Use for:** Real-time monitoring, drought evolution tracking, operational systems
 
 ### Mode 3: Period Statistics (Gridded)
+
 **Purpose:** Answer "What happened in 2023?" or "2021-2025?"
 
 ```python
@@ -117,6 +121,7 @@ wet_stats.num_events.plot(title='Wet Events 2023')
 ```
 
 **💡 Key Point:** Same functions, different thresholds:
+
 - **Drought:** `threshold < 0` (e.g., -1.2, -1.5, -2.0)
 - **Wet:** `threshold > 0` (e.g., +1.2, +1.5, +2.0)
 
@@ -134,12 +139,14 @@ wet_stats.num_events.plot(title='Wet Events 2023')
 ### Magnitude: Two Types
 
 **Cumulative** (blue in plots):
+
 - Total accumulated deficit
 - Always increases during drought
 - Like debt accumulation
 - Use for: Total impact, event comparison
 
 **Instantaneous** (red in plots):
+
 - Current month's severity
 - Varies with SPI (rises-peaks-falls)
 - Like NDVI crop phenology
@@ -371,6 +378,7 @@ events_longterm = identify_events(spi_ts, min_duration=6)
 | `compare_periods()` | 165×244, 2 periods | ~1 min | Parallelizable |
 
 **Optimization tips:**
+
 - Use `min_duration` to filter events
 - Process regional subsets when possible
 - Save and reuse outputs

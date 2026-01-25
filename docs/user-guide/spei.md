@@ -7,10 +7,12 @@
 The Standardized Precipitation Evapotranspiration Index (SPEI) extends SPI by incorporating potential evapotranspiration (PET), making it sensitive to temperature changes and climate warming. Like SPI, it monitors both dry and wet conditions.
 
 **SPEI Values:**
+
 - **Negative values:** Indicate dry conditions (drought)
 - **Positive values:** Indicate wet conditions (flooding/excess)
 
 **Key Differences from SPI:**
+
 - Includes temperature effects via PET
 - More sensitive to climate change
 - Better for agricultural drought and water balance
@@ -43,6 +45,7 @@ spei_12.to_netcdf('output/netcdf/spei_12.nc')
 ## PET Methods
 
 ### Option 1: Thornthwaite (Temperature-based)
+
 **Use when:** Only temperature data available
 
 ```python
@@ -56,6 +59,7 @@ pet = calculate_pet(temp, method='thornthwaite', latitude=lat_array)
 **Cons:** Less accurate in arid regions
 
 ### Option 2: Hargreaves (Temperature + Solar)
+
 **Use when:** Temperature and solar radiation available
 
 ```python
@@ -67,6 +71,7 @@ pet = calculate_pet(temp, method='hargreaves',
 **Cons:** Needs min/max temperature
 
 ### Option 3: Pre-computed PET
+
 **Use when:** You have PET from other sources (FAO-56, Penman-Monteith, etc.)
 
 ```python
@@ -152,7 +157,7 @@ spei_12 = spei_multi['spei_gamma_12_month']
 ## SPEI vs SPI
 
 | Aspect | SPI | SPEI |
-|--------|-----|------|
+| ------ | --- | ---- |
 | **Input** | Precipitation only | Precipitation + PET |
 | **Temperature** | Not considered | Included via PET |
 | **Climate change** | Less sensitive | More sensitive |
@@ -161,12 +166,14 @@ spei_12 = spei_multi['spei_gamma_12_month']
 | **Computation** | Faster | Slower (PET calculation) |
 
 **When to use SPEI:**
+
 - Agricultural drought monitoring
 - Climate change analysis
 - Temperature effects important
 - Have temperature data
 
 **When to use SPI:**
+
 - Purely meteorological drought
 - Only precipitation available
 - Simple, fast analysis
@@ -175,8 +182,9 @@ spei_12 = spei_multi['spei_gamma_12_month']
 ## Common Issues
 
 ### Issue 1: PET Units Mismatch
-**Problem:** SPEI values unrealistic
-**Cause:** PET in different units than precipitation
+
+**Problem:** SPEI values unrealistic    
+**Cause:** PET in different units than precipitation    
 
 ```python
 # Check units
@@ -190,8 +198,9 @@ if pet.mean() < 10:
 ```
 
 ### Issue 2: Negative P-PET Values
-**Problem:** Many negative P-PET values in arid regions
-**Solution:** This is expected! SPEI handles negative water balance
+
+**Problem:** Many negative P-PET values in arid regions    
+**Solution:** This is expected! SPEI handles negative water balance    
 
 ```python
 # Check water balance
@@ -201,8 +210,9 @@ print(f"Mean P-PET: {water_balance.mean().values:.1f} mm/month")
 ```
 
 ### Issue 3: PET > Precipitation Always
-**Problem:** In deserts, PET always exceeds precipitation
-**Solution:** SPEI is designed for this - shows persistent drought
+
+**Problem:** In deserts, PET always exceeds precipitation    
+**Solution:** SPEI is designed for this - shows persistent drought    
 
 ## Visualization
 

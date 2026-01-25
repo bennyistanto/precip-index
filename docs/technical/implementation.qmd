@@ -27,18 +27,21 @@ precip-index/
 **Purpose:** Calculate SPI and SPEI drought indices
 
 **Key Functions:**
+
 - `spi()` - Single-scale SPI
 - `spi_multi_scale()` - Multiple scales at once
 - `spei()` - Temperature-inclusive index
 - `spei_multi_scale()` - Multiple SPEI scales
 
 **Technology:**
+
 - NumPy vectorization for gridded operations
 - Numba JIT compilation for fitting loops
 - SciPy for statistical distributions
 - xarray for CF-compliant NetCDF
 
 **Performance:**
+
 - 165×244 grid, 12-month scale: ~30 seconds
 - Gamma distribution fitting: Numba-optimized
 - Memory-efficient chunking for large datasets
@@ -50,19 +53,23 @@ precip-index/
 **Key Functions:**
 
 **Event-Based:**
+
 - `identify_drought_events()` - Extract complete events
 - `summarize_drought_events()` - Event statistics
 
 **Time-Series:**
+
 - `calculate_drought_timeseries()` - Month-by-month tracking
 - Real-time monitoring capability
 
 **Gridded Statistics:**
+
 - `calculate_period_statistics()` - Spatial statistics for time period
 - `calculate_annual_statistics()` - Year-by-year analysis
 - `compare_periods()` - Multi-period comparison
 
 **Implementation:**
+
 - Pure NumPy for single-location (very fast)
 - xarray.apply_ufunc for gridded data
 - Dual magnitude: cumulative + instantaneous
@@ -72,6 +79,7 @@ precip-index/
 **Purpose:** Supporting utilities
 
 **Key Functions:**
+
 - `calculate_pet()` - Potential evapotranspiration
   - Thornthwaite method (temperature)
   - Hargreaves method (temp + solar)
@@ -84,6 +92,7 @@ precip-index/
 **Purpose:** Publication-quality climate extremes visualization
 
 **Key Functions:**
+
 - `plot_index()` - Time series with WMO colors
 - `plot_events()` - Event timeline with dry/wet differentiation
 - `plot_event_characteristics()` - Multi-panel analysis
@@ -92,6 +101,7 @@ precip-index/
 - `generate_location_filename()` - Consistent naming
 
 **Technology:**
+
 - Matplotlib for all plots
 - Color schemes from scientific literature
 - Automatic folder creation
@@ -198,21 +208,25 @@ spi_new = spi(precip_new, scale=12,
 ## Memory Management
 
 ### Single Location
+
 - Memory: <10 MB
 - Processing: In-memory
 - Speed: <0.1 sec
 
 ### Small Grid (100×100)
+
 - Memory: ~50 MB
 - Processing: In-memory
 - Speed: ~5 sec
 
 ### Medium Grid (500×500)
+
 - Memory: ~500 MB
 - Processing: In-memory or chunked
 - Speed: ~2 min
 
 ### Large Grid (1000×1000+)
+
 - Memory: >2 GB
 - Processing: Chunked with Dask
 - Speed: ~10 min (depends on chunks)
@@ -226,6 +240,7 @@ spi_new = spi(precip_new, scale=12,
 **Compliance:** CF Convention 1.8
 
 **Required Attributes:**
+
 ```python
 attrs = {
     'standard_name': 'standardized_precipitation_index',
@@ -239,6 +254,7 @@ attrs = {
 ```
 
 **Coordinates:**
+
 - `time`: Datetime64 with monthly frequency
 - `lat`: WGS84 latitude
 - `lon`: WGS84 longitude
@@ -248,6 +264,7 @@ attrs = {
 **Format:** Standard pandas DataFrame export
 
 **Columns:**
+
 - Event-based: event_id, start_date, end_date, duration, magnitude, etc.
 - Time-series: time, spi, is_drought, duration, magnitude_cumulative, etc.
 
@@ -256,22 +273,26 @@ attrs = {
 **Format:** PNG (300 dpi, recommended)
 
 **Naming:** Location/period-based
+
 - `plot_*_lat*.##_lon*.##.png`
 - `plot_spatial_*_YYYY-YYYY.png`
 
 ## Testing Strategy
 
 ### Unit Tests (Future)
+
 - Individual function validation
 - Edge case handling
 - Parameter validation
 
 ### Integration Tests
+
 - `test_drought_characteristics.py`
 - End-to-end workflow
 - Real data validation
 
 ### Validation
+
 - Compare with published results
 - Cross-check with original climate-indices
 - Visual inspection of outputs
@@ -279,6 +300,7 @@ attrs = {
 ## Dependencies
 
 ### Required
+
 ```
 numpy>=1.19.0       # Array operations
 scipy>=1.5.0        # Statistical distributions
@@ -290,6 +312,7 @@ pandas>=1.1.0       # DataFrame operations
 ```
 
 ### Optional
+
 ```
 dask>=2.30.0        # Large dataset processing
 ```
@@ -297,17 +320,20 @@ dask>=2.30.0        # Large dataset processing
 ## Error Handling
 
 ### Data Validation
+
 - Check for NaN values
 - Verify time dimension
 - Ensure positive precipitation
 - Validate coordinate systems
 
 ### Distribution Fitting
+
 - Fallback to default parameters if fitting fails
 - Warning messages for problematic locations
 - NaN preservation in outputs
 
 ### File Operations
+
 - Auto-create output directories
 - Handle existing file overwrites
 - Validate paths
@@ -327,11 +353,13 @@ dask>=2.30.0        # Large dataset processing
 ## Scalability
 
 ### Horizontal Scaling
+
 - Process regions in parallel
 - Independent grid cells
 - Batch processing capability
 
 ### Vertical Scaling
+
 - Dask for large grids
 - Chunked I/O for huge datasets
 - Memory-mapped arrays for extreme sizes
@@ -346,11 +374,13 @@ dask>=2.30.0        # Large dataset processing
 ## Code Style
 
 **Follows:**
+
 - PEP 8 conventions
 - NumPy docstring format
 - Type hints (future)
 
 **Standards:**
+
 - Functions: snake_case
 - Classes: PascalCase (minimal usage)
 - Constants: UPPER_CASE
@@ -361,6 +391,7 @@ dask>=2.30.0        # Large dataset processing
 **Current:** 2026.1 (January 2026)
 
 **Key Changes:**
+
 - 2026.1: Complete package with SPI/SPEI, run theory, and dual magnitude
 
 **See:** [CHANGELOG.md](../../CHANGELOG.md) for details
@@ -375,6 +406,7 @@ dask>=2.30.0        # Large dataset processing
 ## Contributing
 
 **To extend functionality:**
+
 1. Add function to appropriate module
 2. Export in `__init__.py`
 3. Document in user guide
@@ -382,6 +414,7 @@ dask>=2.30.0        # Large dataset processing
 5. Update CHANGELOG.md
 
 **Maintain:**
+
 - CF Convention compliance
 - NumPy vectorization
 - Clear documentation

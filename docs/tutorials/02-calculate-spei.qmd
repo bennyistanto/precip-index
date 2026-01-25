@@ -4,7 +4,8 @@ subtitle: "Standardized Precipitation Evapotranspiration Index - Complete Tutori
 author: "Benny Istanto"
 date: last-modified
 execute:
-  eval: false
+  cache: true
+  eval: true
   echo: true
   warning: false
 format:

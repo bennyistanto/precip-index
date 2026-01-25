@@ -25,7 +25,7 @@ def spi(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data with dimensions (time, lat, lon) |
 | `scale` | int | Yes | - | Time scale in months (1, 3, 6, 12, 24, etc.) |
 | `distribution` | str | No | 'gamma' | Distribution type ('gamma' only) |
@@ -37,6 +37,7 @@ def spi(
 | `fitting_params` | xarray.Dataset | No | None | Pre-fitted parameters for operational use |
 
 **Returns:**
+
 - `xarray.DataArray`: SPI values with same dimensions as input
   - Variable name: `spi_gamma_{scale}_month`
   - Range: typically -3 to +3
@@ -45,10 +46,12 @@ def spi(
   - Attributes: scale, distribution, calibration_period
 
 **Raises:**
+
 - `ValueError`: Invalid input dimensions or parameters
 - `RuntimeError`: Distribution fitting failures
 
 **Example:**
+
 ```python
 import xarray as xr
 from indices import spi
@@ -75,16 +78,18 @@ def spi_multi_scale(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data |
 | `scales` | list of int | Yes | - | List of time scales [3, 6, 12] |
 | `**kwargs` | - | No | - | Same parameters as `spi()` |
 
 **Returns:**
+
 - `xarray.Dataset`: Dataset with one variable per scale
   - Variables: `spi_gamma_3_month`, `spi_gamma_6_month`, etc.
 
 **Example:**
+
 ```python
 from indices import spi_multi_scale
 
@@ -117,17 +122,19 @@ def spei(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data (mm/month) |
 | `pet` | xarray.DataArray | Yes | - | Potential evapotranspiration (mm/month) |
 | `scale` | int | Yes | - | Time scale in months |
 | All others | - | - | - | Same as `spi()` |
 
 **Returns:**
+
 - `xarray.DataArray`: SPEI values
   - Variable name: `spei_gamma_{scale}_month`
 
 **Example:**
+
 ```python
 from indices import spei
 from utils import calculate_pet
@@ -174,7 +181,7 @@ def calculate_pet(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| ----------- | ------ | ---------- | --------- | ------------- |
 | `temp` | xarray.DataArray | Yes | - | Temperature data (°C) |
 | `method` | str | No | 'thornthwaite' | Method: 'thornthwaite' or 'hargreaves' |
 | `latitude` | xarray.DataArray | Conditional | None | Required for both methods |
@@ -182,13 +189,16 @@ def calculate_pet(
 | `tmax` | xarray.DataArray | Conditional | None | Required for 'hargreaves' |
 
 **Returns:**
+
 - `xarray.DataArray`: PET values (mm/month)
 
 **Methods:**
+
 - **thornthwaite**: Temperature-based, simpler
 - **hargreaves**: Temperature + solar radiation, more accurate
 
 **Example:**
+
 ```python
 from utils import calculate_pet
 
@@ -219,12 +229,13 @@ def identify_events(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI time series (single location) |
 | `threshold` | float | No | -1.0 | Event threshold (negative for drought, positive for wet) |
 | `min_duration` | int | No | 1 | Minimum event duration (months) |
 
 **Returns:**
+
 - `pandas.DataFrame` with columns:
   - `event_id`: Event number (1, 2, 3, ...)
   - `start_date`: Event start
@@ -237,6 +248,7 @@ def identify_events(
   - `interarrival`: Months since previous event
 
 **Example:**
+
 ```python
 from runtheory import identify_events
 
@@ -267,11 +279,12 @@ def calculate_timeseries(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI time series |
 | `threshold` | float | No | -1.0 | Event threshold (negative for drought, positive for wet) |
 
 **Returns:**
+
 - `pandas.DataFrame` with columns:
   - `time`: Date
   - `index_value`: SPI/SPEI value
@@ -283,6 +296,7 @@ def calculate_timeseries(
   - `intensity`: magnitude_cumulative / duration
 
 **Example:**
+
 ```python
 from runtheory import calculate_timeseries
 
@@ -314,7 +328,7 @@ def calculate_period_statistics(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI (time, lat, lon) |
 | `threshold` | float | No | -1.0 | Drought threshold |
 | `start_year` | int | No | None | Period start (uses all if None) |
@@ -322,6 +336,7 @@ def calculate_period_statistics(
 | `min_duration` | int | No | 1 | Minimum event duration |
 
 **Returns:**
+
 - `xarray.Dataset` with variables (lat, lon):
   - `num_events`: Event count
   - `total_event_months`: Total months in drought
@@ -334,6 +349,7 @@ def calculate_period_statistics(
   - `pct_time_in_event`: Percentage in drought
 
 **Example:**
+
 ```python
 from runtheory import calculate_period_statistics
 
@@ -367,11 +383,13 @@ def calculate_annual_statistics(
 **Parameters:** Same as `calculate_period_statistics()` but no start/end year
 
 **Returns:**
+
 - `xarray.Dataset` with dimensions (year, lat, lon)
   - Same variables as period statistics
   - Additional dimension: `year`
 
 **Example:**
+
 ```python
 from runtheory import calculate_annual_statistics
 
@@ -404,7 +422,7 @@ def compare_periods(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI |
 | `periods` | list of tuples | Yes | - | [(start1, end1), (start2, end2), ...] |
 | `period_names` | list of str | No | None | Names for each period |
@@ -412,11 +430,13 @@ def compare_periods(
 | `min_duration` | int | No | 1 | Minimum event duration |
 
 **Returns:**
+
 - `xarray.Dataset` with dimensions (period, lat, lon)
   - Same variables as period statistics
   - Additional dimension: `period`
 
 **Example:**
+
 ```python
 from runtheory import compare_periods
 
@@ -445,9 +465,11 @@ def summarize_events(
 ```
 
 **Parameters:**
+
 - `events_df` (pandas.DataFrame): Output from `identify_events()`
 
 **Returns:**
+
 - `dict` with keys:
   - `num_events`: Total count
   - `mean_duration`: Average duration
@@ -458,6 +480,7 @@ def summarize_events(
   - `mean_interarrival`: Average time between events
 
 **Example:**
+
 ```python
 from runtheory import identify_events, summarize_events
 
@@ -488,7 +511,7 @@ def plot_index(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI data |
 | `threshold` | float | No | -1.0 | Drought threshold line |
 | `title` | str | No | None | Plot title |
@@ -496,9 +519,11 @@ def plot_index(
 | `figsize` | tuple | No | (14, 6) | Figure size |
 
 **Returns:**
+
 - `matplotlib.figure.Figure`: Figure object
 
 **Example:**
+
 ```python
 from visualization import plot_index
 
@@ -527,7 +552,7 @@ def plot_events(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | Index data |
 | `events_df` | pandas.DataFrame | Yes | - | From `identify_events()` |
 | `threshold` | float | No | -1.0 | Threshold line |
@@ -536,9 +561,11 @@ def plot_events(
 | `figsize` | tuple | No | (14, 6) | Figure size |
 
 **Returns:**
+
 - `matplotlib.figure.Figure`
 
 **Example:**
+
 ```python
 from visualization import plot_events
 
@@ -564,12 +591,13 @@ def plot_event_timeline(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `timeseries_df` | pandas.DataFrame | Yes | - | From `calculate_timeseries()` |
 | `title` | str | No | None | Main title |
 | `figsize` | tuple | No | (14, 12) | Figure size |
 
 **Returns:**
+
 - `matplotlib.figure.Figure` with 5 panels:
   1. Index value
   2. Duration
@@ -578,6 +606,7 @@ def plot_event_timeline(
   5. Intensity
 
 **Example:**
+
 ```python
 from visualization import plot_event_timeline
 
@@ -605,7 +634,7 @@ def plot_spatial_stats(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `stats_dataset` | xarray.Dataset | Yes | - | From `calculate_period_statistics()` |
 | `variable` | str | No | 'num_events' | Variable to plot |
 | `title` | str | No | None | Plot title |
@@ -613,9 +642,11 @@ def plot_spatial_stats(
 | `figsize` | tuple | No | (12, 8) | Figure size |
 
 **Returns:**
+
 - `matplotlib.figure.Figure`
 
 **Example:**
+
 ```python
 from visualization import plot_spatial_stats
 
@@ -643,16 +674,18 @@ def generate_location_filename(
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
 | `base_name` | str | Yes | - | File base name |
 | `lat` | float | Yes | - | Latitude |
 | `lon` | float | Yes | - | Longitude |
 | `extension` | str | No | 'png' | File extension |
 
 **Returns:**
+
 - `str`: Filename like `base_name_lat31.82_lon-7.07.png`
 
 **Example:**
+
 ```python
 from visualization import generate_location_filename
 

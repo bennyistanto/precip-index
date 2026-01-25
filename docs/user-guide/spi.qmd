@@ -11,10 +11,12 @@ This guide references "drought" in some sections for historical context with met
 The Standardized Precipitation Index (SPI) is a widely used climate index that characterizes both dry (drought) and wet (flood/excess) conditions based on precipitation.
 
 **SPI Values:**
+
 - **Negative values:** Indicate dry conditions (drought)
 - **Positive values:** Indicate wet conditions (flooding/excess precipitation)
 
 **Key Features:**
+
 - Based on precipitation only
 - Multiple time scales (1, 3, 6, 12, 24 months)
 - Gamma distribution fitting
@@ -85,6 +87,7 @@ spi_12.to_netcdf('output/netcdf/spi_12.nc')
 ## Output
 
 **Returns:** xarray.DataArray with:
+
 - **Dimensions:** `(time, lat, lon)`
 - **Values:** Standardized index (-3 to +3 typically)
 - **Attributes:**
@@ -95,15 +98,19 @@ spi_12.to_netcdf('output/netcdf/spi_12.nc')
 
 **SPI Value Interpretation:**
 
-| SPI Value | Category | Description |
-|-----------|----------|-------------|
-| ≥ 2.0 | Extremely wet | Top 2.3% |
-| 1.5 to 1.99 | Severely wet | 4.4% |
-| 1.0 to 1.49 | Moderately wet | 9.2% |
-| -0.99 to 0.99 | Near normal | 68.2% |
-| -1.0 to -1.49 | Moderate drought | 9.2% |
-| -1.5 to -1.99 | Severe drought | 4.4% |
-| ≤ -2.0 | Extreme drought | 2.3% |
+| SPI Value | Category | Probability |
+| ----------- | -------- | ----------- |
+| ≤ -2.00 | Exceptionally Dry | Bottom 2.3% |
+| -2.00 to -1.50 | Extremely Dry | Bottom 6.7% |
+| -1.50 to -1.20 | Severely Dry | Bottom 9.7% |
+| -1.20 to -0.70 | Moderately Dry | Bottom 24.2% |
+| -0.70 to -0.50 | Abnormally Dry | Bottom 30.9% |
+| -0.50 to +0.50 | Near Normal | Middle 38.2% |
+| +0.50 to +0.70 | Abnormally Moist | Top 30.9% |
+| +0.70 to +1.20 | Moderately Moist | Top 24.2% |
+| +1.20 to +1.50 | Very Moist | Top 9.7% |
+| +1.50 to +2.00 | Extremely Moist | Top 6.7% |
+| ≥ +2.00 | Exceptionally Moist | Top 2.3% |
 
 ## Examples
 
@@ -166,26 +173,31 @@ params_loaded = load_fitting_params('spi_12_params.nc')
 ## Time Scales Guide
 
 ### SPI-1 (1-month)
+
 - **Use:** Short-term precipitation anomalies
 - **Applications:** Agricultural drought (growing season), flash droughts
 - **Responds to:** Recent rainfall
 
 ### SPI-3 (3-month)
+
 - **Use:** Seasonal precipitation patterns
 - **Applications:** Agricultural drought, soil moisture
 - **Responds to:** Short-term dry spells
 
 ### SPI-6 (6-month)
+
 - **Use:** Medium-term precipitation trends
 - **Applications:** Agricultural + hydrological drought
 - **Responds to:** Seasonal to inter-seasonal patterns
 
 ### SPI-12 (12-month)
+
 - **Use:** Annual precipitation patterns
 - **Applications:** Hydrological drought, reservoir levels
 - **Responds to:** Long-term trends
 
 ### SPI-24 (24-month)
+
 - **Use:** Multi-year precipitation trends
 - **Applications:** Long-term water resource planning
 - **Responds to:** Multi-year dry periods
@@ -193,11 +205,13 @@ params_loaded = load_fitting_params('spi_12_params.nc')
 ## Best Practices
 
 ### 1. Calibration Period
+
 - Use WMO-recommended 30-year normals (e.g., 1991-2020)
 - Ensure calibration period has complete data
 - Update calibration periodically
 
 ### 2. Quality Control
+
 ```python
 # Check for missing data
 missing_pct = (precip.isnull().sum() / precip.size * 100).values
@@ -208,6 +222,7 @@ print(f"Precip range: [{precip.min().values:.1f}, {precip.max().values:.1f}] mm"
 ```
 
 ### 3. Dimension Order
+
 Data must follow CF convention: `(time, lat, lon)`
 
 ```python
@@ -220,8 +235,10 @@ precip = ensure_cf_compliant(precip)
 ## Common Issues
 
 ### Issue 1: Dimension Order Error
-**Problem:** `ValueError: cannot reshape array...`
+
+**Problem:** `ValueError: cannot reshape array...`    
 **Solution:**
+
 ```python
 # Check dimensions
 print(precip.dims)  # Should be ('time', 'lat', 'lon')
@@ -232,13 +249,16 @@ if precip.dims != ('time', 'lat', 'lon'):
 ```
 
 ### Issue 2: All NaN Output
-**Problem:** SPI values are all NaN
+
+**Problem:** SPI values are all NaN    
 **Causes:**
+
 - Insufficient calibration data
 - All-zero precipitation (arid regions)
 - Wrong units (need mm/month, not mm/day)
 
 **Solution:**
+
 ```python
 # Check precipitation values
 print(precip.sel(time='2020').mean(['lat', 'lon']).values)
@@ -248,8 +268,10 @@ print(precip.sel(time='2020').mean(['lat', 'lon']).values)
 ```
 
 ### Issue 3: Memory Error
-**Problem:** Out of memory for large datasets
+
+**Problem:** Out of memory for large datasets    
 **Solution:** Use Dask-enabled version
+
 ```python
 # Load with chunks
 precip = xr.open_dataset('precip.nc', chunks={'time': 100})['precip']
@@ -261,6 +283,7 @@ spi_12 = spi(precip, scale=12)  # Automatically uses Dask if input is chunked
 ## Visualization
 
 ### Quick Map
+
 ```python
 import matplotlib.pyplot as plt
 
@@ -271,6 +294,7 @@ plt.show()
 ```
 
 ### Time Series
+
 ```python
 # Single location
 location_spi = spi_12.isel(lat=50, lon=100)
@@ -282,6 +306,7 @@ plt.show()
 ```
 
 ### Using Built-in Functions
+
 ```python
 from visualization import plot_index
 
@@ -293,7 +318,9 @@ plot_index(location_spi, threshold=-1.2,
 ## Performance Tips
 
 ### 1. Multi-Scale Calculation
+
 Use `spi_multi_scale()` instead of calling `spi()` multiple times:
+
 ```python
 # Better (single pass)
 spi_multi = spi_multi_scale(precip, scales=[3, 6, 12])
@@ -305,7 +332,9 @@ spi_12 = spi(precip, scale=12)
 ```
 
 ### 2. Parameter Reuse
+
 Save and reuse fitting parameters for operational forecasting:
+
 ```python
 # One-time: Calculate and save parameters
 spi_historical, params = spi(precip_historical, scale=12, return_params=True)
@@ -317,7 +346,9 @@ spi_latest = spi(precip_latest, scale=12, fitting_params=params)
 ```
 
 ### 3. Regional Subsets
+
 Process smaller regions when possible:
+
 ```python
 # Subset to region of interest
 precip_morocco = precip.sel(lat=slice(27, 36), lon=slice(-13, -1))

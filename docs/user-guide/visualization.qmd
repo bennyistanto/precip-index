@@ -11,6 +11,7 @@ The package provides specialized plotting functions for climate indices and clim
 ## Available Functions
 
 ### 1. Climate Index Time Series
+
 ```python
 from visualization import plot_index
 
@@ -22,11 +23,13 @@ plot_index(spi_ts, threshold=-1.2,
 plot_index(spi_ts, threshold=+1.2,
                    title='SPI-12 Time Series - Wet Events')
 ```
+
 - Color-coded by severity (dry or wet)
 - Automatic threshold line
 - Event periods highlighted
 
 ### 2. Climate Extreme Events Timeline
+
 ```python
 from visualization import plot_events
 
@@ -36,27 +39,32 @@ plot_events(spi_ts, events_df, threshold=-1.2)
 # Wet events (positive threshold)
 plot_events(spi_ts, wet_events_df, threshold=+1.2)
 ```
+
 - Individual events highlighted
 - Peak markers
 - Event shading
 - Works for both dry and wet events
 
 ### 3. Event Characteristics
+
 ```python
 from visualization import plot_event_characteristics
 
 plot_event_characteristics(events_df, characteristic='magnitude')
 ```
+
 - Multi-panel analysis
 - Relationships between characteristics
 - Bar charts and scatter plots
 
 ### 4. Time-Series Evolution
+
 ```python
 from visualization import plot_event_timeline
 
 plot_event_timeline(timeseries_df)
 ```
+
 - 5-panel plot showing:
   - Index value
   - Duration
@@ -65,11 +73,13 @@ plot_event_timeline(timeseries_df)
   - Intensity
 
 ### 5. Spatial Statistics
+
 ```python
 from visualization import plot_spatial_stats
 
 plot_spatial_stats(stats_dataset, variable='num_events')
 ```
+
 - Maps of drought statistics
 - Customizable colormaps
 - Ready for reports

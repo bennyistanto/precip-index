@@ -4,9 +4,10 @@ subtitle: "Standardized Precipitation Index - Complete Tutorial"
 author: "Benny Istanto"
 date: last-modified
 execute:
-  eval: false
+  eval: true
   echo: true
   warning: false
+  cache: true
 format:
   html:
     code-fold: show
@@ -289,7 +290,7 @@ You've learned how to:
 Here's the complete workflow in one script:
 
 ```{python}
-#| eval: false
+#| eval: true
 #| code-fold: true
 #| code-summary: "Show complete code"
 

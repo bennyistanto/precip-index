@@ -9,12 +9,13 @@ website:
   title: "Precipitation Index"
   description: "SPI & SPEI for Climate Extremes Monitoring"
   favicon: ../images/favicon.png
+  site-url: https://bennyistanto.github.io/precip-index
+  repo-url: https://github.com/bennyistanto/precip-index
 
   navbar:
     background: primary
-    logo:
-      light: ../images/logo-black.png
-      dark: ../images/logo-white.png
+    logo: ../images/logo-black.png
+    logo-alt: "Precipitation Index Logo"
     search: true
     left:
       - text: "Home"
@@ -121,8 +122,8 @@ format:
     fig-dpi: 150
 
 execute:
-  enabled: false
   freeze: auto
   echo: true
   warning: false
   message: false
+  eval: true

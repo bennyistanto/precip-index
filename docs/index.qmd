@@ -114,7 +114,7 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 
 This package includes example data from **Bali, Indonesia** (1958-2024) using TerraClimate:
 
-![SPI-12 Time Series showing drought and wet events in Bali](images/example-spi-timeseries.png)
+![SPI-12 Time Series showing drought and wet events in Bali](../images/example-spi-timeseries.png)
 
 ::: {.callout-note}
 ## Try it with your data
@@ -155,6 +155,14 @@ Learn through interactive Jupyter notebooks with real data.
 - **[User Guide](user-guide/index.qmd)** - Detailed explanations of SPI, SPEI, run theory, and visualization
 - **[Technical Docs](technical/index.qmd)** - Methodology, implementation details, and API reference
 - **[Changelog](changelog.qmd)** - Version history and updates
+
+## Credits
+
+**Modified/adapted from:** [climate-indices](https://github.com/monocongo/climate_indices) by James Adams ([monocongo](https://github.com/monocongo/))
+
+**Author:** Benny Istanto    
+**Organization:** GOST/DEC Data Group, The World Bank    
+**Email:** bistanto@worldbank.org    
 
 ## Citation
 
