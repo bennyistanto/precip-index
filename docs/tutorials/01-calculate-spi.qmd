@@ -101,7 +101,6 @@ spi_3 = spi(
     periodicity='monthly',
     calibration_start_year=1991,
     calibration_end_year=2020,
-    dist='gamma'
 )
 
 print("SPI-3 Calculation Complete!")
@@ -156,7 +155,6 @@ spi_multi = spi_multi_scale(
     periodicity='monthly',
     calibration_start_year=1991,
     calibration_end_year=2020,
-    dist='gamma'
 )
 
 print("\nMulti-scale SPI Complete!")

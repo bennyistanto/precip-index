@@ -104,7 +104,6 @@ spei_6_with_pet = spei(
     periodicity='monthly',
     calibration_start_year=1991,
     calibration_end_year=2020,
-    dist='gamma'
 )
 
 print("SPEI-6 Complete!")
@@ -128,7 +127,6 @@ spei_6_with_temp = spei(
     periodicity='monthly',
     calibration_start_year=1991,
     calibration_end_year=2020,
-    dist='gamma'
 )
 
 print("SPEI-6 Complete!")
