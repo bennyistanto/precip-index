@@ -75,10 +75,14 @@ print(f"Repository root: {repo_root}")
 # Create output directories
 output_plots = repo_root / 'output' / 'plots'
 output_netcdf = repo_root / 'output' / 'netcdf'
+output_csv = repo_root / 'output' / 'csv'
 output_plots.mkdir(parents=True, exist_ok=True)
 output_netcdf.mkdir(parents=True, exist_ok=True)
+output_csv.mkdir(parents=True, exist_ok=True)
 
+print("✓ Imports successful!")
 print(f"Repository root: {repo_root}")
+print(f"Output directories: {output_plots}, {output_netcdf}, {output_csv}")
 ```
 
 ## Step 1: Load SPI Data
@@ -87,7 +91,7 @@ Load previously calculated SPI-12 data:
 
 ```{python}
 # Load SPI-12
-ds = xr.open_dataset('repo_root / 'output' /netcdf/spi_12_bali.nc')
+ds = xr.open_dataset(repo_root / 'output' / 'netcdf' / 'spi_12_bali.nc')
 spi_12 = ds['spi_gamma_12_month']
 
 # Extract time series for a location
@@ -349,16 +353,16 @@ Save events to CSV for further analysis:
 
 ```{python}
 # Save drought events
-drought_events.to_csv('repo_root / 'output' /csv/drought_events_bali.csv', index=False)
-print("✓ Saved drought events to repo_root / 'output' /csv/drought_events_bali.csv")
+drought_events.to_csv(output_csv / 'drought_events_bali.csv', index=False)
+print(f"✓ Saved drought events to {output_csv / 'drought_events_bali.csv'}")
 
 # Save wet events
-wet_events.to_csv('repo_root / 'output' /csv/wet_events_bali.csv', index=False)
-print("✓ Saved wet events to repo_root / 'output' /csv/wet_events_bali.csv")
+wet_events.to_csv(output_csv / 'wet_events_bali.csv', index=False)
+print(f"✓ Saved wet events to {output_csv / 'wet_events_bali.csv'}")
 
 # Save time series
-ts.to_csv('repo_root / 'output' /csv/drought_timeseries_bali.csv')
-print("✓ Saved time series to repo_root / 'output' /csv/drought_timeseries_bali.csv")
+ts.to_csv(output_csv / 'drought_timeseries_bali.csv')
+print(f"✓ Saved time series to {output_csv / 'drought_timeseries_bali.csv'}")
 ```
 
 ## Summary
