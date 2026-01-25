@@ -1,0 +1,192 @@
+---
+title: "Precipitation Index"
+subtitle: "SPI & SPEI for Climate Extremes Monitoring"
+toc: false
+page-layout: full
+---
+
+::: {.hero-banner}
+# Monitor Climate Extremes with Confidence
+
+A minimal, efficient Python implementation of **Standardized Precipitation Index (SPI)** and **Standardized Precipitation Evapotranspiration Index (SPEI)** for monitoring **both drought and wet conditions** using run theory.
+
+<span class="badge-custom badge-python">Python 3.8+</span>
+<span class="badge-custom badge-license">BSD-3-Clause</span>
+<span class="badge-custom badge-status">Active Development</span>
+
+[Get Started](get-started/installation.qmd){.btn .btn-primary .btn-lg role="button"}
+[View on GitHub](https://github.com/bennyistanto/precip-index){.btn .btn-outline-light .btn-lg role="button"}
+:::
+
+## Key Features
+
+::: {.grid-container}
+::: {.feature-card}
+### 📊 Climate Indices
+
+- **SPI** - Standardized Precipitation Index
+- **SPEI** - Precipitation Evapotranspiration Index
+- Multiple time scales (1, 3, 6, 12, 24 months)
+- CF-compliant NetCDF output
+:::
+
+::: {.feature-card}
+### 🌡️ Bidirectional Analysis
+
+- Monitor **drought** (dry conditions)
+- Monitor **floods** (wet conditions)
+- Unified framework for both extremes
+- Consistent methodology
+:::
+
+::: {.feature-card}
+### 📈 Run Theory Implementation
+
+- Event identification & characterization
+- Duration, magnitude, intensity, peak
+- Time-series monitoring
+- Gridded period statistics
+:::
+
+::: {.feature-card}
+### 🎨 Visualization Suite
+
+- Time series plots with event highlighting
+- 11-category SPI/SPEI classification
+- Spatial maps of event characteristics
+- 5-panel evolution timelines
+:::
+:::
+
+## Quick Example
+
+Here's how easy it is to calculate SPI and identify drought events:
+
+```python
+import xarray as xr
+from indices import spi
+from runtheory import identify_events, calculate_timeseries
+from visualization import plot_index, plot_events
+
+# Load precipitation data
+ds = xr.open_dataset('precipitation.nc')
+precip = ds['precip']
+
+# Calculate SPI-12
+spi_12 = spi(precip, scale=12, periodicity='monthly')
+
+# Identify drought events (threshold -1.2)
+events = identify_events(spi_12.isel(lat=0, lon=0), threshold=-1.2)
+
+# Visualize
+plot_index(spi_12.isel(lat=0, lon=0), threshold=-1.2)
+```
+
+## What Makes This Package Different?
+
+::: {.callout-note}
+## Bidirectional by Design
+
+Unlike traditional drought-only tools, **precip-index** treats dry and wet extremes equally. Use negative thresholds for droughts, positive thresholds for floods - same functions, same methodology.
+:::
+
+::: {.callout-tip}
+## Optimized for Scale
+
+Built for global-scale gridded data with CF conventions. Efficiently processes large datasets using NumPy, SciPy, and Numba acceleration.
+:::
+
+::: {.callout-important}
+## Run Theory Framework
+
+Goes beyond simple threshold exceedance. Implements full run theory to characterize event duration, magnitude (cumulative & instantaneous), intensity, and peak values.
+:::
+
+## Example Applications
+
+- **Operational Drought Monitoring** - Track ongoing droughts with real-time updates
+- **Flood Risk Assessment** - Identify wet extremes and excess precipitation
+- **Climate Impact Studies** - Analyze historical trends in extremes
+- **Early Warning Systems** - Generate alerts based on evolving event characteristics
+- **Decision Support** - Gridded statistics for regional planning
+
+## Real Data Example
+
+This package includes example data from **Bali, Indonesia** (1958-2024) using TerraClimate:
+
+![SPI-12 Time Series showing drought and wet events in Bali](images/example-spi-timeseries.png)
+
+::: {.callout-note}
+## Try it with your data
+
+The tutorials use real TerraClimate data included in the repository. Follow along with actual climate data, not synthetic examples!
+:::
+
+## Getting Started
+
+::: {.grid-container}
+::: {.feature-card}
+### 🚀 Installation
+
+Install dependencies and clone the repository in minutes.
+
+[Install Now](get-started/installation.qmd){.btn .btn-primary}
+:::
+
+::: {.feature-card}
+### 📖 Quick Start
+
+Follow the step-by-step guide to calculate your first SPI/SPEI.
+
+[Quick Start](get-started/quick-start.qmd){.btn .btn-primary}
+:::
+
+::: {.feature-card}
+### 💻 Tutorials
+
+Learn through interactive Jupyter notebooks with real data.
+
+[View Tutorials](tutorials/01-calculate-spi.qmd){.btn .btn-primary}
+:::
+:::
+
+## Documentation
+
+- **[User Guide](user-guide/index.qmd)** - Detailed explanations of SPI, SPEI, run theory, and visualization
+- **[Technical Docs](technical/index.qmd)** - Methodology, implementation details, and API reference
+- **[Changelog](changelog.qmd)** - Version history and updates
+
+## Citation
+
+If you use this package in your research, please cite:
+
+```bibtex
+@software{precip_index_2025,
+  author = {Istanto, Benny},
+  title = {Precipitation Index: SPI \& SPEI for Climate Extremes Monitoring},
+  year = {2025},
+  url = {https://github.com/bennyistanto/precip-index},
+  version = {0.1.0}
+}
+```
+
+## Contributing
+
+We welcome contributions! Please see our [GitHub repository](https://github.com/bennyistanto/precip-index) for:
+
+- 🐛 **Bug reports** - Help us improve
+- 💡 **Feature requests** - Suggest enhancements
+- 🔧 **Pull requests** - Contribute code
+- 📖 **Documentation** - Improve our docs
+
+## License
+
+This project is licensed under the BSD-3-Clause License. See [LICENSE](LICENSE) for details.
+
+---
+
+::: {.callout-warning}
+## ⚠️ Active Development
+
+This package is under active development. Some features may not work as expected and bugs may be present. Please report issues on [GitHub](https://github.com/bennyistanto/precip-index/issues).
+:::

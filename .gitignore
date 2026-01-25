@@ -160,3 +160,8 @@ Thumbs.db
 
 # Dask
 dask-worker-space/
+
+# Quarto
+/.quarto/
+_site/
+_freeze/

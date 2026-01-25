@@ -1,0 +1,200 @@
+/*-- scss:defaults --*/
+
+/* Color scheme based on climate/water theme */
+$primary: #0066CC;
+$secondary: #FF6B35;
+$success: #28A745;
+$info: #20C997;
+$warning: #FFC107;
+$danger: #DC3545;
+
+/*-- scss:rules --*/
+
+/* Hero section on homepage */
+.hero-banner {
+  background: linear-gradient(135deg, #0066CC 0%, #20C997 100%);
+  color: white;
+  padding: 4rem 2rem;
+  margin-bottom: 2rem;
+  border-radius: 8px;
+}
+
+.hero-banner h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.hero-banner p {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+/* Feature cards */
+.feature-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+}
+
+.feature-card h3 {
+  color: #0066CC;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card .icon {
+  font-size: 2.5rem;
+  color: #20C997;
+  margin-bottom: 1rem;
+}
+
+/* Badges */
+.badge-custom {
+  display: inline-block;
+  padding: 0.35em 0.65em;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+  margin-right: 0.5rem;
+}
+
+.badge-python {
+  background-color: #0066CC;
+}
+
+.badge-license {
+  background-color: #28A745;
+}
+
+.badge-status {
+  background-color: #FFC107;
+  color: #000;
+}
+
+/* Code blocks */
+pre.sourceCode {
+  border-left: 3px solid #0066CC;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+}
+
+code {
+  color: #0066CC;
+  background-color: #f8f9fa;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+/* Callout boxes */
+.callout-note {
+  border-left-color: #0066CC;
+}
+
+.callout-tip {
+  border-left-color: #28A745;
+}
+
+.callout-warning {
+  border-left-color: #FF6B35;
+}
+
+.callout-important {
+  border-left-color: #DC3545;
+}
+
+/* Navigation */
+.navbar {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Sidebar */
+.sidebar nav[role=doc-toc] ul > li > a.active {
+  border-left-color: #0066CC;
+  color: #0066CC;
+}
+
+/* Tables */
+table {
+  margin-bottom: 1.5rem;
+}
+
+table thead {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #0066CC;
+}
+
+/* Links */
+a {
+  color: #0066CC;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #004999;
+  text-decoration: underline;
+}
+
+/* Figures */
+figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+figcaption {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* Grid layout for cards */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+/* Download buttons */
+.download-btn {
+  background-color: #0066CC;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  text-decoration: none;
+  display: inline-block;
+  margin: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.download-btn:hover {
+  background-color: #004999;
+  color: white;
+  text-decoration: none;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Footer */
+.footer {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e0e0e0;
+}

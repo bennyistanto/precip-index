@@ -1,0 +1,127 @@
+project:
+  type: website
+  output-dir: ../_site
+
+website:
+  title: "Precipitation Index"
+  description: "SPI & SPEI for Climate Extremes Monitoring"
+  favicon: ../images/favicon.png
+
+  navbar:
+    background: primary
+    logo:
+      light: ../images/logo-black.png
+      dark: ../images/logo-white.png
+    search: true
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Get Started"
+        menu:
+          - text: "Installation"
+            href: get-started/installation.qmd
+          - text: "Quick Start"
+            href: get-started/quick-start.qmd
+          - text: "Examples"
+            href: get-started/examples.qmd
+      - text: "Tutorials"
+        menu:
+          - text: "Calculate SPI"
+            href: tutorials/01-calculate-spi.qmd
+          - text: "Calculate SPEI"
+            href: tutorials/02-calculate-spei.qmd
+          - text: "Event Analysis"
+            href: tutorials/03-event-analysis.qmd
+          - text: "Visualization Gallery"
+            href: tutorials/04-visualization.qmd
+      - text: "Documentation"
+        menu:
+          - text: "User Guide"
+            href: user-guide/index.qmd
+          - text: "Technical Docs"
+            href: technical/index.qmd
+      - text: "Changelog"
+        href: changelog.qmd
+
+    right:
+      - icon: github
+        href: https://github.com/bennyistanto/precip-index
+        aria-label: GitHub
+
+  sidebar:
+    - title: "Get Started"
+      style: "docked"
+      background: light
+      contents:
+        - get-started/installation.qmd
+        - get-started/quick-start.qmd
+        - get-started/examples.qmd
+
+    - title: "Tutorials"
+      contents:
+        - tutorials/01-calculate-spi.qmd
+        - tutorials/02-calculate-spei.qmd
+        - tutorials/03-event-analysis.qmd
+        - tutorials/04-visualization.qmd
+
+    - title: "User Guide"
+      contents:
+        - user-guide/index.qmd
+        - text: "---"
+        - section: "Climate Indices"
+          contents:
+            - user-guide/spi.qmd
+            - user-guide/spei.qmd
+        - section: "Analysis Methods"
+          contents:
+            - user-guide/runtheory.qmd
+            - user-guide/magnitude.qmd
+            - user-guide/visualization.qmd
+
+    - title: "Technical Documentation"
+      contents:
+        - technical/index.qmd
+        - text: "---"
+        - technical/methodology.qmd
+        - technical/implementation.qmd
+        - technical/api-reference.qmd
+
+  page-footer:
+    left: |
+      © 2025 Benny Istanto. Licensed under [BSD-3-Clause](https://opensource.org/licenses/BSD-3-Clause)
+    center: |
+      Built with [Quarto](https://quarto.org/)
+    right:
+      - icon: github
+        href: https://github.com/bennyistanto/precip-index
+        aria-label: GitHub
+
+format:
+  html:
+    theme:
+      light: [cosmo, styles.css]
+      dark: [cosmo, styles-dark.css]
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-fold: false
+    code-tools:
+      source: true
+      toggle: false
+      caption: none
+    number-sections: false
+    link-external-newwindow: true
+    link-external-icon: true
+    smooth-scroll: true
+    fig-width: 8
+    fig-height: 6
+    fig-dpi: 150
+
+execute:
+  freeze: auto
+  echo: true
+  warning: false
+  message: false
+
+bibliography: references.bib
+csl: apa.csl

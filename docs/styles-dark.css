@@ -1,0 +1,54 @@
+/*-- scss:defaults --*/
+
+/* Dark theme color adjustments */
+$body-bg: #1a1a1a;
+$body-color: #e0e0e0;
+$link-color: #66b3ff;
+
+/*-- scss:rules --*/
+
+/* Hero section - dark theme */
+.hero-banner {
+  background: linear-gradient(135deg, #004999 0%, #1a9e7a 100%);
+}
+
+/* Feature cards - dark theme */
+.feature-card {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+}
+
+.feature-card:hover {
+  box-shadow: 0 4px 12px rgba(102, 179, 255, 0.2);
+}
+
+/* Code blocks - dark theme */
+pre.sourceCode {
+  border-left-color: #66b3ff;
+  background-color: #2a2a2a;
+}
+
+code {
+  color: #66b3ff;
+  background-color: #2a2a2a;
+}
+
+/* Tables - dark theme */
+table thead {
+  background-color: #2a2a2a;
+  border-bottom-color: #66b3ff;
+}
+
+/* Links - dark theme */
+a {
+  color: #66b3ff;
+}
+
+a:hover {
+  color: #99ccff;
+}
+
+/* Callouts - dark theme adjustments */
+.callout {
+  background-color: #2a2a2a;
+}

@@ -1,0 +1,221 @@
+---
+title: "Installation"
+---
+
+## Requirements
+
+**System Requirements:**
+
+- Python 3.8 or higher
+- 8GB RAM minimum (16GB recommended for global datasets)
+- 10GB free disk space
+
+**Python Dependencies:**
+
+- `numpy` - Numerical computations
+- `scipy` - Statistical distributions
+- `xarray` - Multi-dimensional arrays
+- `netCDF4` - NetCDF file I/O
+- `numba` - Performance acceleration
+- `matplotlib` - Visualization
+
+## Installation Steps
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/bennyistanto/precip-index.git
+cd precip-index
+```
+
+### 2. Install Dependencies
+
+#### Option A: Using pip (Recommended)
+
+```bash
+pip install -r requirements.txt
+```
+
+The `requirements.txt` contains:
+```
+numpy>=1.20.0
+scipy>=1.7.0
+xarray>=0.19.0
+netCDF4>=1.5.7
+numba>=0.54.0
+matplotlib>=3.4.0
+```
+
+#### Option B: Using conda
+
+```bash
+conda create -n precip-index python=3.10
+conda activate precip-index
+conda install -c conda-forge numpy scipy xarray netCDF4 numba matplotlib
+```
+
+### 3. Verify Installation
+
+Run the test suite to verify everything works:
+
+```bash
+python tests/run_all_tests.py
+```
+
+Expected output:
+```
+======================================================================
+PRECIP-INDEX TEST SUITE
+======================================================================
+Running all integration tests...
+Dataset: TerraClimate Bali (1958-2024)
+
+Checking input data files...
+  [OK] input/terraclimate_bali_ppt_1958_2024.nc (0.8 MB)
+  [OK] input/terraclimate_bali_tmean_1958_2024.nc (1.7 MB)
+  [OK] input/terraclimate_bali_pet_1958_2024.nc (0.8 MB)
+
+...
+
+[OK] All tests passed!
+```
+
+## Directory Structure
+
+After installation, you should have:
+
+```
+precip-index/
+├── src/                    # Source code
+│   ├── indices.py         # SPI/SPEI calculations
+│   ├── runtheory.py       # Event analysis
+│   ├── visualization.py   # Plotting functions
+│   └── utils.py           # Utilities
+├── input/                 # Example data
+│   ├── terraclimate_bali_ppt_1958_2024.nc
+│   ├── terraclimate_bali_tmean_1958_2024.nc
+│   └── terraclimate_bali_pet_1958_2024.nc
+├── notebook/              # Jupyter tutorials
+│   ├── 01_calculate_spi.ipynb
+│   ├── 02_calculate_spei.ipynb
+│   ├── 03_event_characteristics.ipynb
+│   └── 04_visualization_gallery.ipynb
+├── tests/                 # Test suite
+│   └── run_all_tests.py
+├── docs/                  # Documentation
+├── requirements.txt       # Dependencies
+└── README.md
+```
+
+## Setup Python Path
+
+Before using the package, add the `src` directory to your Python path:
+
+```python
+import sys
+sys.path.insert(0, 'src')  # Relative path from project root
+```
+
+Or use an absolute path:
+
+```python
+import sys
+sys.path.insert(0, '/path/to/precip-index/src')
+```
+
+::: {.callout-tip}
+## IDE Setup
+
+For Jupyter notebooks or IDEs, you can set the Python path once at the beginning of your session, and it will persist throughout your work.
+:::
+
+## Verify Your Setup
+
+Test that imports work correctly:
+
+```python
+import sys
+sys.path.insert(0, 'src')
+
+# Test imports
+from indices import spi, spei, spi_multi_scale
+from runtheory import identify_events, calculate_timeseries
+from visualization import plot_index, plot_events
+
+print("✓ All imports successful!")
+```
+
+## Optional: Jupyter Notebook Support
+
+If you want to run the tutorial notebooks:
+
+```bash
+pip install jupyter jupyterlab
+```
+
+Then launch Jupyter:
+
+```bash
+jupyter lab
+```
+
+Navigate to the `notebook/` directory and open any tutorial.
+
+## Troubleshooting
+
+### Issue: ModuleNotFoundError
+
+**Problem:** `ModuleNotFoundError: No module named 'indices'`
+
+**Solution:** Make sure you've added the `src` directory to your Python path:
+
+```python
+import sys
+sys.path.insert(0, 'src')
+```
+
+### Issue: Import Errors for Dependencies
+
+**Problem:** `ModuleNotFoundError: No module named 'xarray'`
+
+**Solution:** Install the missing dependency:
+
+```bash
+pip install xarray
+```
+
+Or install all dependencies at once:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Issue: Numba Installation Fails
+
+**Problem:** Numba installation fails on some systems
+
+**Solution:** Try installing via conda instead:
+
+```bash
+conda install -c conda-forge numba
+```
+
+Or use the package without Numba acceleration (slower but still functional).
+
+## Next Steps
+
+✓ Installation complete!
+
+Now you're ready to:
+
+1. [Follow the Quick Start](quick-start.qmd) - Calculate your first SPI/SPEI
+2. [Try the Tutorials](../tutorials/01-calculate-spi.qmd) - Learn through interactive examples
+3. [Read the User Guide](../user-guide/index.qmd) - Understand the methodology
+
+## Getting Help
+
+If you encounter issues:
+
+1. Check the [Quick Start Guide](quick-start.qmd) for common solutions
+2. Review the [test results](../tests/README.md) for validation examples
+3. Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)

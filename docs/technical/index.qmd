@@ -1,0 +1,123 @@
+---
+title: "Technical Documentation"
+subtitle: "Methodology, Implementation, and API Reference"
+---
+
+## Overview
+
+Technical documentation for the **precip-index** package, including detailed methodology, implementation details, and complete API reference.
+
+## Contents
+
+### [Methodology](methodology.qmd)
+
+Scientific background and mathematical foundations:
+
+- **SPI Calculation**
+  - Gamma distribution fitting
+  - Standardization process
+  - Calibration period selection
+
+- **SPEI Calculation**
+  - Water balance approach
+  - PET estimation methods
+  - Distribution fitting
+
+- **Run Theory Framework**
+  - Threshold theory
+  - Event identification
+  - Magnitude types (cumulative vs instantaneous)
+
+### [Implementation](implementation.qmd)
+
+Technical details and design decisions:
+
+- **Architecture**
+  - Module structure
+  - Data flow
+  - Performance optimizations
+
+- **Core Components**
+  - Distribution fitting with SciPy
+  - Numba acceleration
+  - CF Convention compliance
+
+- **Quality Assurance**
+  - Input validation
+  - Error handling
+  - Test coverage
+
+### [API Reference](api-reference.qmd)
+
+Complete function documentation:
+
+- **indices.py** - SPI and SPEI calculation
+- **runtheory.py** - Event analysis
+- **visualization.py** - Plotting functions
+- **utils.py** - Utility functions
+
+## Quick Links
+
+::: {.grid-container}
+::: {.feature-card}
+### 📐 Methodology
+
+Scientific foundations and mathematical approach.
+
+[Read Methodology](methodology.qmd)
+:::
+
+::: {.feature-card}
+### ⚙️ Implementation
+
+Technical design and optimization details.
+
+[Read Implementation](implementation.qmd)
+:::
+
+::: {.feature-card}
+### 📚 API Reference
+
+Complete function documentation with parameters.
+
+[View API](api-reference.qmd)
+:::
+:::
+
+## For Developers
+
+If you're contributing to the package or want to understand the internals:
+
+1. **Start with [Methodology](methodology.qmd)** - Understand the science
+2. **Review [Implementation](implementation.qmd)** - Learn the architecture
+3. **Reference [API docs](api-reference.qmd)** - Function signatures and parameters
+
+## For Researchers
+
+If you're citing the package or validating results:
+
+- **[Methodology](methodology.qmd)** provides mathematical details
+- **[Implementation](implementation.qmd)** describes quality assurance
+- See [GitHub repository](https://github.com/bennyistanto/precip-index) for test results
+
+## Key References
+
+### SPI
+
+- McKee, T.B., Doesken, N.J., Kleist, J. (1993). The relationship of drought frequency and duration to time scales. *Proceedings of the 8th Conference on Applied Climatology*, 17(22), 179-183.
+
+### SPEI
+
+- Vicente-Serrano, S.M., Beguería, S., López-Moreno, J.I. (2010). A multiscalar drought index sensitive to global warming: the standardized precipitation evapotranspiration index. *Journal of Climate*, 23(7), 1696-1718.
+
+### Run Theory
+
+- Yevjevich, V. (1967). *An objective approach to definitions and investigations of continental hydrologic droughts*. Hydrology Papers 23, Colorado State University.
+
+## Support
+
+For technical questions:
+
+- Review the [API Reference](api-reference.qmd)
+- Check the [Implementation](implementation.qmd) guide
+- Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)

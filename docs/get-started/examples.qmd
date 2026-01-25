@@ -1,0 +1,272 @@
+---
+title: "Examples"
+subtitle: "Common use cases and code snippets"
+---
+
+## Example 1: Basic SPI Calculation
+
+Calculate SPI-12 for drought monitoring:
+
+```python
+import sys
+sys.path.insert(0, 'src')
+
+import xarray as xr
+from indices import spi, save_index_to_netcdf
+
+# Load precipitation data
+ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+precip = ds['ppt']
+
+# Calculate SPI-12
+spi_12 = spi(
+    precip,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020
+)
+
+# Save result
+save_index_to_netcdf(spi_12, 'output/spi_12.nc')
+print(f"SPI-12 calculated. Range: [{spi_12.min().values:.2f}, {spi_12.max().values:.2f}]")
+```
+
+## Example 2: SPEI with Temperature
+
+Calculate SPEI using temperature to derive PET:
+
+```python
+from indices import spei
+
+# Load data
+ds_ppt = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+ds_temp = xr.open_dataset('input/terraclimate_bali_tmean_1958_2024.nc')
+
+precip = ds_ppt['ppt']
+temp = ds_temp['tmean']
+lat = ds_ppt['lat']
+
+# Calculate SPEI-6
+spei_6 = spei(
+    precip,
+    temperature=temp,
+    latitude=lat,
+    scale=6,
+    periodicity='monthly'
+)
+
+save_index_to_netcdf(spei_6, 'output/spei_6.nc')
+```
+
+## Example 3: Identify Drought Events
+
+Find all drought events at a location:
+
+```python
+from runtheory import identify_events
+
+# Extract time series for a location
+spi_point = spi_12.isel(lat=10, lon=15)
+
+# Identify droughts (threshold -1.2, minimum 3 months)
+droughts = identify_events(spi_point, threshold=-1.2, min_duration=3)
+
+print(f"Found {len(droughts)} drought events")
+print("\nTop 5 worst droughts:")
+print(droughts.nlargest(5, 'magnitude')[['start_date', 'duration', 'magnitude', 'peak']])
+```
+
+## Example 4: Monitor Current Conditions
+
+Track evolving drought characteristics:
+
+```python
+from runtheory import calculate_timeseries
+
+# Calculate time series with event characteristics
+ts = calculate_timeseries(spi_point, threshold=-1.2)
+
+# Check current status (last month)
+current = ts.iloc[-1]
+
+if current['is_event']:
+    print(f"🚨 DROUGHT ONGOING")
+    print(f"Duration so far: {current['duration']} months")
+    print(f"Cumulative magnitude: {current['magnitude_cumulative']:.2f}")
+    print(f"Current intensity: {current['intensity']:.3f}")
+else:
+    print("✓ No drought currently")
+```
+
+## Example 5: Gridded Period Analysis
+
+Calculate drought statistics for a region and time period:
+
+```python
+from runtheory import calculate_period_statistics
+import matplotlib.pyplot as plt
+
+# Calculate statistics for 2020-2024
+stats = calculate_period_statistics(
+    spi_12,
+    threshold=-1.2,
+    start_year=2020,
+    end_year=2024,
+    min_duration=2
+)
+
+# Plot number of drought events
+fig, ax = plt.subplots(figsize=(10, 6))
+stats.num_events.plot(ax=ax, cmap='YlOrRd')
+ax.set_title('Number of Drought Events (2020-2024)')
+plt.tight_layout()
+plt.savefig('output/drought_events_map.png', dpi=150)
+```
+
+## Example 6: Compare Dry vs Wet Extremes
+
+Analyze both drought and flood events:
+
+```python
+# Drought events
+dry_events = identify_events(spi_point, threshold=-1.2, min_duration=3)
+dry_stats = calculate_period_statistics(spi_12, threshold=-1.2,
+                                        start_year=2000, end_year=2024)
+
+# Flood/wet events
+wet_events = identify_events(spi_point, threshold=+1.2, min_duration=3)
+wet_stats = calculate_period_statistics(spi_12, threshold=+1.2,
+                                        start_year=2000, end_year=2024)
+
+print(f"Droughts: {len(dry_events)} events, avg duration {dry_events['duration'].mean():.1f} months")
+print(f"Wet events: {len(wet_events)} events, avg duration {wet_events['duration'].mean():.1f} months")
+```
+
+## Example 7: Visualization Gallery
+
+Create publication-quality plots:
+
+```python
+from visualization import plot_index, plot_events, plot_event_timeline
+
+# 1. Index time series with threshold
+plot_index(spi_point, threshold=-1.2, title='SPI-12 Time Series - Bali')
+plt.savefig('output/spi_timeseries.png', dpi=150, bbox_inches='tight')
+
+# 2. Highlighted events
+if len(dry_events) > 0:
+    plot_events(spi_point, dry_events, threshold=-1.2,
+                title='Drought Events - Bali')
+    plt.savefig('output/drought_events.png', dpi=150, bbox_inches='tight')
+
+# 3. Event evolution (5-panel view)
+ts = calculate_timeseries(spi_point, threshold=-1.2)
+plot_event_timeline(ts)
+plt.savefig('output/event_timeline.png', dpi=150, bbox_inches='tight')
+```
+
+## Example 8: Multi-Scale Analysis
+
+Calculate and compare multiple time scales:
+
+```python
+from indices import spi_multi_scale
+
+# Calculate SPI for multiple scales
+spi_multi = spi_multi_scale(
+    precip,
+    scales=[1, 3, 6, 12, 24],
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020
+)
+
+# Extract individual scales
+spi_1 = spi_multi['spi_gamma_1_month']   # Meteorological
+spi_3 = spi_multi['spi_gamma_3_month']   # Seasonal
+spi_6 = spi_multi['spi_gamma_6_month']   # Agricultural
+spi_12 = spi_multi['spi_gamma_12_month'] # Hydrological
+spi_24 = spi_multi['spi_gamma_24_month'] # Long-term
+
+# Compare at a point
+loc = dict(lat=precip.lat[10], lon=precip.lon[15], method='nearest')
+comparison = {
+    'SPI-1': float(spi_1.sel(loc, time='2024-12').values),
+    'SPI-3': float(spi_3.sel(loc, time='2024-12').values),
+    'SPI-6': float(spi_6.sel(loc, time='2024-12').values),
+    'SPI-12': float(spi_12.sel(loc, time='2024-12').values),
+    'SPI-24': float(spi_24.sel(loc, time='2024-12').values),
+}
+
+print("December 2024 conditions:")
+for scale, value in comparison.items():
+    print(f"{scale}: {value:+.2f}")
+```
+
+## Example 9: Export Events to CSV
+
+Save event characteristics for analysis:
+
+```python
+# Identify events
+events = identify_events(spi_point, threshold=-1.2, min_duration=2)
+
+# Save to CSV
+events.to_csv('output/drought_events.csv', index=False)
+print(f"Saved {len(events)} events to drought_events.csv")
+
+# Create summary
+summary = {
+    'total_events': len(events),
+    'avg_duration': events['duration'].mean(),
+    'max_duration': events['duration'].max(),
+    'avg_magnitude': events['magnitude'].mean(),
+    'max_magnitude': events['magnitude'].max(),
+    'worst_peak': events['peak'].min()
+}
+
+import pandas as pd
+pd.Series(summary).to_csv('output/drought_summary.csv', header=['value'])
+```
+
+## Example 10: Operational Monitoring
+
+Set up automated drought monitoring:
+
+```python
+from runtheory import get_event_state
+
+# Check current state
+current_spi = float(spi_point.isel(time=-1).values)
+is_drought, category, deviation = get_event_state(current_spi, threshold=-1.2)
+
+# Generate alert
+if is_drought:
+    severity = "SEVERE" if current_spi < -1.5 else "MODERATE"
+    print(f"⚠️ DROUGHT ALERT - {severity}")
+    print(f"Category: {category}")
+    print(f"Current SPI: {current_spi:.2f}")
+    print(f"Deviation from threshold: {deviation:.2f}")
+
+    # Check if worsening
+    previous_spi = float(spi_point.isel(time=-2).values)
+    trend = "worsening" if current_spi < previous_spi else "improving"
+    print(f"Trend: {trend}")
+else:
+    print("✓ No drought detected")
+```
+
+## Next Steps
+
+For complete tutorials with explanations, see:
+
+- [Calculate SPI Tutorial](../tutorials/01-calculate-spi.qmd)
+- [Calculate SPEI Tutorial](../tutorials/02-calculate-spei.qmd)
+- [Event Analysis Tutorial](../tutorials/03-event-analysis.qmd)
+- [Visualization Gallery](../tutorials/04-visualization.qmd)
+
+For detailed methodology:
+
+- [User Guide](../user-guide/index.qmd)
+- [Technical Documentation](../technical/index.qmd)

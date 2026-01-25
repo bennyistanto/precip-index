@@ -1,0 +1,374 @@
+---
+title: "Event Analysis"
+subtitle: "Run Theory for Climate Extremes"
+author: "Benny Istanto"
+date: last-modified
+execute:
+  eval: false
+  echo: true
+  warning: false
+format:
+  html:
+    code-fold: show
+    code-tools: true
+---
+
+## Overview
+
+This tutorial demonstrates **run theory** for identifying and analyzing climate extreme events (both droughts and wet extremes).
+
+**What you'll learn:**
+
+- Identify complete events using run theory
+- Calculate event characteristics (duration, magnitude, intensity, peak)
+- Monitor ongoing events in real-time
+- Calculate gridded period statistics
+- Compare drought vs wet events
+
+**Time required:** 25-30 minutes
+
+## What is Run Theory?
+
+**Run theory** identifies complete extreme events based on:
+
+1. **Threshold crossing:** Index < threshold (for droughts) or > threshold (for wet events)
+2. **Duration:** Minimum consecutive months below/above threshold
+3. **Magnitude:** Cumulative deviation from threshold
+4. **Intensity:** Average severity during event
+5. **Peak:** Most extreme value during event
+
+This goes beyond simple threshold exceedance by capturing the full evolution of events.
+
+## Setup
+
+```{python}
+import sys
+sys.path.insert(0, 'src')
+
+import xarray as xr
+import matplotlib.pyplot as plt
+import os
+
+from runtheory import (
+    identify_events,
+    calculate_timeseries,
+    summarize_events,
+    calculate_period_statistics
+)
+from visualization import plot_events, plot_event_timeline
+
+print("✓ Imports successful!")
+```
+
+## Step 1: Load SPI Data
+
+Load previously calculated SPI-12 data:
+
+```{python}
+# Load SPI-12
+ds = xr.open_dataset('output/netcdf/spi_12_bali.nc')
+spi_12 = ds['spi_gamma_12_month']
+
+# Extract time series for a location
+spi_location = spi_12.isel(lat=12, lon=17)
+
+print(f"Time series length: {len(spi_location)} months")
+print(f"Period: {spi_location.time.values[0]} to {spi_location.time.values[-1]}")
+```
+
+## Step 2: Identify Drought Events
+
+Find all drought events using run theory:
+
+```{python}
+# Identify drought events (threshold -1.2, minimum 3 months)
+drought_events = identify_events(
+    spi_location,
+    threshold=-1.2,
+    min_duration=3
+)
+
+print(f"\nFound {len(drought_events)} drought events")
+print("\nEvent characteristics:")
+print(drought_events[[' start_date', 'end_date', 'duration', 'magnitude', 'intensity', 'peak']])
+```
+
+::: {.callout-note}
+## Threshold Selection
+
+Common thresholds:
+
+- **-0.7:** Mild drought (more events, less severe)
+- **-1.0:** Moderate drought (WMO recommendation)
+- **-1.2:** Significant drought (used in this example)
+- **-1.5:** Severe drought (fewer but more intense events)
+:::
+
+## Step 3: Analyze Event Characteristics
+
+Examine the worst droughts:
+
+::: {.panel-tabset}
+### Longest Droughts
+
+```{python}
+# Top 5 longest droughts
+longest = drought_events.nlargest(5, 'duration')
+print("Top 5 Longest Droughts:")
+print(longest[['start_date', 'end_date', 'duration', 'magnitude']])
+```
+
+### Most Severe Droughts
+
+```{python}
+# Top 5 droughts by magnitude
+severe = drought_events.nlargest(5, 'magnitude')
+print("Top 5 Most Severe Droughts (by magnitude):")
+print(severe[['start_date', 'duration', 'magnitude', 'peak']])
+```
+
+### Event Statistics
+
+```{python}
+# Calculate summary statistics
+summary = summarize_events(drought_events)
+print("\nDrought Event Summary:")
+for key, value in summary.items():
+    print(f"  {key}: {value:.2f}")
+```
+:::
+
+## Step 4: Identify Wet Events
+
+Run theory works identically for wet extremes - just use positive threshold:
+
+```{python}
+# Identify wet/flood events (threshold +1.2)
+wet_events = identify_events(
+    spi_location,
+    threshold=+1.2,
+    min_duration=3
+)
+
+print(f"\nFound {len(wet_events)} wet events")
+print("\nWet event characteristics:")
+print(wet_events[['start_date', 'end_date', 'duration', 'magnitude', 'peak']])
+```
+
+## Step 5: Compare Dry vs Wet
+
+Compare characteristics of drought and wet events:
+
+```{python}
+# Calculate summaries
+dry_summary = summarize_events(drought_events)
+wet_summary = summarize_events(wet_events)
+
+# Create comparison
+import pandas as pd
+comparison = pd.DataFrame({
+    'Drought Events': dry_summary,
+    'Wet Events': wet_summary
+})
+
+print("\nDrought vs Wet Event Comparison:")
+print(comparison)
+
+# Visualize comparison
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Duration comparison
+ax1.hist(drought_events['duration'], bins=15, alpha=0.7, label='Drought', color='orange')
+ax1.hist(wet_events['duration'], bins=15, alpha=0.7, label='Wet', color='blue')
+ax1.set_xlabel('Duration (months)')
+ax1.set_ylabel('Frequency')
+ax1.set_title('Event Duration Distribution')
+ax1.legend()
+
+# Magnitude comparison
+ax2.hist(drought_events['magnitude'], bins=15, alpha=0.7, label='Drought', color='orange')
+ax2.hist(wet_events['magnitude'], bins=15, alpha=0.7, label='Wet', color='blue')
+ax2.set_xlabel('Magnitude')
+ax2.set_ylabel('Frequency')
+ax2.set_title('Event Magnitude Distribution')
+ax2.legend()
+
+plt.tight_layout()
+plt.savefig('output/plots/dry_vs_wet_comparison.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Step 6: Time-Series Monitoring
+
+Track event evolution over time:
+
+```{python}
+# Calculate time series with evolving characteristics
+ts = calculate_timeseries(spi_location, threshold=-1.2)
+
+print(f"\nTime series shape: {ts.shape}")
+print(f"Columns: {list(ts.columns)}")
+
+# Check current status
+current = ts.iloc[-1]
+print(f"\nCurrent status (latest month):")
+print(f"  In drought: {current['is_event']}")
+if current['is_event']:
+    print(f"  Duration so far: {current['duration']} months")
+    print(f"  Cumulative magnitude: {current['magnitude_cumulative']:.2f}")
+    print(f"  Current intensity: {current['intensity']:.3f}")
+```
+
+## Step 7: Visualize Events
+
+Create event timeline plots:
+
+::: {.panel-tabset}
+### Event Highlighting
+
+```{python}
+# Plot index with events highlighted
+fig = plot_events(
+    spi_location,
+    drought_events,
+    threshold=-1.2,
+    title='Drought Events - Bali, Indonesia'
+)
+plt.tight_layout()
+plt.savefig('output/plots/drought_events_timeline.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+### Evolution Timeline
+
+```{python}
+# Plot 5-panel event evolution
+fig = plot_event_timeline(ts)
+plt.tight_layout()
+plt.savefig('output/plots/event_evolution_timeline.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+:::
+
+## Step 8: Gridded Period Statistics
+
+Calculate statistics for all grid cells over a time period:
+
+```{python}
+# Calculate period statistics (2020-2024)
+print("Calculating gridded statistics for 2020-2024...")
+stats = calculate_period_statistics(
+    spi_12,
+    threshold=-1.2,
+    start_year=2020,
+    end_year=2024,
+    min_duration=2
+)
+
+print("\nStatistics variables:")
+print(list(stats.data_vars))
+
+# Plot number of events
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+stats.num_events.plot(ax=axes[0,0], cmap='YlOrRd')
+axes[0,0].set_title('Number of Drought Events')
+
+stats.mean_magnitude.plot(ax=axes[0,1], cmap='YlOrRd')
+axes[0,1].set_title('Mean Event Magnitude')
+
+stats.max_magnitude.plot(ax=axes[1,0], cmap='YlOrRd')
+axes[1,0].set_title('Maximum Event Magnitude')
+
+stats.pct_time_in_event.plot(ax=axes[1,1], cmap='YlOrRd')
+axes[1,1].set_title('% Time in Drought')
+
+plt.tight_layout()
+plt.savefig('output/plots/drought_statistics_2020-2024.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Step 9: Operational Monitoring
+
+Set up real-time drought monitoring:
+
+```{python}
+from runtheory import get_event_state
+
+# Check current drought state
+current_spi = float(spi_location.isel(time=-1).values)
+is_drought, category, deviation = get_event_state(current_spi, threshold=-1.2)
+
+print("\n" + "="*50)
+print("CURRENT DROUGHT STATUS")
+print("="*50)
+
+if is_drought:
+    severity = "SEVERE" if current_spi < -1.5 else "MODERATE"
+    print(f"⚠️ DROUGHT ALERT - {severity}")
+    print(f"Category: {category}")
+    print(f"Current SPI-12: {current_spi:.2f}")
+    print(f"Deviation from threshold: {deviation:.2f}")
+
+    # Get ongoing event characteristics
+    if current['is_event']:
+        print(f"\nOngoing Event:")
+        print(f"  Duration: {current['duration']} months")
+        print(f"  Magnitude: {current['magnitude_cumulative']:.2f}")
+        print(f"  Peak so far: {current['peak_so_far']:.2f}")
+else:
+    print("✓ No drought detected")
+
+print("="*50)
+```
+
+## Step 10: Export Events
+
+Save events to CSV for further analysis:
+
+```{python}
+# Create output directory
+os.makedirs('output/csv', exist_ok=True)
+
+# Save drought events
+drought_events.to_csv('output/csv/drought_events_bali.csv', index=False)
+print("✓ Saved drought events to output/csv/drought_events_bali.csv")
+
+# Save wet events
+wet_events.to_csv('output/csv/wet_events_bali.csv', index=False)
+print("✓ Saved wet events to output/csv/wet_events_bali.csv")
+
+# Save time series
+ts.to_csv('output/csv/drought_timeseries_bali.csv')
+print("✓ Saved time series to output/csv/drought_timeseries_bali.csv")
+```
+
+## Summary
+
+You've learned how to:
+
+✓ Identify complete events using run theory
+✓ Calculate event characteristics (duration, magnitude, intensity, peak)
+✓ Analyze both drought and wet events
+✓ Monitor ongoing events
+✓ Calculate gridded period statistics
+✓ Create event timelines
+✓ Export results for further analysis
+
+## Next Steps
+
+- **[Visualization Gallery](04-visualization.qmd)** - Create publication-quality figures
+- **[User Guide - Run Theory](../user-guide/runtheory.qmd)** - Detailed methodology
+
+## Key Takeaways
+
+::: {.callout-important}
+## Bidirectional Analysis
+
+The same functions work for:
+
+- **Droughts:** negative thresholds (e.g., -1.2)
+- **Wet events:** positive thresholds (e.g., +1.2)
+
+This unified framework makes analysis consistent and reproducible.
+:::

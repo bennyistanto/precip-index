@@ -1,0 +1,388 @@
+---
+title: "Implementation Details"
+---
+
+## Architecture Overview
+
+```
+precip-index/
+├── src/
+│   ├── indices.py           # SPI/SPEI calculation
+│   ├── utils.py             # PET, data validation
+│   ├── runtheory.py         # Drought event analysis
+│   ├── visualization.py     # Plotting functions
+│   └── __init__.py          # Package exports
+├── input/                   # User data (not in repo)
+├── output/                  # Generated results
+│   ├── netcdf/
+│   ├── csv/
+│   └── plots/
+└── notebooks/               # Tutorials
+```
+
+## Core Modules
+
+### 1. indices.py
+
+**Purpose:** Calculate SPI and SPEI drought indices
+
+**Key Functions:**
+- `spi()` - Single-scale SPI
+- `spi_multi_scale()` - Multiple scales at once
+- `spei()` - Temperature-inclusive index
+- `spei_multi_scale()` - Multiple SPEI scales
+
+**Technology:**
+- NumPy vectorization for gridded operations
+- Numba JIT compilation for fitting loops
+- SciPy for statistical distributions
+- xarray for CF-compliant NetCDF
+
+**Performance:**
+- 165×244 grid, 12-month scale: ~30 seconds
+- Gamma distribution fitting: Numba-optimized
+- Memory-efficient chunking for large datasets
+
+### 2. runtheory.py
+
+**Purpose:** Drought event analysis using run theory (Yevjevich 1967)
+
+**Key Functions:**
+
+**Event-Based:**
+- `identify_drought_events()` - Extract complete events
+- `summarize_drought_events()` - Event statistics
+
+**Time-Series:**
+- `calculate_drought_timeseries()` - Month-by-month tracking
+- Real-time monitoring capability
+
+**Gridded Statistics:**
+- `calculate_period_statistics()` - Spatial statistics for time period
+- `calculate_annual_statistics()` - Year-by-year analysis
+- `compare_periods()` - Multi-period comparison
+
+**Implementation:**
+- Pure NumPy for single-location (very fast)
+- xarray.apply_ufunc for gridded data
+- Dual magnitude: cumulative + instantaneous
+
+### 3. utils.py
+
+**Purpose:** Supporting utilities
+
+**Key Functions:**
+- `calculate_pet()` - Potential evapotranspiration
+  - Thornthwaite method (temperature)
+  - Hargreaves method (temp + solar)
+- `validate_data()` - Input checking
+- `load_parameters()` - Pre-fitted parameter loading
+- `save_parameters()` - Parameter persistence
+
+### 4. visualization.py
+
+**Purpose:** Publication-quality climate extremes visualization
+
+**Key Functions:**
+- `plot_index()` - Time series with WMO colors
+- `plot_events()` - Event timeline with dry/wet differentiation
+- `plot_event_characteristics()` - Multi-panel analysis
+- `plot_event_timeline()` - 5-panel evolution
+- `plot_spatial_stats()` - Spatial mapping
+- `generate_location_filename()` - Consistent naming
+
+**Technology:**
+- Matplotlib for all plots
+- Color schemes from scientific literature
+- Automatic folder creation
+
+## Data Flow
+
+### SPI/SPEI Calculation
+
+```
+Input NetCDF (precip, temp)
+    ↓
+validate_data()
+    ↓
+[calculate_pet() if SPEI]
+    ↓
+spi() or spei()
+    ├─ Temporal aggregation (rolling sum)
+    ├─ Distribution fitting (Numba-optimized)
+    └─ Probability transformation
+    ↓
+Output NetCDF (SPI/SPEI)
+```
+
+### Drought Event Analysis
+
+```
+SPI/SPEI time series
+    ↓
+identify_drought_events()
+    ├─ Threshold crossing detection
+    ├─ Duration calculation
+    ├─ Magnitude (cumulative + instantaneous)
+    ├─ Intensity (magnitude/duration)
+    └─ Peak identification
+    ↓
+Events DataFrame or
+Period Statistics Dataset
+```
+
+## Optimization Strategies
+
+### 1. Numba JIT Compilation
+
+**Where:** Distribution fitting loops in `indices.py`
+
+```python
+@numba.jit(nopython=True)
+def fit_gamma_numba(precip_2d):
+    # Fast parameter estimation
+    # 10-20x faster than pure NumPy
+```
+
+**Benefit:** Critical for operational speed
+
+### 2. Vectorization
+
+**Where:** All array operations
+
+```python
+# Vectorized temporal aggregation
+precip_sum = precip.rolling(time=scale).sum()
+
+# Vectorized threshold operations
+is_drought = (spi < threshold).astype(int)
+```
+
+**Benefit:** Leverages NumPy/xarray efficiency
+
+### 3. Chunking (Dask-ready)
+
+**Where:** Large dataset processing
+
+```python
+# Open with chunks for lazy loading
+precip = xr.open_dataset('data.nc', chunks={'time': 100})
+
+# Operations are lazy until .compute()
+result = spi(precip, scale=12)  # No computation yet
+result.to_netcdf('output.nc')   # Computes and saves
+```
+
+**Benefit:** Handle datasets larger than RAM
+
+### 4. Parameter Caching
+
+**Where:** Operational/production systems
+
+```python
+# Fit once on calibration period
+params = spi(precip_calibration, scale=12,
+             calibration_start_year=1991,
+             calibration_end_year=2020)
+
+# Save parameters
+params.to_netcdf('spi_12_params.nc')
+
+# Reuse for operational updates
+spi_new = spi(precip_new, scale=12,
+              fitting_params=params)
+```
+
+**Benefit:** Near-instant operational updates
+
+## Memory Management
+
+### Single Location
+- Memory: <10 MB
+- Processing: In-memory
+- Speed: <0.1 sec
+
+### Small Grid (100×100)
+- Memory: ~50 MB
+- Processing: In-memory
+- Speed: ~5 sec
+
+### Medium Grid (500×500)
+- Memory: ~500 MB
+- Processing: In-memory or chunked
+- Speed: ~2 min
+
+### Large Grid (1000×1000+)
+- Memory: >2 GB
+- Processing: Chunked with Dask
+- Speed: ~10 min (depends on chunks)
+
+**Recommendation:** Use chunks={'time': 100} for grids >500×500
+
+## Output Standards
+
+### NetCDF Files
+
+**Compliance:** CF Convention 1.8
+
+**Required Attributes:**
+```python
+attrs = {
+    'standard_name': 'standardized_precipitation_index',
+    'long_name': 'SPI-12 (Gamma distribution)',
+    'units': '1',
+    'scale': 12,
+    'distribution': 'gamma',
+    'calibration_period': '1991-2020',
+    'threshold': -1.0
+}
+```
+
+**Coordinates:**
+- `time`: Datetime64 with monthly frequency
+- `lat`: WGS84 latitude
+- `lon`: WGS84 longitude
+
+### CSV Files
+
+**Format:** Standard pandas DataFrame export
+
+**Columns:**
+- Event-based: event_id, start_date, end_date, duration, magnitude, etc.
+- Time-series: time, spi, is_drought, duration, magnitude_cumulative, etc.
+
+### Plots
+
+**Format:** PNG (300 dpi, recommended)
+
+**Naming:** Location/period-based
+- `plot_*_lat*.##_lon*.##.png`
+- `plot_spatial_*_YYYY-YYYY.png`
+
+## Testing Strategy
+
+### Unit Tests (Future)
+- Individual function validation
+- Edge case handling
+- Parameter validation
+
+### Integration Tests
+- `test_drought_characteristics.py`
+- End-to-end workflow
+- Real data validation
+
+### Validation
+- Compare with published results
+- Cross-check with original climate-indices
+- Visual inspection of outputs
+
+## Dependencies
+
+### Required
+```
+numpy>=1.19.0       # Array operations
+scipy>=1.5.0        # Statistical distributions
+xarray>=0.16.0      # NetCDF handling
+netCDF4>=1.5.0      # NetCDF I/O
+numba>=0.50.0       # JIT compilation
+matplotlib>=3.3.0   # Visualization
+pandas>=1.1.0       # DataFrame operations
+```
+
+### Optional
+```
+dask>=2.30.0        # Large dataset processing
+```
+
+## Error Handling
+
+### Data Validation
+- Check for NaN values
+- Verify time dimension
+- Ensure positive precipitation
+- Validate coordinate systems
+
+### Distribution Fitting
+- Fallback to default parameters if fitting fails
+- Warning messages for problematic locations
+- NaN preservation in outputs
+
+### File Operations
+- Auto-create output directories
+- Handle existing file overwrites
+- Validate paths
+
+## Performance Benchmarks
+
+**Hardware:** Typical laptop (4 cores, 16 GB RAM)
+
+| Operation | Grid Size | Time | Memory |
+|-----------|-----------|------|--------|
+| SPI-12 calculation | 165×244×408 | 30 sec | 500 MB |
+| Drought events (single) | 408 months | <0.1 sec | <1 MB |
+| Period statistics | 165×244, 5 years | 30 sec | 200 MB |
+| Annual statistics | 165×244, 10 years | 5 min | 300 MB |
+| Plot generation | Single location | 2 sec | 50 MB |
+
+## Scalability
+
+### Horizontal Scaling
+- Process regions in parallel
+- Independent grid cells
+- Batch processing capability
+
+### Vertical Scaling
+- Dask for large grids
+- Chunked I/O for huge datasets
+- Memory-mapped arrays for extreme sizes
+
+## Future Optimizations
+
+1. **GPU Acceleration** - CuPy for distribution fitting
+2. **Parallel Processing** - Multiprocessing for annual statistics
+3. **Caching** - Redis for parameter storage
+4. **Streaming** - Process data as it arrives
+
+## Code Style
+
+**Follows:**
+- PEP 8 conventions
+- NumPy docstring format
+- Type hints (future)
+
+**Standards:**
+- Functions: snake_case
+- Classes: PascalCase (minimal usage)
+- Constants: UPPER_CASE
+- Private: _leading_underscore
+
+## Version Control
+
+**Current:** 2026.1 (January 2026)
+
+**Key Changes:**
+- 2026.1: Complete package with SPI/SPEI, run theory, and dual magnitude
+
+**See:** [CHANGELOG.md](../../CHANGELOG.md) for details
+
+## References
+
+- McKee, T.B., et al. (1993). SPI methodology
+- Vicente-Serrano, S.M., et al. (2010). SPEI methodology
+- Yevjevich, V. (1967). Run theory
+- Adams, J. (2017). Original climate-indices package
+
+## Contributing
+
+**To extend functionality:**
+1. Add function to appropriate module
+2. Export in `__init__.py`
+3. Document in user guide
+4. Add test case
+5. Update CHANGELOG.md
+
+**Maintain:**
+- CF Convention compliance
+- NumPy vectorization
+- Clear documentation
+- Consistent API

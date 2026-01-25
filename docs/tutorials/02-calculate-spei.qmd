@@ -1,0 +1,352 @@
+---
+title: "Calculate SPEI"
+subtitle: "Standardized Precipitation Evapotranspiration Index - Complete Tutorial"
+author: "Benny Istanto"
+date: last-modified
+execute:
+  eval: false
+  echo: true
+  warning: false
+format:
+  html:
+    code-fold: show
+    code-tools: true
+---
+
+## Overview
+
+This tutorial demonstrates how to calculate the **Standardized Precipitation Evapotranspiration Index (SPEI)** using TerraClimate data for Bali, Indonesia.
+
+**What you'll learn:**
+
+- Calculate SPEI with pre-computed PET
+- Calculate SPEI with temperature (auto-compute PET)
+- Compare SPEI with SPI
+- Understand the impact of evapotranspiration
+
+**Time required:** 20-25 minutes
+
+## Why SPEI?
+
+**SPEI** extends SPI by incorporating **potential evapotranspiration (PET)**:
+
+- **SPI** = Precipitation only
+- **SPEI** = Precipitation - PET (water balance)
+
+SPEI is more sensitive to temperature increases and climate change impacts.
+
+## Setup
+
+```{python}
+import sys
+sys.path.insert(0, 'src')
+
+import numpy as np
+import xarray as xr
+import matplotlib.pyplot as plt
+import os
+
+from indices import spei, save_index_to_netcdf
+from utils import calculate_pet
+from visualization import plot_index
+
+print("✓ All imports successful!")
+```
+
+## Step 1: Load Data
+
+Load precipitation, temperature, and PET data:
+
+```{python}
+# Load precipitation
+ds_ppt = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+precip = ds_ppt['ppt']
+
+# Load temperature
+ds_temp = xr.open_dataset('input/terraclimate_bali_tmean_1958_2024.nc')
+temperature = ds_temp['tmean']
+
+# Load pre-computed PET (from TerraClimate)
+ds_pet = xr.open_dataset('input/terraclimate_bali_pet_1958_2024.nc')
+pet_precomputed = ds_pet['pet']
+
+print("Data loaded successfully!")
+print(f"Precipitation: {precip.shape}")
+print(f"Temperature: {temperature.shape}")
+print(f"PET: {pet_precomputed.shape}")
+```
+
+## Method 1: SPEI with Pre-computed PET
+
+Use TerraClimate's pre-computed PET values:
+
+```{python}
+# Calculate SPEI-6 using pre-computed PET
+print("Calculating SPEI-6 with pre-computed PET...")
+spei_6_with_pet = spei(
+    precip,
+    pet=pet_precomputed,
+    scale=6,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    dist='gamma'
+)
+
+print("SPEI-6 Complete!")
+print(f"  Range: [{float(spei_6_with_pet.min()):.2f}, {float(spei_6_with_pet.max()):.2f}]")
+print(f"  Mean: {float(spei_6_with_pet.mean()):.3f}")
+print(f"  Std: {float(spei_6_with_pet.std()):.3f}")
+```
+
+## Method 2: SPEI with Temperature
+
+Let the package calculate PET automatically using Thornthwaite method:
+
+```{python}
+# Calculate SPEI-6 with temperature (auto-compute PET)
+print("Calculating SPEI-6 with temperature...")
+spei_6_with_temp = spei(
+    precip,
+    temperature=temperature,
+    latitude=ds_ppt['lat'],
+    scale=6,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    dist='gamma'
+)
+
+print("SPEI-6 Complete!")
+print(f"  Range: [{float(spei_6_with_temp.min()):.2f}, {float(spei_6_with_temp.max()):.2f}]")
+print(f"  Mean: {float(spei_6_with_temp.mean()):.3f}")
+```
+
+::: {.callout-note}
+## PET Calculation Methods
+
+The `spei()` function accepts either:
+
+- `pet=` parameter for pre-computed PET values
+- `temperature=` parameter to auto-calculate PET using Thornthwaite method
+
+Both produce similar results. Use temperature if PET is not available.
+:::
+
+## Step 2: Compare Both Methods
+
+Compare SPEI from both PET sources:
+
+```{python}
+# Extract time series for comparison
+location = dict(lat=12, lon=17)
+spei_pet = spei_6_with_pet.isel(location)
+spei_temp = spei_6_with_temp.isel(location)
+
+# Calculate correlation
+correlation = np.corrcoef(spei_pet.values, spei_temp.values)[0, 1]
+print(f"Correlation between methods: {correlation:.4f}")
+
+# Plot comparison
+fig, ax = plt.subplots(figsize=(14, 6))
+ax.plot(spei_pet.time, spei_pet, label='SPEI (Pre-computed PET)', alpha=0.7)
+ax.plot(spei_temp.time, spei_temp, label='SPEI (Thornthwaite PET)', alpha=0.7, linestyle='--')
+ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+ax.axhline(y=-1.0, color='red', linestyle='--', linewidth=1)
+ax.set_xlabel('Time')
+ax.set_ylabel('SPEI-6')
+ax.set_title('SPEI-6 Comparison: Pre-computed vs Thornthwaite PET')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('output/plots/spei_pet_comparison.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Step 3: Visualize PET
+
+Understand how PET varies across Bali:
+
+```{python}
+# Calculate PET manually to visualize
+lat_values = ds_temp['lat'].values
+pet_computed = calculate_pet(
+    temperature,
+    latitude=lat_values,
+    data_start_year=1958
+)
+
+# Plot mean annual PET
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Mean PET
+pet_mean = pet_computed.mean(dim='time')
+pet_mean.plot(ax=ax1, cmap='YlOrRd')
+ax1.set_title('Mean Annual PET (mm/month)')
+
+# Mean Precipitation
+precip_mean = precip.mean(dim='time')
+precip_mean.plot(ax=ax2, cmap='Blues')
+ax2.set_title('Mean Annual Precipitation (mm/month)')
+
+plt.tight_layout()
+plt.savefig('output/plots/pet_vs_precipitation_maps.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Step 4: Compare SPEI vs SPI
+
+See the difference between precipitation-only (SPI) and water balance (SPEI):
+
+::: {.panel-tabset}
+### Calculate Both
+
+```{python}
+from indices import spi
+
+# Calculate SPI-6 for comparison
+spi_6 = spi(
+    precip,
+    scale=6,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020
+)
+
+# Extract time series
+spi_ts = spi_6.isel(lat=12, lon=17)
+spei_ts = spei_6_with_temp.isel(lat=12, lon=17)
+```
+
+### Visualize Comparison
+
+```{python}
+# Create comparison plot
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+
+# SPI-6
+ax1.bar(spi_ts.time, spi_ts, color=['green' if v > 0 else 'orange' for v in spi_ts.values])
+ax1.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+ax1.axhline(y=-1.0, color='red', linestyle='--', linewidth=1)
+ax1.set_ylabel('SPI-6')
+ax1.set_title('SPI-6 (Precipitation Only)')
+ax1.grid(True, alpha=0.3)
+
+# SPEI-6
+ax2.bar(spei_ts.time, spei_ts, color=['green' if v > 0 else 'orange' for v in spei_ts.values])
+ax2.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+ax2.axhline(y=-1.0, color='red', linestyle='--', linewidth=1)
+ax2.set_ylabel('SPEI-6')
+ax2.set_title('SPEI-6 (Precipitation - PET)')
+ax2.grid(True, alpha=0.3)
+
+# Difference
+diff = spi_ts - spei_ts
+ax3.bar(diff.time, diff, color=['blue' if v > 0 else 'red' for v in diff.values])
+ax3.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+ax3.set_xlabel('Time')
+ax3.set_ylabel('Difference (SPI - SPEI)')
+ax3.set_title('Impact of Evapotranspiration')
+ax3.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('output/plots/spi_vs_spei_comparison.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+### Interpret Results
+
+```{python}
+# Calculate statistics
+print("Comparison Statistics:")
+print(f"  SPI-6 mean: {float(spi_ts.mean()):.3f}")
+print(f"  SPEI-6 mean: {float(spei_ts.mean()):.3f}")
+print(f"  Difference mean: {float(diff.mean()):.3f}")
+print(f"\nCorrelation: {float(np.corrcoef(spi_ts.values, spei_ts.values)[0,1]):.4f}")
+```
+:::
+
+::: {.callout-important}
+## SPI vs SPEI
+
+When SPI > SPEI:
+
+- Evapotranspiration is reducing water availability
+- Even with normal precipitation, high temperatures increase water loss
+- SPEI shows more severe drought conditions
+
+This is especially important in warm/hot climates!
+:::
+
+## Step 5: Multi-Scale SPEI
+
+Calculate SPEI at multiple time scales:
+
+```{python}
+from indices import spei_multi_scale
+
+# Not yet implemented - calculate individually
+scales = [3, 6, 9, 12]
+spei_results = {}
+
+for scale in scales:
+    print(f"Calculating SPEI-{scale}...")
+    spei_results[scale] = spei(
+        precip,
+        temperature=temperature,
+        latitude=ds_ppt['lat'],
+        scale=scale,
+        periodicity='monthly',
+        calibration_start_year=1991,
+        calibration_end_year=2020
+    )
+
+print("Multi-scale SPEI complete!")
+```
+
+## Step 6: Save Results
+
+Save SPEI to NetCDF files:
+
+```{python}
+# Create output directory
+os.makedirs('output/netcdf', exist_ok=True)
+
+# Save SPEI-6
+save_index_to_netcdf(spei_6_with_temp, 'output/netcdf/spei_6_bali.nc', compress=True)
+print("✓ Saved SPEI-6")
+
+# Save multi-scale SPEI as dataset
+spei_multi_ds = xr.Dataset({
+    f'spei_gamma_{scale}_month': spei_results[scale]
+    for scale in scales
+})
+save_index_to_netcdf(spei_multi_ds, 'output/netcdf/spei_multi_scale_bali.nc', compress=True)
+print("✓ Saved multi-scale SPEI")
+
+# Save computed PET for reference
+pet_computed.to_netcdf('output/netcdf/pet_thornthwaite_bali.nc')
+print("✓ Saved computed PET")
+```
+
+## Summary
+
+You've learned how to:
+
+✓ Calculate SPEI with pre-computed PET
+✓ Calculate SPEI with temperature (auto-PET)
+✓ Compare different PET calculation methods
+✓ Understand the difference between SPI and SPEI
+✓ Calculate multi-scale SPEI
+✓ Visualize water balance components
+
+## Next Steps
+
+- **[Event Analysis](03-event-analysis.qmd)** - Identify and characterize drought events using SPEI
+- **[Visualization Gallery](04-visualization.qmd)** - Create publication-quality plots
+
+## References
+
+- McKee et al. (1993): SPI methodology
+- Vicente-Serrano et al. (2010): SPEI methodology
+- Thornthwaite (1948): PET calculation

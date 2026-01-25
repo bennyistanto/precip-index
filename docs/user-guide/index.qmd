@@ -1,0 +1,117 @@
+---
+title: "User Guide"
+subtitle: "Complete Guide to SPI, SPEI, and Run Theory"
+---
+
+## Overview
+
+This user guide provides comprehensive documentation for using the **precip-index** package to calculate climate indices and analyze extreme events.
+
+## Contents
+
+### Climate Indices
+
+Learn how to calculate and interpret standardized indices:
+
+- **[SPI - Standardized Precipitation Index](spi.qmd)**
+  - Precipitation-based drought monitoring
+  - Multiple time scales (1, 3, 6, 12, 24 months)
+  - Distribution fitting and calibration
+
+- **[SPEI - Standardized Precipitation Evapotranspiration Index](spei.qmd)**
+  - Water balance approach (precipitation - PET)
+  - Temperature-inclusive drought assessment
+  - PET calculation methods
+
+### Analysis Methods
+
+Understand the analytical framework:
+
+- **[Run Theory for Climate Extremes](runtheory.qmd)**
+  - Event identification methodology
+  - Duration, magnitude, intensity, peak
+  - Time-series monitoring
+  - Gridded period statistics
+
+- **[Magnitude Types Explained](magnitude.qmd)**
+  - Cumulative (monotonic) magnitude
+  - Instantaneous (variable) magnitude
+  - When to use each type
+
+- **[Visualization Guide](visualization.qmd)**
+  - 11-category WMO color scheme
+  - Event timeline plots
+  - Spatial statistics maps
+  - Publication-quality figures
+
+## Quick Navigation
+
+::: {.grid-container}
+::: {.feature-card}
+### 📊 Climate Indices
+
+Learn about SPI and SPEI calculation, calibration, and interpretation.
+
+[SPI Guide](spi.qmd) | [SPEI Guide](spei.qmd)
+:::
+
+::: {.feature-card}
+### 📈 Event Analysis
+
+Master run theory for identifying and analyzing climate extremes.
+
+[Run Theory](runtheory.qmd) | [Magnitude](magnitude.qmd)
+:::
+
+::: {.feature-card}
+### 🎨 Visualization
+
+Create publication-quality plots and maps.
+
+[Visualization Guide](visualization.qmd)
+:::
+:::
+
+## Getting Started
+
+If you're new to the package:
+
+1. Start with the **[SPI Guide](spi.qmd)** to understand basic index calculation
+2. Move to **[Run Theory](runtheory.qmd)** to learn event analysis
+3. Explore **[Visualization](visualization.qmd)** to create plots
+
+For hands-on learning, try the [Tutorials](../tutorials/01-calculate-spi.qmd).
+
+## Key Concepts
+
+### Standardized Indices
+
+Both SPI and SPEI transform precipitation (and evapotranspiration) data into standardized values that represent probability of occurrence:
+
+- **Positive values:** Wetter than normal
+- **Negative values:** Drier than normal
+- **Magnitude:** Severity of the condition
+
+### Bidirectional Analysis
+
+This package treats dry and wet extremes equally:
+
+- **Droughts:** Use negative thresholds (e.g., -1.2)
+- **Wet events/Floods:** Use positive thresholds (e.g., +1.2)
+- **Same functions:** Consistent methodology for both
+
+### Time Scales
+
+Different time scales capture different drought types:
+
+- **1-3 months:** Meteorological/agricultural
+- **6-9 months:** Agricultural/hydrological
+- **12-24 months:** Hydrological/socio-economic
+
+## Support
+
+Need help?
+
+- Check the [Tutorials](../tutorials/01-calculate-spi.qmd) for step-by-step examples
+- Review the [Technical Documentation](../technical/index.qmd) for detailed API
+- Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)

@@ -1,0 +1,400 @@
+---
+title: "Visualization Gallery"
+subtitle: "Create Publication-Quality Climate Extreme Visualizations"
+author: "Benny Istanto"
+date: last-modified
+execute:
+  eval: false
+  echo: true
+  warning: false
+format:
+  html:
+    code-fold: show
+    code-tools: true
+---
+
+## Overview
+
+This tutorial showcases all visualization functions for creating publication-quality plots of climate indices and extreme events.
+
+**What you'll learn:**
+
+- Index time series with 11-category color scheme
+- Event highlighting and annotations
+- Event characteristics plots
+- 5-panel evolution timelines
+- Spatial statistics maps
+- Custom styling for publications
+
+**Time required:** 20-25 minutes
+
+## Setup
+
+```{python}
+import sys
+sys.path.insert(0, 'src')
+
+import xarray as xr
+import matplotlib.pyplot as plt
+import os
+
+from runtheory import identify_events, calculate_timeseries, calculate_period_statistics
+from visualization import (
+    plot_index,
+    plot_events,
+    plot_event_characteristics,
+    plot_event_timeline,
+    plot_spatial_stats
+)
+
+# Load data
+ds = xr.open_dataset('output/netcdf/spi_12_bali.nc')
+spi_12 = ds['spi_gamma_12_month']
+spi_location = spi_12.isel(lat=12, lon=17)
+
+print("✓ Setup complete!")
+```
+
+## Plot Type 1: Index Time Series
+
+Standard time series with 11-category WMO color scheme:
+
+::: {.panel-tabset}
+### Basic Plot
+
+```{python}
+# Basic index plot
+fig = plot_index(
+    spi_location,
+    threshold=-1.0,
+    title='SPI-12 Time Series - Bali, Indonesia'
+)
+plt.tight_layout()
+plt.savefig('output/plots/spi_basic.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+### Custom Styling
+
+```{python}
+# Custom figure size and styling
+fig = plot_index(
+    spi_location,
+    threshold=-1.2,
+    title='SPI-12: Drought Monitoring - Bali',
+    figsize=(16, 6)
+)
+plt.tight_layout()
+plt.savefig('output/plots/spi_custom.png', dpi=300, bbox_inches='tight')
+plt.show()
+```
+
+### Focus on Recent Period
+
+```{python}
+# Plot recent years only
+recent_spi = spi_location.sel(time=slice('2010', '2024'))
+fig = plot_index(
+    recent_spi,
+    threshold=-1.0,
+    title='SPI-12: Recent Trends (2010-2024)'
+)
+plt.tight_layout()
+plt.savefig('output/plots/spi_recent.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+:::
+
+## Plot Type 2: Event Highlighting
+
+Highlight identified events on the time series:
+
+```{python}
+# Identify events
+drought_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
+
+# Plot with event highlighting
+fig = plot_events(
+    spi_location,
+    drought_events,
+    threshold=-1.2,
+    title='Drought Events - Bali, Indonesia (1958-2024)'
+)
+plt.tight_layout()
+plt.savefig('output/plots/drought_events_highlighted.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+print(f"Highlighted {len(drought_events)} events")
+```
+
+::: {.callout-tip}
+## Event Highlighting
+
+Events are highlighted with:
+
+- Shaded regions showing event duration
+- Vertical lines marking start/end
+- Event numbers for reference
+:::
+
+## Plot Type 3: Event Characteristics
+
+Analyze event properties:
+
+```{python}
+# Plot different event characteristics
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Duration vs Magnitude
+plot_event_characteristics(
+    drought_events,
+    characteristic='magnitude',
+    ax=axes[0,0]
+)
+axes[0,0].set_title('Event Duration vs Magnitude')
+
+# Duration vs Intensity
+plot_event_characteristics(
+    drought_events,
+    characteristic='intensity',
+    ax=axes[0,1]
+)
+axes[0,1].set_title('Event Duration vs Intensity')
+
+# Duration vs Peak
+plot_event_characteristics(
+    drought_events,
+    characteristic='peak',
+    ax=axes[1,0]
+)
+axes[1,0].set_title('Event Duration vs Peak')
+
+# Magnitude distribution
+axes[1,1].hist(drought_events['magnitude'], bins=15, color='orange', alpha=0.7)
+axes[1,1].set_xlabel('Magnitude')
+axes[1,1].set_ylabel('Frequency')
+axes[1,1].set_title('Magnitude Distribution')
+axes[1,1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('output/plots/event_characteristics.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Plot Type 4: Event Evolution Timeline (5-Panel)
+
+Show evolving event characteristics over time:
+
+```{python}
+# Calculate time series
+ts = calculate_timeseries(spi_location, threshold=-1.2)
+
+# Create 5-panel evolution plot
+fig = plot_event_timeline(ts)
+plt.tight_layout()
+plt.savefig('output/plots/event_evolution_5panel.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+**The 5 panels show:**
+
+1. **Index & Threshold:** SPI-12 values with drought threshold
+2. **Event Duration:** Accumulating duration during events
+3. **Cumulative Magnitude:** Total water deficit
+4. **Instantaneous Magnitude:** Month-by-month deviation
+5. **Intensity:** Average severity (magnitude/duration)
+
+## Plot Type 5: Spatial Statistics
+
+Create maps of event statistics:
+
+```{python}
+# Calculate period statistics
+stats = calculate_period_statistics(
+    spi_12,
+    threshold=-1.2,
+    start_year=2000,
+    end_year=2024,
+    min_duration=2
+)
+
+# Plot different statistics
+fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+
+# Number of events
+plot_spatial_stats(
+    stats,
+    variable='num_events',
+    title='Number of Drought Events (2000-2024)',
+    ax=axes[0,0],
+    cmap='YlOrRd'
+)
+
+# Mean magnitude
+plot_spatial_stats(
+    stats,
+    variable='mean_magnitude',
+    title='Mean Event Magnitude',
+    ax=axes[0,1],
+    cmap='YlOrRd'
+)
+
+# Max magnitude
+plot_spatial_stats(
+    stats,
+    variable='max_magnitude',
+    title='Maximum Event Magnitude',
+    ax=axes[0,2],
+    cmap='YlOrRd'
+)
+
+# Total event months
+plot_spatial_stats(
+    stats,
+    variable='total_event_months',
+    title='Total Drought Months',
+    ax=axes[1,0],
+    cmap='YlOrRd'
+)
+
+# Percent time in drought
+plot_spatial_stats(
+    stats,
+    variable='pct_time_in_event',
+    title='% Time in Drought',
+    ax=axes[1,1],
+    cmap='YlOrRd'
+)
+
+# Worst peak
+plot_spatial_stats(
+    stats,
+    variable='worst_peak',
+    title='Worst Peak SPI',
+    ax=axes[1,2],
+    cmap='YlOrRd_r'
+)
+
+plt.tight_layout()
+plt.savefig('output/plots/spatial_statistics.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Multi-Scale Comparison
+
+Compare different time scales visually:
+
+```{python}
+# Load multi-scale SPI
+ds_multi = xr.open_dataset('output/netcdf/spi_multi_scale_bali.nc')
+
+# Extract time series
+spi_3 = ds_multi['spi_gamma_3_month'].isel(lat=12, lon=17)
+spi_6 = ds_multi['spi_gamma_6_month'].isel(lat=12, lon=17)
+spi_12 = ds_multi['spi_gamma_12_month'].isel(lat=12, lon=17)
+
+# Create 3-panel comparison
+fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+
+for ax, spi_data, scale in zip(axes, [spi_3, spi_6, spi_12], [3, 6, 12]):
+    plot_index(spi_data, threshold=-1.0, title=f'SPI-{scale}', ax=ax)
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.savefig('output/plots/multiscale_comparison.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Dry vs Wet Comparison
+
+Compare drought and wet events:
+
+```{python}
+# Identify both types of events
+drought_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
+wet_events = identify_events(spi_location, threshold=+1.2, min_duration=3)
+
+# Create comparison plot
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+
+# Drought events
+plot_events(spi_location, drought_events, threshold=-1.2,
+            title='Drought Events (Threshold -1.2)', ax=ax1)
+
+# Wet events
+plot_events(spi_location, wet_events, threshold=+1.2,
+            title='Wet Events (Threshold +1.2)', ax=ax2)
+
+ax2.set_xlabel('Time')
+plt.tight_layout()
+plt.savefig('output/plots/dry_vs_wet_events.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Publication Quality Settings
+
+Export high-resolution figures for publications:
+
+```{python}
+# High-resolution export
+fig = plot_index(
+    spi_location,
+    threshold=-1.2,
+    title='',  # No title for publication
+    figsize=(10, 4)
+)
+
+# Remove top and right spines
+ax = plt.gca()
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+# Save at publication quality
+plt.tight_layout()
+plt.savefig('output/plots/publication_quality.png',
+            dpi=300,
+            bbox_inches='tight',
+            facecolor='white',
+            edgecolor='none')
+plt.savefig('output/plots/publication_quality.pdf',  # Vector format
+            bbox_inches='tight')
+plt.show()
+
+print("✓ Saved PNG (raster) and PDF (vector) versions")
+```
+
+## Summary
+
+You've learned how to create:
+
+✓ Index time series with 11-category color scheme
+✓ Event-highlighted plots
+✓ Event characteristic scatterplots
+✓ 5-panel evolution timelines
+✓ Spatial statistic maps
+✓ Multi-scale comparisons
+✓ Publication-quality exports
+
+## Color Scheme Reference
+
+The 11-category WMO color scheme used in all plots:
+
+| SPI Range | Category | Color |
+|-----------|----------|-------|
+| ≤ -2.0 | Exceptionally Dry | Dark Red |
+| -2.0 to -1.5 | Extremely Dry | Red |
+| -1.5 to -1.2 | Severely Dry | Orange |
+| -1.2 to -0.7 | Moderately Dry | Light Orange |
+| -0.7 to -0.5 | Abnormally Dry | Yellow |
+| -0.5 to 0.5 | Near Normal | Gray |
+| 0.5 to 0.7 | Abnormally Moist | Light Green |
+| 0.7 to 1.2 | Moderately Moist | Green |
+| 1.2 to 1.5 | Very Moist | Cyan |
+| 1.5 to 2.0 | Extremely Moist | Blue |
+| ≥ 2.0 | Exceptionally Moist | Purple |
+
+## Next Steps
+
+- Explore the [User Guide](../user-guide/index.qmd) for methodology details
+- Check the [Technical Documentation](../technical/index.qmd) for API reference
+- Create your own visualizations with your data!

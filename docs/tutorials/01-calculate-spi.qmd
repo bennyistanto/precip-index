@@ -1,0 +1,320 @@
+---
+title: "Calculate SPI"
+subtitle: "Standardized Precipitation Index - Complete Tutorial"
+author: "Benny Istanto"
+date: last-modified
+execute:
+  eval: false
+  echo: true
+  warning: false
+format:
+  html:
+    code-fold: show
+    code-tools: true
+---
+
+## Overview
+
+This tutorial demonstrates how to calculate the **Standardized Precipitation Index (SPI)** using TerraClimate precipitation data for Bali, Indonesia (1958-2024).
+
+**What you'll learn:**
+
+- Load and explore precipitation data
+- Calculate single-scale SPI (SPI-3)
+- Calculate multi-scale SPI (SPI-3, 6, 9, 12)
+- Save parameters for reuse
+- Visualize SPI with the 11-category color scheme
+
+**Time required:** 15-20 minutes
+
+## Setup
+
+```{python}
+import sys
+sys.path.insert(0, 'src')
+
+import numpy as np
+import xarray as xr
+import matplotlib.pyplot as plt
+import os
+
+# Import package functions
+from indices import spi, spi_multi_scale, save_index_to_netcdf
+from indices import save_fitting_params, load_fitting_params
+from visualization import plot_index
+
+print("✓ All imports successful!")
+```
+
+## Step 1: Load Precipitation Data
+
+Load the TerraClimate precipitation data for Bali:
+
+```{python}
+# Load precipitation data
+ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+precip = ds['ppt']
+
+# Examine the data
+print("Dataset Information:")
+print(f"  Shape: {precip.shape}")
+print(f"  Dimensions: {precip.dims}")
+print(f"  Time range: {precip.time.values[0]} to {precip.time.values[-1]}")
+print(f"  Spatial extent: Lat [{float(precip.lat.min()):.2f}, {float(precip.lat.max()):.2f}], Lon [{float(precip.lon.min()):.2f}, {float(precip.lon.max()):.2f}]")
+print(f"\nPrecipitation statistics:")
+print(f"  Mean: {float(precip.mean()):.1f} mm/month")
+print(f"  Min: {float(precip.min()):.1f} mm/month")
+print(f"  Max: {float(precip.max()):.1f} mm/month")
+```
+
+::: {.callout-note}
+## Data Format
+
+The precipitation data is in NetCDF format with dimensions `(time, lat, lon)`. TerraClimate provides monthly precipitation in mm/month at ~4km resolution.
+:::
+
+## Step 2: Calculate SPI-3
+
+Calculate SPI at 3-month timescale (seasonal drought):
+
+```{python}
+# Calculate SPI-3
+print("Calculating SPI-3...")
+spi_3 = spi(
+    precip,
+    scale=3,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    dist='gamma'
+)
+
+print("SPI-3 Calculation Complete!")
+print(f"  Output shape: {spi_3.shape}")
+print(f"  Value range: [{float(spi_3.min()):.2f}, {float(spi_3.max()):.2f}]")
+print(f"  Mean: {float(spi_3.mean()):.3f}")
+print(f"  Std Dev: {float(spi_3.std()):.3f}")
+```
+
+::: {.callout-tip}
+## Calibration Period
+
+We use 1991-2020 as the calibration period (30 years) following WMO recommendations. This period is used to fit the probability distribution.
+:::
+
+## Step 3: Visualize SPI-3
+
+Plot the SPI time series for a location:
+
+```{python}
+# Select a location (center of Bali)
+spi_point = spi_3.isel(lat=12, lon=17)
+
+# Create visualization
+fig = plot_index(
+    spi_point,
+    threshold=-1.0,
+    title='SPI-3 Time Series - Bali, Indonesia'
+)
+plt.tight_layout()
+plt.savefig('output/plots/spi_3_timeseries.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+The plot shows:
+
+- **Green bars:** Wet conditions (positive SPI)
+- **Orange/Red bars:** Dry conditions (negative SPI)
+- **Red line:** Drought threshold (-1.0)
+- **11-category color scheme:** WMO standard classification
+
+## Step 4: Multi-Scale SPI
+
+Calculate SPI for multiple timescales at once:
+
+```{python}
+# Calculate multiple scales
+print("Calculating multi-scale SPI...")
+spi_multi = spi_multi_scale(
+    precip,
+    scales=[3, 6, 9, 12],
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    dist='gamma'
+)
+
+print("\nMulti-scale SPI Complete!")
+print(f"Variables created: {list(spi_multi.data_vars)}")
+
+# Summary statistics for each scale
+for scale in [3, 6, 9, 12]:
+    var_name = f'spi_gamma_{scale}_month'
+    spi_data = spi_multi[var_name]
+    print(f"\nSPI-{scale}:")
+    print(f"  Range: [{float(spi_data.min()):.2f}, {float(spi_data.max()):.2f}]")
+    print(f"  Mean: {float(spi_data.mean()):.3f}")
+```
+
+::: {.callout-important}
+## Time Scale Interpretation
+
+- **SPI-3:** Seasonal agricultural drought
+- **SPI-6:** Medium-term agricultural/hydrological drought
+- **SPI-9:** Transitional between agricultural and hydrological
+- **SPI-12:** Long-term hydrological drought (water resources)
+:::
+
+## Step 5: Compare Time Scales
+
+Visualize different timescales at the same location:
+
+```{python}
+# Extract time series for all scales
+spi_3_ts = spi_multi['spi_gamma_3_month'].isel(lat=12, lon=17)
+spi_6_ts = spi_multi['spi_gamma_6_month'].isel(lat=12, lon=17)
+spi_9_ts = spi_multi['spi_gamma_9_month'].isel(lat=12, lon=17)
+spi_12_ts = spi_multi['spi_gamma_12_month'].isel(lat=12, lon=17)
+
+# Create 4-panel plot
+fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
+
+for ax, spi_data, scale in zip(axes, [spi_3_ts, spi_6_ts, spi_9_ts, spi_12_ts], [3, 6, 9, 12]):
+    ax.bar(spi_data.time, spi_data, color=['green' if v > 0 else 'orange' for v in spi_data.values])
+    ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    ax.axhline(y=-1.0, color='red', linestyle='--', linewidth=1, label='Drought threshold')
+    ax.set_ylabel('SPI Value')
+    ax.set_title(f'SPI-{scale}')
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='upper right')
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.savefig('output/plots/spi_multi_comparison.png', dpi=150, bbox_inches='tight')
+plt.show()
+```
+
+## Step 6: Save Results
+
+Save the calculated SPI to NetCDF files:
+
+```{python}
+# Create output directory
+os.makedirs('output/netcdf', exist_ok=True)
+
+# Save single-scale SPI
+save_index_to_netcdf(spi_3, 'output/netcdf/spi_3_bali.nc', compress=True)
+print("✓ Saved SPI-3 to output/netcdf/spi_3_bali.nc")
+
+# Save multi-scale SPI
+save_index_to_netcdf(spi_multi, 'output/netcdf/spi_multi_scale_bali.nc', compress=True)
+print("✓ Saved multi-scale SPI to output/netcdf/spi_multi_scale_bali.nc")
+```
+
+## Step 7: Save & Reuse Parameters
+
+For operational monitoring, save distribution parameters for faster updates:
+
+```{python}
+# Calculate SPI with parameters
+spi_12, params = spi(
+    precip,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    return_params=True
+)
+
+# Save parameters
+os.makedirs('output/netcdf', exist_ok=True)
+save_fitting_params(
+    params,
+    'output/netcdf/spi_gamma_params_12_month_bali.nc',
+    scale=12,
+    periodicity='monthly',
+    index_type='spi',
+    distribution='gamma'
+)
+print("✓ Saved parameters to output/netcdf/spi_gamma_params_12_month_bali.nc")
+```
+
+**Later, for faster updates:**
+
+```{python}
+# Load saved parameters
+params_loaded = load_fitting_params(
+    'output/netcdf/spi_gamma_params_12_month_bali.nc',
+    scale=12,
+    periodicity='monthly'
+)
+
+# Recalculate SPI using saved parameters (much faster!)
+spi_12_fast = spi(
+    precip,
+    scale=12,
+    periodicity='monthly',
+    fitting_params=params_loaded
+)
+
+print("✓ Recalculated SPI-12 using saved parameters")
+```
+
+::: {.callout-tip}
+## Performance Benefits
+
+Using saved parameters is **5-10x faster** than refitting, ideal for operational monitoring where you update with new data regularly.
+:::
+
+## Summary
+
+You've learned how to:
+
+✓ Load precipitation data from NetCDF
+✓ Calculate single-scale SPI (SPI-3)
+✓ Calculate multi-scale SPI (3, 6, 9, 12 months)
+✓ Visualize SPI with proper color classification
+✓ Compare different timescales
+✓ Save results to NetCDF files
+✓ Save and reuse distribution parameters
+
+## Next Steps
+
+- **[Calculate SPEI](02-calculate-spei.qmd)** - Include temperature/evapotranspiration
+- **[Event Analysis](03-event-analysis.qmd)** - Identify and characterize drought events
+- **[Visualization Gallery](04-visualization.qmd)** - Create publication-quality figures
+
+## Complete Code
+
+Here's the complete workflow in one script:
+
+```{python}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Show complete code"
+
+import sys
+sys.path.insert(0, 'src')
+import xarray as xr
+from indices import spi_multi_scale, save_index_to_netcdf
+import matplotlib.pyplot as plt
+
+# Load data
+ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+precip = ds['ppt']
+
+# Calculate multi-scale SPI
+spi_multi = spi_multi_scale(
+    precip,
+    scales=[3, 6, 9, 12],
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020
+)
+
+# Save results
+save_index_to_netcdf(spi_multi, 'output/netcdf/spi_multi_scale_bali.nc', compress=True)
+
+print("✓ SPI calculation complete!")
+print(f"Variables: {list(spi_multi.data_vars)}")
+```
