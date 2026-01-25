@@ -122,6 +122,3 @@ execute:
   echo: true
   warning: false
   message: false
-
-bibliography: references.bib
-csl: apa.csl
