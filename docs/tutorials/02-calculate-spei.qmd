@@ -344,7 +344,7 @@ save_index_to_netcdf(spei_multi_ds, output_netcdf / 'spei_multi_scale_bali.nc', 
 print("✓ Saved multi-scale SPEI")
 
 # Save computed PET for reference
-pet_computed.to_netcdf('output/netcdf/pet_thornthwaite_bali.nc')
+pet_computed.to_netcdf(output_netcdf / 'pet_thornthwaite_bali.nc')
 print("✓ Saved computed PET")
 ```
 
