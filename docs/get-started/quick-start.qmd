@@ -328,7 +328,7 @@ Need help?
 
 1. Check the [Tutorials](../tutorials/01-calculate-spi.qmd) for step-by-step examples
 2. Review the [User Guide](../user-guide/index.qmd) for detailed explanations
-3. See [test results](../tests/README.md) for validation examples
+3. See [test results](../../tests/README.md) for validation examples
 4. Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)
 
 ---

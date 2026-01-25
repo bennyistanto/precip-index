@@ -118,6 +118,7 @@ format:
     fig-dpi: 150
 
 execute:
+  enabled: false
   freeze: auto
   echo: true
   warning: false

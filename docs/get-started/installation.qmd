@@ -217,5 +217,5 @@ Now you're ready to:
 If you encounter issues:
 
 1. Check the [Quick Start Guide](quick-start.qmd) for common solutions
-2. Review the [test results](../tests/README.md) for validation examples
+2. Review the [test results](../../tests/README.md) for validation examples
 3. Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)
