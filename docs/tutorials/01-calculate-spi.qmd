@@ -249,8 +249,7 @@ save_fitting_params(
     output_netcdf / 'spi_gamma_params_12_month_bali.nc',
     scale=12,
     periodicity='monthly',
-    index_type='spi',
-    distribution='gamma'
+    index_type='spi'
 )
 print("✓ Saved parameters to output/netcdf/spi_gamma_params_12_month_bali.nc")
 ```
