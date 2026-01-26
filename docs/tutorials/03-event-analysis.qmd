@@ -115,7 +115,7 @@ drought_events = identify_events(
 
 print(f"\nFound {len(drought_events)} drought events")
 print("\nEvent characteristics:")
-print(drought_events[[' start_date', 'end_date', 'duration', 'magnitude', 'intensity', 'peak']])
+print(drought_events[['start_date', 'end_date', 'duration', 'magnitude', 'intensity', 'peak']])
 ```
 
 ::: {.callout-note}
