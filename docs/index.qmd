@@ -6,6 +6,11 @@ page-layout: full
 ---
 
 ::: {.hero-banner}
+::: {.hero-logo}
+![](../images/logo-white-transparent.png)
+:::
+
+::: {.hero-content}
 # Monitor Climate Extremes with Confidence
 
 A minimal, efficient Python implementation of **Standardized Precipitation Index (SPI)** and **Standardized Precipitation Evapotranspiration Index (SPEI)** for monitoring **both drought and wet conditions** using run theory.
@@ -17,6 +22,8 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 [Get Started](get-started/installation.qmd){.btn .btn-primary .btn-lg role="button"}
 [View on GitHub](https://github.com/bennyistanto/precip-index){.btn .btn-outline-light .btn-lg role="button"}
 :::
+:::
+
 
 ## Key Features
 
@@ -114,7 +121,20 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 
 This package includes example data from **Bali, Indonesia** (1958-2024) using TerraClimate:
 
-![SPI-12 Time Series showing drought and wet events in Bali](../images/example-spi-timeseries.png)
+::: {.panel-tabset}
+### SPI 12-month, October 2023
+
+![SPI-12](../images/bali_terraclimate_spi12_202310.png)
+
+### SPEI 12-month, Dry
+
+![SPEI-12 Dry](../images/bali_terraclimate_spei12_1958_2020_dry.png)
+
+### SPEI 12-month, Wet
+
+![SPEI-12 Wet](../images/bali_terraclimate_spei12_1958_2020_wet.png)
+
+:::
 
 ::: {.callout-note}
 ## Try it with your data

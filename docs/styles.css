@@ -17,17 +17,57 @@ $danger: #DC3545;
   padding: 4rem 2rem;
   margin-bottom: 2rem;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.hero-logo {
+  flex-shrink: 0;
+  width: auto;
+  max-width: 200px;
+}
+
+.hero-logo img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.hero-content {
+  flex: 1;
 }
 
 .hero-banner h1 {
   font-size: 3rem;
   font-weight: 700;
   margin-bottom: 1rem;
+  margin-top: 0;
 }
 
 .hero-banner p {
   font-size: 1.25rem;
   margin-bottom: 2rem;
+}
+
+/* Responsive: stack logo on top for mobile */
+@media (max-width: 768px) {
+  .hero-banner {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .hero-logo {
+    max-width: 150px;
+  }
+
+  .hero-banner h1 {
+    font-size: 2rem;
+  }
+
+  .hero-banner p {
+    font-size: 1rem;
+  }
 }
 
 /* Feature cards */
