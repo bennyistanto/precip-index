@@ -4,6 +4,8 @@ project:
   render:
     - "*.qmd"
     - "!*.md"
+  resources:
+    - ../images
 
 website:
   title: "Precipitation Index"
