@@ -10,7 +10,7 @@ project:
 website:
   title: "Precipitation Index"
   description: "SPI & SPEI for Climate Extremes Monitoring"
-  favicon: ../images/favicon.png
+  favicon: https://github.com/bennyistanto/precip-index/blob/main/images/favicon.png
   site-url: https://bennyistanto.github.io/precip-index
   repo-url: https://github.com/bennyistanto/precip-index
 
