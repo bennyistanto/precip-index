@@ -164,41 +164,30 @@ Events are highlighted with:
 Analyze event properties:
 
 ```{python}
-# Plot different event characteristics
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-# Duration vs Magnitude
-plot_event_characteristics(
+# Plot event characteristics: Duration vs Magnitude
+fig1 = plot_event_characteristics(
     drought_events,
     characteristic='magnitude',
-    ax=axes[0,0]
+    figsize=(12, 5)
 )
-axes[0,0].set_title('Event Duration vs Magnitude')
+plt.savefig(output_plots / 'event_duration_vs_magnitude.png', dpi=150, bbox_inches='tight')
+plt.show()
 
-# Duration vs Intensity
-plot_event_characteristics(
+# Plot event characteristics: Duration vs Intensity
+fig2 = plot_event_characteristics(
     drought_events,
     characteristic='intensity',
-    ax=axes[0,1]
+    figsize=(12, 5)
 )
-axes[0,1].set_title('Event Duration vs Intensity')
+plt.savefig(output_plots / 'event_duration_vs_intensity.png', dpi=150, bbox_inches='tight')
+plt.show()
 
-# Duration vs Peak
-plot_event_characteristics(
+# Plot event characteristics: Duration
+fig3 = plot_event_characteristics(
     drought_events,
-    characteristic='peak',
-    ax=axes[1,0]
+    characteristic='duration',
+    figsize=(12, 5)
 )
-axes[1,0].set_title('Event Duration vs Peak')
-
-# Magnitude distribution
-axes[1,1].hist(drought_events['magnitude'], bins=15, color='orange', alpha=0.7)
-axes[1,1].set_xlabel('Magnitude')
-axes[1,1].set_ylabel('Frequency')
-axes[1,1].set_title('Magnitude Distribution')
-axes[1,1].grid(True, alpha=0.3)
-
-plt.tight_layout()
 plt.savefig(output_plots / 'event_characteristics.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
@@ -240,64 +229,36 @@ stats = calculate_period_statistics(
     min_duration=2
 )
 
-# Plot different statistics
-fig, axes = plt.subplots(2, 3, figsize=(16, 10))
-
-# Number of events
-plot_spatial_stats(
+# Plot Number of Events
+fig1 = plot_spatial_stats(
     stats,
     variable='num_events',
     title='Number of Drought Events (2000-2024)',
-    ax=axes[0,0],
-    cmap='YlOrRd'
+    cmap='YlOrRd',
+    figsize=(10, 8)
 )
+plt.savefig(output_plots / 'spatial_num_events.png', dpi=150, bbox_inches='tight')
+plt.show()
 
-# Mean magnitude
-plot_spatial_stats(
+# Plot Mean Magnitude
+fig2 = plot_spatial_stats(
     stats,
     variable='mean_magnitude',
     title='Mean Event Magnitude',
-    ax=axes[0,1],
-    cmap='YlOrRd'
+    cmap='YlOrRd',
+    figsize=(10, 8)
 )
+plt.savefig(output_plots / 'spatial_mean_magnitude.png', dpi=150, bbox_inches='tight')
+plt.show()
 
-# Max magnitude
-plot_spatial_stats(
+# Plot Maximum Magnitude
+fig3 = plot_spatial_stats(
     stats,
     variable='max_magnitude',
     title='Maximum Event Magnitude',
-    ax=axes[0,2],
-    cmap='YlOrRd'
+    cmap='YlOrRd',
+    figsize=(10, 8)
 )
-
-# Total event months
-plot_spatial_stats(
-    stats,
-    variable='total_event_months',
-    title='Total Drought Months',
-    ax=axes[1,0],
-    cmap='YlOrRd'
-)
-
-# Percent time in drought
-plot_spatial_stats(
-    stats,
-    variable='pct_time_in_event',
-    title='% Time in Drought',
-    ax=axes[1,1],
-    cmap='YlOrRd'
-)
-
-# Worst peak
-plot_spatial_stats(
-    stats,
-    variable='worst_peak',
-    title='Worst Peak SPI',
-    ax=axes[1,2],
-    cmap='YlOrRd_r'
-)
-
-plt.tight_layout()
 plt.savefig(output_plots / 'spatial_statistics.png', dpi=150, bbox_inches='tight')
 plt.show()
 ```
@@ -308,7 +269,7 @@ Compare different time scales visually:
 
 ```{python}
 # Load multi-scale SPI
-ds_multi = xr.open_dataset('../output/netcdf/spi_multi_scale_bali.nc')
+ds_multi = xr.open_dataset(output_netcdf / 'spi_multi_scale_bali.nc')
 
 # Extract time series
 spi_3 = ds_multi['spi_gamma_3_month'].isel(lat=12, lon=17)
