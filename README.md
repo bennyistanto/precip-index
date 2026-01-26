@@ -10,6 +10,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 ## Features
 
 **Climate Indices:**
+
 - SPI (Standardized Precipitation Index) - precipitation-based
 - SPEI (Standardized Precipitation Evapotranspiration Index) - temperature-inclusive
 - Multiple time scales (1, 3, 6, 12, 24 months)
@@ -17,6 +18,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 - **Monitor both dry (drought) and wet (flood/excess) conditions**
 
 **Climate Extremes Analysis (Run Theory):**
+
 - Event identification for **both drought and wet conditions**
 - Duration, magnitude, intensity, peak for any extreme
 - Time-series monitoring with varying characteristics
@@ -25,6 +27,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 - Works with negative thresholds (dry) or positive thresholds (wet)
 
 **Optimized for:**
+
 - Global-scale gridded data
 - CF Convention (time, lat, lon)
 - Operational climate monitoring (drought, flooding, extremes)
@@ -34,6 +37,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 **📖 See [QUICK_START.md](QUICK_START.md) for detailed installation and usage examples.**
 
 The Quick Start guide covers:
+
 - Installation and setup
 - Calculating SPI and SPEI
 - Analyzing climate extremes (both dry and wet)
@@ -54,6 +58,7 @@ cd precip-index
 ## Documentation
 
 **User Guides:**
+
 - [SPI Guide](docs/user-guide/spi.md) - Calculation, parameters, examples
 - [SPEI Guide](docs/user-guide/spei.md) - Temperature-inclusive index
 - [Climate Extremes Analysis](docs/user-guide/runtheory.md) - Event analysis (dry & wet)
@@ -61,12 +66,14 @@ cd precip-index
 - [Visualization Guide](docs/user-guide/visualization.md) - Plotting functions
 
 **Tutorials (Jupyter Notebooks):**
+
 - `notebooks/01_calculate_spi.ipynb` - SPI calculation
 - `notebooks/02_calculate_spei.ipynb` - SPEI with PET
 - `notebooks/03_event_characteristics.ipynb` - Climate extremes event analysis
 - `notebooks/04_visualization_gallery.ipynb` - All plot types
 
 **Technical Documentation:**
+
 - [Implementation Details](docs/technical/implementation.md) - Architecture and design
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 
@@ -77,7 +84,7 @@ cd precip-index
 All event analysis functions work for **both dry and wet conditions**:
 
 | Function | Dry Events (Drought) | Wet Events (Flooding) |
-|----------|----------------------|----------------------|
+| ---------- | ---------------------- | ---------------------- |
 | `identify_events()` | `threshold=-1.2` | `threshold=+1.2` |
 | `calculate_timeseries()` | Monitors dry periods | Monitors wet periods |
 | `calculate_period_statistics()` | SPI/SPEI < 0 | SPI/SPEI > 0 |
@@ -85,28 +92,30 @@ All event analysis functions work for **both dry and wet conditions**:
 
 **The threshold direction determines which extreme to analyze** - the same tools work for both ends of the precipitation spectrum!
 
-![Run Theory Concept](./images/runtheory.svg)
+![Run Theory Concept](./docs/images/runtheory.svg)
 
 **Run Theory Framework:** Events are identified when an index crosses a threshold. This example shows **dry events** (below threshold), but the identical analysis applies to **wet events** (above threshold). Key metrics—Duration (D), Magnitude (M), Intensity (I), and Inter-arrival Time (T)—are calculated the same way for both extremes.
 
 *See [Climate Extremes Analysis Guide](docs/user-guide/runtheory.md) for detailed explanation.*
 
-
 ### Three Analysis Modes
 
 **1. Event-Based** - Identify complete extreme events
+
 ```python
 events = identify_events(spi_ts, threshold=-1.2)
 # Returns: DataFrame with event_id, duration, magnitude, intensity, peak
 ```
 
 **2. Time-Series** - Month-by-month monitoring
+
 ```python
 ts = calculate_timeseries(spi_ts, threshold=-1.2)
 # Returns: DataFrame with varying characteristics over time
 ```
 
 **3. Period Statistics** - Gridded decision support
+
 ```python
 stats = calculate_period_statistics(spi, threshold=-1.2,
                                     start_year=2020, end_year=2024)
@@ -116,6 +125,7 @@ stats = calculate_period_statistics(spi, threshold=-1.2,
 ### Dual Magnitude Approach
 
 Provides **both** magnitude types for comprehensive analysis:
+
 - **Cumulative** - Total water deficit (standard run theory)
 - **Instantaneous** - Current severity (NDVI-like pattern)
 
@@ -144,6 +154,7 @@ BSD 3-Clause License - See [LICENSE](LICENSE) for details.
 ## Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
 3. Submit a pull request

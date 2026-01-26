@@ -148,6 +148,7 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 ## Data Requirements
 
 ### Format
+
 - NetCDF files (.nc)
 - Dimensions: Any order is supported (auto-transposes to CF Convention)
   - Preferred: `(time, lat, lon)`
@@ -155,6 +156,7 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 - Monthly or daily temporal resolution
 
 ### Variables
+
 - **For SPI:**
   - Precipitation in mm/month or mm/day
 
@@ -164,6 +166,7 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
   - OR pre-computed PET in mm/month or mm/day
 
 ### Calibration Period
+
 - Default: 1991-2020 (WMO recommendation)
 - Minimum: 30 years for robust statistics
 - Should overlap with your data period
@@ -171,8 +174,9 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 ## Understanding the Output
 
 ### SPI/SPEI Values
+
 | Value Range | Category | Meaning |
-|-------------|----------|---------|
+| ----------- | -------- | ------- |
 | ≥ 2.0 | Extremely wet | Top 2.3% |
 | 1.5 to 2.0 | Very wet | Top 6.7% |
 | 1.0 to 1.5 | Moderately wet | Top 15.9% |
@@ -182,6 +186,7 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 | ≤ -2.0 | Extremely dry | Bottom 2.3% |
 
 ### Time Scales
+
 - **1-month:** Short-term meteorological drought
 - **3-month:** Seasonal agricultural drought
 - **6-month:** Medium-term agricultural/hydrological drought
@@ -190,17 +195,22 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 ## Common Issues
 
 ### Issue: "ValueError: cannot reshape array"
+
 **Solution:** This was a bug, now fixed! The code automatically handles any dimension order.
 
 ### Issue: "ModuleNotFoundError: No module named 'indices'"
+
 **Solution:** Make sure to add the src directory to Python path:
+
 ```python
 import sys
 sys.path.insert(0, 'src')
 ```
 
 ### Issue: All NaN output
+
 **Possible causes:**
+
 - Calibration period doesn't overlap with data
 - All zero or negative precipitation values
 - Check: `precip.min()`, `precip.max()`, data year range
@@ -213,6 +223,7 @@ python test_spi.py
 ```
 
 This will:
+
 1. Load CHIRPS data from `input/` folder
 2. Calculate SPI-3 and multi-scale SPI
 3. Save results to `output/` folder
@@ -233,6 +244,7 @@ This will:
 ## Support
 
 Found a bug or have a question?
+
 1. Check the Jupyter notebooks for examples
 2. Review the test results
 3. Open an issue on GitHub

@@ -17,7 +17,9 @@ output/
 ## File Types
 
 ### NetCDF Files (`netcdf/`)
+
 Gridded datasets with spatial dimensions (lat, lon) or (time, lat, lon):
+
 - SPI/SPEI grids: `spi_*_chirps.nc`, `spei_*_*.nc`
 - Drought statistics: `drought_stats_*.nc`
 - Period comparisons: `drought_comparison.nc`
@@ -26,7 +28,9 @@ Gridded datasets with spatial dimensions (lat, lon) or (time, lat, lon):
 **Tools:** Open with xarray, QGIS, ArcGIS, Panoply
 
 ### CSV Files (`csv/`)
+
 Single-location time series and event lists:
+
 - Event lists: `drought_events_lat*_lon*.csv`
 - Time series: `drought_timeseries_lat*_lon*.csv`
 
@@ -34,7 +38,9 @@ Single-location time series and event lists:
 **Tools:** Excel, pandas, any spreadsheet software
 
 ### Plots - Single Location (`plots/single/`)
+
 Visualizations for individual locations:
+
 - Event timelines: `plot_drought_events_lat*_lon*.png`
 - Event characteristics: `plot_drought_characteristics_lat*_lon*.png`
 - Time series evolution: `plot_drought_timeline_lat*_lon*.png`
@@ -42,7 +48,9 @@ Visualizations for individual locations:
 **Format:** PNG images (150 DPI)
 
 ### Plots - Spatial (`plots/spatial/`)
+
 Maps showing spatial patterns:
+
 - Drought statistics maps: `plot_spatial_stats_*.png`
 - Period comparison maps: `plot_comparison_*.png`
 
@@ -51,16 +59,22 @@ Maps showing spatial patterns:
 ## Naming Conventions
 
 ### Single-Location Files
+
 Include coordinates in filename:
+
 - `*_lat31.82_lon-7.07.*` - Latitude 31.82°N, Longitude 7.07°W
 
 ### Period-Based Files
+
 Include time range in filename:
+
 - `*_2020-2024.*` - Period from 2020 to 2024
 - `*_annual.*` - Year-by-year statistics
 
 ### Comparison Files
+
 Include period names:
+
 - `*_historical-vs-recent.*` - Comparing two periods
 
 ## Storage Recommendations
@@ -73,6 +87,7 @@ Include period names:
 
 Output files are typically excluded from version control.
 Add to `.gitignore`:
+
 ```
 output/netcdf/*.nc
 output/csv/*.csv
@@ -83,6 +98,7 @@ output/plots/**/*.png
 ## Cleaning Up
 
 To remove all outputs but keep structure:
+
 ```bash
 rm -rf output/netcdf/*.nc
 rm -rf output/csv/*.csv

@@ -4,20 +4,18 @@ project:
   render:
     - "*.qmd"
     - "!*.md"
-  resources:
-    - ../images
 
 website:
   title: "Precipitation Index"
   description: "SPI & SPEI for Climate Extremes Monitoring"
-  favicon: https://raw.githubusercontent.com/bennyistanto/precip-index/refs/heads/main/images/favicon.png
+  favicon: images/favicon.png
   site-url: https://bennyistanto.github.io/precip-index
   repo-url: https://github.com/bennyistanto/precip-index
 
   navbar:
     background: primary
-    logo: ../images/logo-white-transparent.png
-    logo-alt: "Precipitation Index Logo"
+    logo: images/logo-white-transparent.png
+    # logo-alt: "Precipitation Index Logo"
     search: true
     left:
       - text: "Home"

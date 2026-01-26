@@ -5,7 +5,9 @@ This directory contains example Jupyter notebooks demonstrating how to calculate
 ## Notebooks
 
 ### 01_calculate_spi.ipynb
+
 Complete tutorial for calculating SPI (Standardized Precipitation Index):
+
 - Loading precipitation data
 - Calculating SPI for single and multiple scales (1, 3, 6, 12 months)
 - Saving and loading gamma distribution fitting parameters
@@ -14,7 +16,9 @@ Complete tutorial for calculating SPI (Standardized Precipitation Index):
 - Calculating drought area percentage
 
 ### 02_calculate_spei.ipynb
+
 Complete tutorial for calculating SPEI (Standardized Precipitation Evapotranspiration Index):
+
 - Loading precipitation and temperature data
 - Calculating PET using Thornthwaite method
 - Computing SPEI for multiple scales
@@ -23,7 +27,9 @@ Complete tutorial for calculating SPEI (Standardized Precipitation Evapotranspir
 - Comparing SPI vs SPEI results
 
 ### 03_event_characteristics.ipynb
+
 Climate extremes event analysis using run theory:
+
 - Identifying extreme events (both drought and wet conditions)
 - Calculating event characteristics: duration, magnitude, intensity, peak
 - Time-series monitoring with varying characteristics
@@ -32,7 +38,9 @@ Climate extremes event analysis using run theory:
 - Works for both dry (negative threshold) and wet (positive threshold) events
 
 ### 04_visualization_gallery.ipynb
+
 Comprehensive visualization examples for climate extremes:
+
 - Event timeline plots with highlighted events
 - Spatial maps of drought/wet characteristics
 - Event characteristic analysis plots
@@ -54,11 +62,13 @@ pip install numpy scipy xarray netcdf4 numba matplotlib cartopy
 The notebooks expect NetCDF files with the following characteristics:
 
 **For SPI:**
+
 - Precipitation data in mm
 - Dimensions: `(time, lat, lon)` following CF Convention
 - Time coordinate with monthly or daily frequency
 
 **For SPEI:**
+
 - Precipitation data in mm
 - Temperature data in °C (or PET in mm)
 - Same dimensional structure as SPI
@@ -66,6 +76,7 @@ The notebooks expect NetCDF files with the following characteristics:
 ### Sample Data
 
 The notebooks include code to:
+
 1. Generate synthetic test data for demonstration
 2. Load real climate data from common sources (CHIRPS, ERA5, etc.)
 
@@ -74,6 +85,7 @@ You can use your own data by modifying the file paths in the notebooks.
 ## Usage
 
 1. Launch Jupyter:
+
 ```bash
 jupyter notebook
 ```
@@ -81,6 +93,7 @@ jupyter notebook
 2. Navigate to the `notebook/` directory
 
 3. Open any notebook:
+
    - `01_calculate_spi.ipynb` - SPI calculation basics
    - `02_calculate_spei.ipynb` - SPEI with temperature
    - `03_event_characteristics.ipynb` - Climate extremes analysis
@@ -89,6 +102,7 @@ jupyter notebook
 4. Run cells sequentially (Shift + Enter)
 
 **Recommended Learning Path:**
+
 1. Start with **01** (SPI basics)
 2. Then **02** (SPEI with PET)
 3. Move to **03** (event analysis)
@@ -98,7 +112,7 @@ jupyter notebook
 
 The notebooks demonstrate **run theory**, a framework for identifying and analyzing climate extreme events. This methodology works for **both dry (drought) and wet (flooding/excess) conditions**.
 
-![Run Theory Framework](../images/runtheory.svg)
+![Run Theory Framework](../docs/images/runtheory.svg)
 
 **Run Theory Framework:** Events are identified when an index crosses a threshold. This example shows **dry events** (below threshold), but the identical analysis applies to **wet events** (above threshold). Key metrics—Duration (D), Magnitude (M), Intensity (I), and Inter-arrival Time (T)—are calculated the same way for both extremes.
 
@@ -118,6 +132,7 @@ For detailed methodology, see [../docs/user-guide/runtheory.md](../docs/user-gui
 ## Key Features Demonstrated
 
 ### Climate Indices (Notebooks 01-02)
+
 - ✅ Loading NetCDF climate data
 - ✅ Single-scale and multi-scale index calculation
 - ✅ Parameter saving and reuse
@@ -126,6 +141,7 @@ For detailed methodology, see [../docs/user-guide/runtheory.md](../docs/user-gui
 - ✅ Drought classification (McKee et al., 1993)
 
 ### Climate Extremes Analysis (Notebooks 03-04)
+
 - ✅ Event identification (both drought and wet conditions)
 - ✅ Duration, magnitude, intensity, peak calculation
 - ✅ Time-series monitoring with varying characteristics
@@ -134,6 +150,7 @@ For detailed methodology, see [../docs/user-guide/runtheory.md](../docs/user-gui
 - ✅ Comprehensive visualization suite
 
 ### Technical Features (All Notebooks)
+
 - ✅ Parallel processing for gridded data
 - ✅ Memory-efficient processing with Dask
 - ✅ Time series and spatial visualization
@@ -161,6 +178,7 @@ notebook/
 ## Tips
 
 ### Performance Optimization
+
 - Use pre-computed fitting parameters when processing multiple files with the same calibration period
 - For large global datasets, consider using the Dask-enabled functions
 - Chunk your data appropriately: `{'time': -1, 'lat': 100, 'lon': 100}`
@@ -168,6 +186,7 @@ notebook/
 ### Common Issues
 
 **Issue:** Import errors
+
 ```python
 # Solution: Add src directory to Python path
 import sys
@@ -175,12 +194,14 @@ sys.path.insert(0, '../src')
 ```
 
 **Issue:** Memory errors with large datasets
+
 ```python
 # Solution: Use chunked processing
 ds = xr.open_dataset('large_file.nc', chunks={'time': 12, 'lat': 200, 'lon': 200})
 ```
 
 **Issue:** Invalid values in output
+
 ```python
 # Check calibration period matches your data range
 # Ensure precipitation values are non-negative
@@ -190,6 +211,7 @@ ds = xr.open_dataset('large_file.nc', chunks={'time': 12, 'lat': 200, 'lon': 200
 ## Learn More
 
 **Documentation:**
+
 - [Run Theory Guide](../docs/user-guide/runtheory.md) - Complete framework explanation
 - [SPI Guide](../docs/user-guide/spi.md) - SPI calculation details
 - [SPEI Guide](../docs/user-guide/spei.md) - SPEI methodology
@@ -197,6 +219,7 @@ ds = xr.open_dataset('large_file.nc', chunks={'time': 12, 'lat': 200, 'lon': 200
 - [Visualization Guide](../docs/user-guide/visualization.md) - All plot types
 
 **Quick References:**
+
 - [../QUICK_START.md](../QUICK_START.md) - Quick start examples
 - [../README.md](../README.md) - Main package overview
 
@@ -211,6 +234,7 @@ ds = xr.open_dataset('large_file.nc', chunks={'time': 12, 'lat': 200, 'lon': 200
 ## Support
 
 For issues or questions:
+
 1. Check the main README.md in the repository root
 2. Review the docstrings in the source code
 3. Open an issue on GitHub

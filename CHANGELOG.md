@@ -18,6 +18,7 @@ First public release of the precip-index package - a streamlined implementation 
 ### Features
 
 **Climate Indices:**
+
 - SPI (Standardized Precipitation Index) calculation using Gamma distribution
 - SPEI (Standardized Precipitation Evapotranspiration Index) with Thornthwaite PET
 - Multi-scale support (1, 3, 6, 12, 24 months)
@@ -25,6 +26,7 @@ First public release of the precip-index package - a streamlined implementation 
 - CF-compliant NetCDF output
 
 **Climate Extremes Analysis (Run Theory):**
+
 - Event identification for both drought (dry) and wet conditions
 - Time-series monitoring with dual magnitude (cumulative & instantaneous)
 - Gridded period statistics for decision support
@@ -32,6 +34,7 @@ First public release of the precip-index package - a streamlined implementation 
 - Spatial aggregation and period comparison tools
 
 **Visualization:**
+
 - WMO standard 11-category SPI/SPEI color classification
 - Event plots with automatic dry/wet differentiation
 - Timeline visualizations with multiple characteristics
@@ -57,6 +60,7 @@ First public release of the precip-index package - a streamlined implementation 
 ## Future Releases
 
 Version 2026.2 and beyond will include:
+
 - Bug fixes and performance improvements
 - Additional test coverage
 - Enhanced documentation and examples

@@ -23,7 +23,7 @@ The mathematics and event characteristics (duration, magnitude, intensity, peak)
 
 ## Run Theory Concept
 
-![Run Theory Illustration](../../images/runtheory.svg)
+![Run Theory Illustration](../images/runtheory.svg)
 
 **Figure 1: Run Theory Applied to Climate Extremes**
 
