@@ -7,7 +7,7 @@ page-layout: full
 
 ::: {.hero-banner}
 ::: {.hero-logo}
-![](images/logo-white-transparent.png)
+![](/precip-index/images/logo-white-transparent.png)
 :::
 
 ::: {.hero-content}
@@ -124,15 +124,15 @@ This package includes example data from **Bali, Indonesia** (1958-2024) using Te
 ::: {.panel-tabset}
 ### SPI 12-month, October 2023
 
-![SPI-12](images/bali_terraclimate_spi12_202310.png)
+![SPI-12](/precip-index/images/bali_terraclimate_spi12_202310.png)
 
 ### SPEI 12-month, Dry
 
-![SPEI-12 Dry](images/bali_terraclimate_spei12_1958_2020_dry.png)
+![SPEI-12 Dry](/precip-index/images/bali_terraclimate_spei12_1958_2020_dry.png)
 
 ### SPEI 12-month, Wet
 
-![SPEI-12 Wet](images/bali_terraclimate_spei12_1958_2020_wet.png)
+![SPEI-12 Wet](/precip-index/images/bali_terraclimate_spei12_1958_2020_wet.png)
 
 :::
 
