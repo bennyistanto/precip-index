@@ -94,6 +94,27 @@ VAR_NAME_PATTERN = "{index}_gamma_{scale}_{periodicity}"
 # Fitting parameter variable names
 FITTING_PARAM_NAMES = ("alpha", "beta", "prob_zero")
 
+# =============================================================================
+# MEMORY AND PERFORMANCE CONSTANTS
+# =============================================================================
+
+# Memory multiplier: peak memory as multiple of input array size
+# Accounts for scaled_data, parameters, intermediate arrays during computation
+MEMORY_MULTIPLIER = 12.0
+
+# Safety factor: fraction of available memory to use (conservative)
+MEMORY_SAFETY_FACTOR = 0.7
+
+# Default chunk sizes for global processing
+DEFAULT_CHUNK_LAT = 500
+DEFAULT_CHUNK_LON = 500
+
+# Minimum chunk size (too small = inefficient)
+MIN_CHUNK_SIZE = 100
+
+# Maximum recommended array size in GB for single-chunk processing
+MAX_SINGLE_CHUNK_GB = 2.0
+
 
 # =============================================================================
 # LOGGING

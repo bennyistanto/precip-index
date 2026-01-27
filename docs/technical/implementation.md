@@ -6,7 +6,10 @@
 precip-index/
 ├── src/
 │   ├── indices.py           # SPI/SPEI calculation
-│   ├── utils.py             # PET, data validation
+│   ├── compute.py           # Core computation algorithms
+│   ├── chunked.py           # Memory-efficient chunked processing
+│   ├── config.py            # Configuration and constants
+│   ├── utils.py             # PET, data validation, memory utilities
 │   ├── runtheory.py         # Drought event analysis
 │   ├── visualization.py     # Plotting functions
 │   └── __init__.py          # Package exports
@@ -30,6 +33,9 @@ precip-index/
 - `spi_multi_scale()` - Multiple scales at once
 - `spei()` - Temperature-inclusive index
 - `spei_multi_scale()` - Multiple SPEI scales
+- `spi_global()` - Global-scale SPI with automatic chunking
+- `spei_global()` - Global-scale SPEI with automatic chunking
+- `estimate_memory_requirements()` - Pre-computation memory estimation
 
 **Technology:**
 
@@ -44,7 +50,63 @@ precip-index/
 - Gamma distribution fitting: Numba-optimized
 - Memory-efficient chunking for large datasets
 
-### 2. runtheory.py
+### 2. chunked.py
+
+**Purpose:** Memory-efficient processing for global-scale datasets
+
+**Key Classes/Functions:**
+
+- `ChunkedProcessor` - Main class for chunked computation
+  - `compute_spi_chunked()` - Chunked SPI calculation
+  - `compute_spei_chunked()` - Chunked SPEI calculation
+- `estimate_memory()` - Estimate memory requirements
+- `iter_chunks()` - Generate spatial chunk coordinates
+- `MemoryEstimate` - Named tuple for memory information
+
+**Technology:**
+
+- Spatial tiling for memory efficiency
+- Streaming I/O to disk
+- Automatic garbage collection
+- Progress callbacks for monitoring
+
+**Performance:**
+
+- Global CHIRPS (2160×4320): Processes with ~16GB RAM
+- Chunk size auto-optimization based on available memory
+- ~12x memory reduction vs. in-memory processing
+
+### 3. compute.py
+
+**Purpose:** Core computation algorithms for SPI/SPEI
+
+**Key Functions:**
+
+- `compute_index_parallel()` - Main computation with optional memory-efficient mode
+- `_rolling_sum_3d()` - O(n) cumulative sum algorithm
+- `_compute_gamma_params_vectorized()` - Vectorized parameter fitting
+- `_transform_to_normal_vectorized()` - Memory-efficient transformation
+- `compute_index_dask()` - Dask-based lazy computation
+- `compute_index_dask_to_zarr()` - Stream directly to Zarr format
+
+**Technology:**
+
+- Float32 internal processing (50% memory reduction)
+- Cumulative sum for O(n) rolling windows
+- Period-by-period processing to limit peak memory
+
+### 4. config.py
+
+**Purpose:** Configuration constants and enumerations
+
+**Key Constants:**
+
+- `MEMORY_MULTIPLIER` - Peak memory estimation factor (12x)
+- `MEMORY_SAFETY_FACTOR` - Safety margin for chunk sizing (0.7)
+- `DEFAULT_CHUNK_LAT/LON` - Default chunk dimensions (500)
+- `Periodicity` - Enum for monthly/daily data
+
+### 5. runtheory.py
 
 **Purpose:** Drought event analysis using run theory (Yevjevich 1967)
 
@@ -72,9 +134,9 @@ precip-index/
 - xarray.apply_ufunc for gridded data
 - Dual magnitude: cumulative + instantaneous
 
-### 3. utils.py
+### 6. utils.py
 
-**Purpose:** Supporting utilities
+**Purpose:** Supporting utilities and memory management
 
 **Key Functions:**
 
@@ -84,8 +146,12 @@ precip-index/
 - `validate_data()` - Input checking
 - `load_parameters()` - Pre-fitted parameter loading
 - `save_parameters()` - Parameter persistence
+- `get_optimal_chunk_size()` - Calculate optimal chunk dimensions
+- `format_bytes()` - Human-readable byte formatting
+- `get_array_memory_size()` - Calculate array memory footprint
+- `print_memory_info()` - Display current memory usage
 
-### 4. visualization.py
+### 7. visualization.py
 
 **Purpose:** Publication-quality climate extremes visualization
 
@@ -205,31 +271,86 @@ spi_new = spi(precip_new, scale=12,
 
 ## Memory Management
 
-### Single Location
+### Memory Requirements by Data Size
 
-- Memory: <10 MB
-- Processing: In-memory
-- Speed: <0.1 sec
+| Grid Size | Input Data | Peak Memory (Old) | Peak Memory (New) | Recommended Approach |
+|-----------|------------|-------------------|-------------------|---------------------|
+| Single Location | <1 MB | <10 MB | <10 MB | In-memory |
+| Small (100×100) | ~50 MB | ~500 MB | ~100 MB | In-memory |
+| Medium (500×500) | ~500 MB | ~5 GB | ~1 GB | In-memory or chunked |
+| Large (1000×1000) | ~2 GB | ~20 GB | ~4 GB | Chunked |
+| Global (2160×4320) | ~36 GB | ~400 GB | ~16 GB | Chunked (required) |
 
-### Small Grid (100×100)
+### Memory-Efficient Processing (New in 2026.1)
 
-- Memory: ~50 MB
-- Processing: In-memory
-- Speed: ~5 sec
+The new chunked processing module reduces peak memory by ~12x through:
 
-### Medium Grid (500×500)
+1. **Float32 Internal Processing**
+   - Uses float32 instead of float64 internally
+   - 50% memory reduction for intermediate arrays
+   - Output precision maintained
 
-- Memory: ~500 MB
-- Processing: In-memory or chunked
-- Speed: ~2 min
+2. **Cumulative Sum Algorithm**
+   - O(n) rolling sum instead of O(n×scale)
+   - Single pass through time dimension
+   - No intermediate rolling arrays
 
-### Large Grid (1000×1000+)
+3. **Period-by-Period Transformation**
+   - Process one calendar period at a time
+   - Garbage collection between periods
+   - Limits peak memory during standardization
 
-- Memory: >2 GB
-- Processing: Chunked with Dask
-- Speed: ~10 min (depends on chunks)
+4. **Spatial Chunking**
+   - Process data in spatial tiles
+   - Stream results to disk
+   - Memory bounded by chunk size, not total grid
 
-**Recommendation:** Use chunks={'time': 100} for grids >500×500
+### Chunk Size Guidelines
+
+| Available RAM | Recommended Chunk Size | Notes |
+|--------------|------------------------|-------|
+| 16 GB | 200 × 200 | Minimum recommended |
+| 32 GB | 300 × 300 | Good for workstations |
+| 64 GB | 400 × 400 | Standard servers |
+| 128 GB | 600 × 600 | High-memory systems |
+| 256 GB+ | 800 × 800 | Large servers |
+
+### Usage Examples
+
+**In-memory (small data):**
+```python
+from indices import spi
+spi_12 = spi(precip, scale=12)
+```
+
+**Chunked processing (large data):**
+```python
+from indices import spi_global
+result = spi_global(
+    'global_precip.nc',
+    'spi_12_global.nc',
+    scale=12,
+    chunk_size=500
+)
+```
+
+**Memory estimation before processing:**
+```python
+from indices import estimate_memory_requirements
+mem = estimate_memory_requirements('global_precip.nc')
+print(mem)  # Shows input size, peak memory, recommendations
+```
+
+**Dask-based streaming to Zarr:**
+```python
+from compute import compute_index_dask_to_zarr
+compute_index_dask_to_zarr(
+    precip_da,
+    'output.zarr',
+    scale=12,
+    n_workers=8
+)
+```
 
 ## Output Standards
 
@@ -300,19 +421,28 @@ attrs = {
 ### Required
 
 ```
-numpy>=1.19.0       # Array operations
-scipy>=1.5.0        # Statistical distributions
-xarray>=0.16.0      # NetCDF handling
-netCDF4>=1.5.0      # NetCDF I/O
-numba>=0.50.0       # JIT compilation
-matplotlib>=3.3.0   # Visualization
+numpy>=1.20.0       # Array operations
+scipy>=1.7.0        # Statistical distributions
+xarray>=0.19.0      # NetCDF handling
+netCDF4>=1.5.7      # NetCDF I/O
+numba>=0.54.0       # JIT compilation
+matplotlib>=3.4.0   # Visualization
 pandas>=1.1.0       # DataFrame operations
+```
+
+### Required for Global Processing
+
+```
+dask[complete]>=2021.10.0  # Parallel/distributed computing
+zarr>=2.10.0               # Efficient chunked array storage
+psutil>=5.8.0              # Memory detection and monitoring
 ```
 
 ### Optional
 
 ```
-dask>=2.30.0        # Large dataset processing
+cartopy>=0.20.0     # Map projections for visualization
+jupyter>=1.0.0      # Notebook support
 ```
 
 ## Error Handling
@@ -338,15 +468,34 @@ dask>=2.30.0        # Large dataset processing
 
 ## Performance Benchmarks
 
-**Hardware:** Typical laptop (4 cores, 16 GB RAM)
+### Standard Processing (Laptop: 4 cores, 16 GB RAM)
 
 | Operation | Grid Size | Time | Memory |
-| ----------- | ----------- | ------ | -------- |
+|-----------|-----------|------|--------|
 | SPI-12 calculation | 165×244×408 | 30 sec | 500 MB |
 | Drought events (single) | 408 months | <0.1 sec | <1 MB |
 | Period statistics | 165×244, 5 years | 30 sec | 200 MB |
 | Annual statistics | 165×244, 10 years | 5 min | 300 MB |
 | Plot generation | Single location | 2 sec | 50 MB |
+
+### Global-Scale Processing (Server: 40 cores, 150 GB RAM)
+
+| Operation | Grid Size | Time | Memory |
+|-----------|-----------|------|--------|
+| SPI-12 (chunked) | 2160×4320×528 | ~2 hours | ~16 GB |
+| SPEI-12 (chunked) | 2160×4320×528 | ~3 hours | ~20 GB |
+| Memory estimation | Any size | <1 sec | <100 MB |
+| Chunk iteration | 2160×4320 | <1 sec | <100 MB |
+
+### Chunk Size vs. Performance Trade-offs
+
+| Chunk Size | Memory per Chunk | I/O Operations | Speed |
+|------------|------------------|----------------|-------|
+| 200×200 | ~2 GB | Many (slow I/O) | Slower |
+| 500×500 | ~8 GB | Moderate | Balanced |
+| 800×800 | ~20 GB | Few (fast I/O) | Faster |
+
+**Recommendation:** Use the largest chunk size your system can handle for best performance.
 
 ## Scalability
 

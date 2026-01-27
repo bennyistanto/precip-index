@@ -2,7 +2,8 @@
 Core computation functions for SPI/SPEI calculation.
 
 Includes gamma distribution fitting, scaling, and transformation functions.
-Optimized for global-scale data with Dask and multiprocessing support.
+Optimized for global-scale data with memory-efficient chunked processing,
+Dask integration, and Numba JIT compilation for performance.
 
 Modified/adapted from James Adams' climate-indices package
 https://github.com/monocongo/climate_indices
@@ -11,6 +12,7 @@ Author: Benny Istanto
 Organization: GOST/DEC Data Group, The World Bank
 """
 
+import gc
 import warnings
 from typing import Dict, Optional, Tuple, Union
 
@@ -441,13 +443,15 @@ def compute_index_parallel(
     calibration_start_year: int,
     calibration_end_year: int,
     periodicity: Periodicity,
-    fitting_params: Optional[Dict[str, np.ndarray]] = None
+    fitting_params: Optional[Dict[str, np.ndarray]] = None,
+    memory_efficient: bool = True
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
     """
     Compute SPI/SPEI for 3D gridded data with parallel processing.
-    
+
     Optimized for large global datasets using vectorized numpy operations
-    and scipy for gamma transformation.
+    and scipy for gamma transformation. Memory-efficient mode reduces
+    peak memory usage by processing in-place where possible.
 
     :param data: 3-D array with shape (time, lat, lon) - CF Convention
     :param scale: accumulation scale (e.g., 1, 3, 6, 12)
@@ -457,142 +461,245 @@ def compute_index_parallel(
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters dict with
         'alpha', 'beta', 'prob_zero' arrays of shape (periods, lat, lon)
+    :param memory_efficient: if True, optimize for lower memory usage
     :return: tuple of (result_array, fitting_params_dict)
     """
     n_time, n_lat, n_lon = data.shape
     periods_per_year = periodicity.value
     n_years = n_time // periods_per_year
-    
+
     _logger.info(
         f"Computing index: shape={data.shape}, scale={scale}, "
         f"grid_cells={n_lat * n_lon:,}"
     )
-    
-    # Ensure data is float64 and contiguous
-    data = np.ascontiguousarray(data, dtype=np.float64)
-    
+
+    # Memory-efficient: work with float32 internally, convert at end
+    dtype = np.float32 if memory_efficient else np.float64
+
+    # Ensure data is contiguous (avoid copy if already correct dtype)
+    if data.dtype != dtype:
+        data = data.astype(dtype, copy=False)
+    if not data.flags['C_CONTIGUOUS']:
+        data = np.ascontiguousarray(data)
+
     # Step 1: Apply scaling (vectorized along time axis)
     _logger.info("Step 1/3: Applying temporal scaling...")
-    scaled_data = np.full_like(data, np.nan)
-    
+
     if scale == 1:
-        scaled_data = data.copy()
+        # No scaling needed - use data directly (no copy)
+        scaled_data = data
     else:
-        # Vectorized rolling sum using stride tricks or simple loop
-        for t in range(scale - 1, n_time):
-            window = data[t - scale + 1:t + 1, :, :]
-            # Sum only if all values in window are valid
-            valid_mask = ~np.any(np.isnan(window), axis=0)
-            scaled_data[t, :, :] = np.where(
-                valid_mask,
-                np.nansum(window, axis=0),
-                np.nan
-            )
-    
+        # Memory-efficient rolling sum
+        scaled_data = _rolling_sum_3d(data, scale, dtype)
+
     # Step 2: Compute or use provided fitting parameters
     _logger.info("Step 2/3: Computing gamma parameters...")
-    
+
     if fitting_params is not None:
-        alphas = fitting_params['alpha']
-        betas = fitting_params['beta']
-        probs_zero = fitting_params['prob_zero']
+        alphas = fitting_params['alpha'].astype(dtype, copy=False)
+        betas = fitting_params['beta'].astype(dtype, copy=False)
+        probs_zero = fitting_params['prob_zero'].astype(dtype, copy=False)
         _logger.info("Using pre-computed fitting parameters")
     else:
-        # Reshape to (years, periods, lat, lon)
-        scaled_4d = scaled_data.reshape(n_years, periods_per_year, n_lat, n_lon)
-        
         # Calculate calibration indices
         data_end_year = data_start_year + n_years - 1
         cal_start = max(calibration_start_year, data_start_year)
         cal_end = min(calibration_end_year, data_end_year)
         cal_start_idx = cal_start - data_start_year
         cal_end_idx = cal_end - data_start_year + 1
-        
-        # Initialize parameter arrays: shape (periods, lat, lon)
-        alphas = np.full((periods_per_year, n_lat, n_lon), np.nan)
-        betas = np.full((periods_per_year, n_lat, n_lon), np.nan)
-        probs_zero = np.full((periods_per_year, n_lat, n_lon), np.nan)
-        
-        # Compute parameters for each calendar period (vectorized over space)
-        for period_idx in range(periods_per_year):
-            # Get all years for this period: shape (n_years, lat, lon)
-            period_data = scaled_4d[:, period_idx, :, :]
-            
-            # Calibration subset: shape (cal_years, lat, lon)
-            calib_data = period_data[cal_start_idx:cal_end_idx, :, :]
-            
-            # Count zeros and total valid values
-            n_valid = np.sum(~np.isnan(calib_data), axis=0)
-            n_zeros = np.sum(calib_data == 0, axis=0)
-            
-            # Probability of zero
-            with np.errstate(divide='ignore', invalid='ignore'):
-                probs_zero[period_idx, :, :] = np.where(
-                    n_valid > 0, n_zeros / n_valid, np.nan
-                )
-            
-            # Get non-zero values for gamma fitting
-            # Replace zeros with NaN for fitting
-            calib_nonzero = np.where(calib_data > 0, calib_data, np.nan)
-            
-            # Count non-zero valid values
-            n_nonzero = np.sum(~np.isnan(calib_nonzero), axis=0)
-            
-            # Method of moments estimation (vectorized)
-            with np.errstate(divide='ignore', invalid='ignore'):
-                # Mean of non-zero values
-                mean_vals = np.nanmean(calib_nonzero, axis=0)
-                
-                # Mean of log values
-                log_vals = np.log(calib_nonzero)
-                mean_log = np.nanmean(log_vals, axis=0)
-                
-                # A = ln(mean) - mean(ln(x))
-                a = np.log(mean_vals) - mean_log
-                
-                # Alpha (shape parameter)
-                alpha = np.where(
-                    a > 0,
-                    (1.0 + np.sqrt(1.0 + 4.0 * a / 3.0)) / (4.0 * a),
-                    np.nan
-                )
-                
-                # Beta (scale parameter)
-                beta = mean_vals / alpha
-                
-                # Apply minimum data requirement
-                valid_fit = n_nonzero >= MIN_VALUES_FOR_GAMMA_FIT
-                
-                alphas[period_idx, :, :] = np.where(valid_fit, alpha, np.nan)
-                betas[period_idx, :, :] = np.where(valid_fit, beta, np.nan)
-    
+
+        # Compute parameters efficiently
+        alphas, betas, probs_zero = _compute_gamma_params_vectorized(
+            scaled_data, n_years, periods_per_year, n_lat, n_lon,
+            cal_start_idx, cal_end_idx, dtype
+        )
+
     # Step 3: Transform to standard normal (vectorized)
     _logger.info("Step 3/3: Transforming to standard normal...")
-    
-    # Reshape scaled data to (years, periods, lat, lon)
+
+    # Transform in-place to save memory
+    result = _transform_to_normal_vectorized(
+        scaled_data, alphas, betas, probs_zero,
+        n_years, periods_per_year, n_lat, n_lon, dtype
+    )
+
+    # Clip to valid range
+    np.clip(result, FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX, out=result)
+
+    # Prepare fitting parameters dict (convert back to float64 for storage)
+    params_dict = {
+        'alpha': alphas.astype(np.float64) if memory_efficient else alphas,
+        'beta': betas.astype(np.float64) if memory_efficient else betas,
+        'prob_zero': probs_zero.astype(np.float64) if memory_efficient else probs_zero
+    }
+
+    # Convert result to float64 for output consistency
+    if memory_efficient:
+        result = result.astype(np.float64)
+
+    _logger.info("Index computation complete")
+
+    # Explicit garbage collection to free intermediate arrays
+    if memory_efficient:
+        gc.collect()
+
+    return result, params_dict
+
+
+def _rolling_sum_3d(data: np.ndarray, scale: int, dtype: np.dtype) -> np.ndarray:
+    """
+    Memory-efficient rolling sum for 3D array.
+
+    Uses cumulative sum approach for O(n) complexity instead of O(n*scale).
+    """
+    n_time, n_lat, n_lon = data.shape
+
+    # Initialize output with NaN
+    result = np.full((n_time, n_lat, n_lon), np.nan, dtype=dtype)
+
+    # Use cumulative sum for efficiency (handles NaN correctly)
+    # Replace NaN with 0 for cumsum, track valid counts
+    data_filled = np.where(np.isnan(data), 0, data)
+    valid_mask = (~np.isnan(data)).astype(np.int8)
+
+    # Cumulative sums
+    cumsum_data = np.cumsum(data_filled, axis=0, dtype=dtype)
+    cumsum_valid = np.cumsum(valid_mask, axis=0, dtype=np.int16)
+
+    # Calculate rolling sums using cumsum difference
+    for t in range(scale - 1, n_time):
+        if t == scale - 1:
+            window_sum = cumsum_data[t]
+            window_valid = cumsum_valid[t]
+        else:
+            window_sum = cumsum_data[t] - cumsum_data[t - scale]
+            window_valid = cumsum_valid[t] - cumsum_valid[t - scale]
+
+        # Only valid if all values in window are valid
+        all_valid = window_valid == scale
+        result[t] = np.where(all_valid, window_sum, np.nan)
+
+    # Clean up intermediate arrays
+    del data_filled, valid_mask, cumsum_data, cumsum_valid
+
+    return result
+
+
+def _compute_gamma_params_vectorized(
+    scaled_data: np.ndarray,
+    n_years: int,
+    periods_per_year: int,
+    n_lat: int,
+    n_lon: int,
+    cal_start_idx: int,
+    cal_end_idx: int,
+    dtype: np.dtype
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute gamma parameters with vectorized operations.
+
+    Memory-optimized to avoid creating many large intermediate arrays.
+    """
+    # Initialize parameter arrays: shape (periods, lat, lon)
+    alphas = np.full((periods_per_year, n_lat, n_lon), np.nan, dtype=dtype)
+    betas = np.full((periods_per_year, n_lat, n_lon), np.nan, dtype=dtype)
+    probs_zero = np.full((periods_per_year, n_lat, n_lon), np.nan, dtype=dtype)
+
+    # Reshape to (years, periods, lat, lon) - this is a view, no copy
     scaled_4d = scaled_data.reshape(n_years, periods_per_year, n_lat, n_lon)
-    result_4d = np.full_like(scaled_4d, np.nan)
-    
+
     # Process each calendar period
     for period_idx in range(periods_per_year):
-        alpha = alphas[period_idx, :, :]
-        beta = betas[period_idx, :, :]
-        prob_zero = probs_zero[period_idx, :, :]
-        
+        # Get calibration data for this period: shape (cal_years, lat, lon)
+        calib_data = scaled_4d[cal_start_idx:cal_end_idx, period_idx, :, :]
+
+        # Count valid and zero values
+        valid_mask = ~np.isnan(calib_data)
+        n_valid = np.sum(valid_mask, axis=0)
+        n_zeros = np.sum((calib_data == 0) & valid_mask, axis=0)
+
+        # Probability of zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            probs_zero[period_idx] = np.where(n_valid > 0, n_zeros / n_valid, np.nan)
+
+        # Non-zero values for gamma fitting
+        nonzero_mask = (calib_data > 0) & valid_mask
+        n_nonzero = np.sum(nonzero_mask, axis=0)
+
+        # Replace non-positive with NaN for stats
+        calib_positive = np.where(nonzero_mask, calib_data, np.nan)
+
+        # Method of moments estimation
+        with np.errstate(divide='ignore', invalid='ignore'):
+            mean_vals = np.nanmean(calib_positive, axis=0)
+            log_vals = np.log(calib_positive)
+            mean_log = np.nanmean(log_vals, axis=0)
+
+            # A = ln(mean) - mean(ln(x))
+            a = np.log(mean_vals) - mean_log
+
+            # Alpha (shape parameter)
+            alpha = np.where(
+                a > 0,
+                (1.0 + np.sqrt(1.0 + 4.0 * a / 3.0)) / (4.0 * a),
+                np.nan
+            )
+
+            # Beta (scale parameter)
+            beta = mean_vals / alpha
+
+            # Apply minimum data requirement
+            valid_fit = n_nonzero >= MIN_VALUES_FOR_GAMMA_FIT
+
+            alphas[period_idx] = np.where(valid_fit, alpha, np.nan)
+            betas[period_idx] = np.where(valid_fit, beta, np.nan)
+
+        # Clean up period-specific arrays
+        del calib_data, valid_mask, nonzero_mask, calib_positive, log_vals
+
+    return alphas, betas, probs_zero
+
+
+def _transform_to_normal_vectorized(
+    scaled_data: np.ndarray,
+    alphas: np.ndarray,
+    betas: np.ndarray,
+    probs_zero: np.ndarray,
+    n_years: int,
+    periods_per_year: int,
+    n_lat: int,
+    n_lon: int,
+    dtype: np.dtype
+) -> np.ndarray:
+    """
+    Transform scaled data to standard normal using gamma CDF.
+
+    Memory-optimized to process one period at a time.
+    """
+    n_time = n_years * periods_per_year
+    result = np.full((n_time, n_lat, n_lon), np.nan, dtype=dtype)
+
+    # Reshape for period-wise access (view, no copy)
+    scaled_4d = scaled_data.reshape(n_years, periods_per_year, n_lat, n_lon)
+    result_4d = result.reshape(n_years, periods_per_year, n_lat, n_lon)
+
+    # Process each calendar period
+    for period_idx in range(periods_per_year):
+        alpha = alphas[period_idx]
+        beta = betas[period_idx]
+        prob_zero = probs_zero[period_idx]
+
         # Values for this period: shape (n_years, lat, lon)
         period_vals = scaled_4d[:, period_idx, :, :]
-        
+
         # Create mask for valid parameters
-        valid_params = (
-            ~np.isnan(alpha) & ~np.isnan(beta) & 
-            (alpha > 0) & (beta > 0)
-        )
-        
-        # Expand valid_params to match period_vals shape
-        valid_params_expanded = np.broadcast_to(
-            valid_params[np.newaxis, :, :], period_vals.shape
-        )
-        
+        valid_params = (~np.isnan(alpha) & ~np.isnan(beta) &
+                       (alpha > 0) & (beta > 0))
+
+        # Skip if no valid parameters
+        if not np.any(valid_params):
+            continue
+
         # Compute gamma CDF (vectorized)
         with np.errstate(divide='ignore', invalid='ignore'):
             gamma_probs = scipy.stats.gamma.cdf(
@@ -600,42 +707,31 @@ def compute_index_parallel(
                 a=alpha[np.newaxis, :, :],
                 scale=beta[np.newaxis, :, :]
             )
-            
+
             # Adjust for probability of zero
-            adjusted_probs = (
-                prob_zero[np.newaxis, :, :] + 
-                (1.0 - prob_zero[np.newaxis, :, :]) * gamma_probs
-            )
-            
+            adjusted_probs = (prob_zero[np.newaxis, :, :] +
+                            (1.0 - prob_zero[np.newaxis, :, :]) * gamma_probs)
+
             # Clamp to valid range
-            adjusted_probs = np.clip(adjusted_probs, 1e-10, 1.0 - 1e-10)
-            
+            np.clip(adjusted_probs, 1e-10, 1.0 - 1e-10, out=adjusted_probs)
+
             # Transform to standard normal
             transformed = scipy.stats.norm.ppf(adjusted_probs)
-            
-            # Apply only where parameters are valid
+
+            # Expand valid_params mask
+            valid_expanded = np.broadcast_to(valid_params[np.newaxis, :, :], period_vals.shape)
+
+            # Apply only where parameters and values are valid
             result_4d[:, period_idx, :, :] = np.where(
-                valid_params_expanded & ~np.isnan(period_vals),
+                valid_expanded & ~np.isnan(period_vals),
                 transformed,
                 np.nan
             )
-    
-    # Reshape back to (time, lat, lon)
-    result = result_4d.reshape(n_time, n_lat, n_lon)
-    
-    # Clip to valid range
-    result = np.clip(result, FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX)
-    
-    # Prepare fitting parameters dict
-    params_dict = {
-        'alpha': alphas,
-        'beta': betas,
-        'prob_zero': probs_zero
-    }
-    
-    _logger.info("Index computation complete")
-    
-    return result, params_dict
+
+        # Clean up period-specific arrays
+        del gamma_probs, adjusted_probs, transformed
+
+    return result
 
 
 # =============================================================================
@@ -649,14 +745,17 @@ def compute_index_dask(
     calibration_start_year: int,
     calibration_end_year: int,
     periodicity: Periodicity,
-    fitting_params: Optional[Dict[str, xr.DataArray]] = None,
+    fitting_params: Optional[Dict[str, np.ndarray]] = None,
     chunks: Optional[Dict[str, int]] = None
 ) -> Tuple[xr.DataArray, Dict[str, xr.DataArray]]:
     """
     Compute SPI/SPEI using Dask for out-of-core processing.
-    
+
     Suitable for very large global datasets that don't fit in memory.
     Uses lazy evaluation and chunked processing.
+
+    Note: For fitting parameters extraction, use ChunkedProcessor from
+    the chunked module instead, which properly handles parameter collection.
 
     :param data: xarray DataArray with dimensions (time, lat, lon)
     :param scale: accumulation scale
@@ -665,75 +764,149 @@ def compute_index_dask(
     :param calibration_end_year: last year of calibration period
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters
-    :param chunks: optional chunk sizes, e.g., {'lat': 100, 'lon': 100}
-    :return: tuple of (result DataArray, fitting_params dict of DataArrays)
+    :param chunks: optional chunk sizes, e.g., {'lat': 500, 'lon': 500}
+    :return: tuple of (result DataArray, empty params dict)
     """
     import dask.array as da
-    from dask.diagnostics import ProgressBar
-    
+
     _logger.info(f"Starting Dask-enabled computation for shape {data.shape}")
-    
-    # Ensure data is chunked
+
+    # Ensure data is chunked - keep full time dimension, chunk spatially
     if chunks is None:
-        # Default chunking: keep time together, chunk spatially
-        chunks = {'time': -1, 'lat': 100, 'lon': 100}
-    
+        chunks = {'time': -1, 'lat': 500, 'lon': 500}
+
     if not data.chunks:
         data = data.chunk(chunks)
         _logger.info(f"Chunked data with {chunks}")
-    
-    # Get coordinates
-    time_coord = data.coords['time']
-    lat_coord = data.coords['lat']
-    lon_coord = data.coords['lon']
-    
-    # Define computation function for map_blocks
-    def _compute_chunk(
-        chunk_data: np.ndarray,
-        block_info: dict = None
-    ) -> np.ndarray:
-        """Process a single spatial chunk."""
-        if chunk_data.size == 0:
-            return chunk_data
-        
+
+    # Wrapper function for map_blocks
+    def _process_chunk(chunk: np.ndarray) -> np.ndarray:
+        """Process a single chunk."""
+        if chunk.size == 0 or np.all(np.isnan(chunk)):
+            return np.full(chunk.shape, np.nan, dtype=np.float64)
+
         result, _ = compute_index_parallel(
-            chunk_data,
+            chunk,
             scale=scale,
             data_start_year=data_start_year,
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
-            fitting_params=None  # Compute fresh for each chunk
+            fitting_params=fitting_params,
+            memory_efficient=True
         )
         return result
-    
-    # Apply computation using dask
-    _logger.info("Applying Dask map_blocks...")
-    
-    # Use xarray's apply_ufunc for dask integration
-    result = xr.apply_ufunc(
-        lambda x: compute_index_parallel(
-            x, scale, data_start_year,
-            calibration_start_year, calibration_end_year,
-            periodicity, None
-        )[0],
-        data,
-        input_core_dims=[['time', 'lat', 'lon']],
-        output_core_dims=[['time', 'lat', 'lon']],
-        vectorize=False,
-        dask='parallelized',
-        output_dtypes=[np.float64],
-        dask_gufunc_kwargs={'allow_rechunk': True}
+
+    # Apply using dask map_blocks
+    _logger.info("Building Dask computation graph...")
+
+    result_dask = da.map_blocks(
+        _process_chunk,
+        data.data,
+        dtype=np.float64,
+        meta=np.array((), dtype=np.float64)
     )
-    
-    # For fitting params, we need to compute them separately
-    # This is a limitation - params are computed during result computation
-    # For now, return empty params dict (user should use compute_index_parallel
-    # for param extraction on a subset)
-    
-    _logger.info("Computation graph built. Use .compute() to execute.")
-    
+
+    # Wrap back in xarray
+    result = xr.DataArray(
+        result_dask,
+        dims=data.dims,
+        coords=data.coords,
+        attrs={
+            'long_name': f'Standardized Precipitation Index (scale={scale})',
+            'units': '1',
+            'scale': scale,
+            'calibration_start_year': calibration_start_year,
+            'calibration_end_year': calibration_end_year,
+        }
+    )
+
+    _logger.info(
+        "Computation graph built. Use .compute() to execute, "
+        "or save directly with to_netcdf() for streaming output."
+    )
+
+    # Note: Fitting parameters not collected in Dask mode
+    # Use chunked.ChunkedProcessor for param extraction
     return result, {}
+
+
+def compute_index_dask_to_zarr(
+    data: xr.DataArray,
+    output_path: str,
+    scale: int,
+    data_start_year: int,
+    calibration_start_year: int,
+    calibration_end_year: int,
+    periodicity: Periodicity,
+    fitting_params: Optional[Dict[str, np.ndarray]] = None,
+    chunks: Optional[Dict[str, int]] = None,
+    n_workers: int = None
+) -> str:
+    """
+    Compute SPI/SPEI using Dask and stream output to Zarr format.
+
+    This is the most memory-efficient method for very large datasets
+    as it streams results directly to disk without loading all data.
+
+    :param data: xarray DataArray with dimensions (time, lat, lon)
+    :param output_path: Path for output Zarr store
+    :param scale: accumulation scale
+    :param data_start_year: first year of data
+    :param calibration_start_year: calibration start year
+    :param calibration_end_year: calibration end year
+    :param periodicity: monthly or daily
+    :param fitting_params: optional pre-computed parameters
+    :param chunks: chunk sizes for processing
+    :param n_workers: number of Dask workers
+    :return: path to output Zarr store
+
+    Example:
+        >>> result_path = compute_index_dask_to_zarr(
+        ...     precip_da,
+        ...     'output/spi_global.zarr',
+        ...     scale=12,
+        ...     data_start_year=1981,
+        ...     calibration_start_year=1991,
+        ...     calibration_end_year=2020,
+        ...     periodicity=Periodicity.monthly
+        ... )
+    """
+    import dask
+    from dask.distributed import Client, LocalCluster
+
+    # Set up Dask client
+    if n_workers is None:
+        import os
+        n_workers = max(1, os.cpu_count() - 1)
+
+    _logger.info(f"Setting up Dask cluster with {n_workers} workers")
+
+    # Use context manager for cluster
+    with LocalCluster(n_workers=n_workers, threads_per_worker=1) as cluster:
+        with Client(cluster) as client:
+            _logger.info(f"Dask dashboard: {client.dashboard_link}")
+
+            # Compute lazy result
+            result, _ = compute_index_dask(
+                data, scale, data_start_year,
+                calibration_start_year, calibration_end_year,
+                periodicity, fitting_params, chunks
+            )
+
+            # Convert to dataset for saving
+            from config import get_variable_name
+            var_name = get_variable_name('spi', scale, periodicity)
+            result = result.rename(var_name)
+            ds = result.to_dataset()
+
+            # Stream to Zarr (memory-efficient)
+            _logger.info(f"Streaming output to Zarr: {output_path}")
+            ds.to_zarr(output_path, mode='w', consolidated=True)
+
+            _logger.info(f"Computation complete: {output_path}")
+
+    return output_path
 
 
 # =============================================================================

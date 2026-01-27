@@ -135,6 +135,8 @@ dmypy.json
 *.geotiff
 
 # Output directories
+# input/
+global/
 # output/
 results/
 figures/

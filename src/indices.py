@@ -43,6 +43,8 @@ from config import (
     get_variable_name,
 )
 from compute import (
+    compute_index_dask,
+    compute_index_dask_to_zarr,
     compute_index_parallel,
     compute_spi_1d,
     compute_spei_1d,
@@ -935,31 +937,31 @@ def get_drought_area_percentage(
     :param index_values: SPI or SPEI values (2D or 3D array)
     :param threshold: drought threshold (default: -1.0 for moderate drought)
     :return: percentage of area under drought (0-100)
-    
+
     Example:
         >>> # Get time series of drought area percentage
         >>> drought_pct = get_drought_area_percentage(spi_12, threshold=-1.5)
     """
     values = index_values.values if isinstance(index_values, xr.DataArray) else index_values
-    
+
     if values.ndim == 2:
         # Single time slice (lat, lon)
         valid_count = np.sum(~np.isnan(values))
         drought_count = np.sum(values <= threshold)
         return 100.0 * drought_count / valid_count if valid_count > 0 else np.nan
-    
+
     elif values.ndim == 3:
         # Time series (time, lat, lon)
         n_time = values.shape[0]
         percentages = np.full(n_time, np.nan)
-        
+
         for t in range(n_time):
             slice_vals = values[t, :, :]
             valid_count = np.sum(~np.isnan(slice_vals))
             drought_count = np.sum(slice_vals <= threshold)
             if valid_count > 0:
                 percentages[t] = 100.0 * drought_count / valid_count
-        
+
         if isinstance(index_values, xr.DataArray):
             return xr.DataArray(
                 data=percentages,
@@ -973,6 +975,177 @@ def get_drought_area_percentage(
                 }
             )
         return percentages
-    
+
     else:
         raise ValueError(f"Unsupported array dimensions: {values.ndim}")
+
+
+# =============================================================================
+# GLOBAL-SCALE PROCESSING (MEMORY-EFFICIENT)
+# =============================================================================
+
+def spi_global(
+    precip_path: str,
+    output_path: str,
+    scale: int = 12,
+    periodicity: Union[str, Periodicity] = Periodicity.monthly,
+    calibration_start_year: int = DEFAULT_CALIBRATION_START_YEAR,
+    calibration_end_year: int = DEFAULT_CALIBRATION_END_YEAR,
+    chunk_size: int = 500,
+    var_name: Optional[str] = None,
+    save_params: bool = True,
+    params_path: Optional[str] = None
+) -> xr.Dataset:
+    """
+    Calculate SPI for global-scale datasets with automatic memory management.
+
+    This function handles datasets that exceed available RAM by processing
+    data in spatial chunks and streaming results to disk.
+
+    :param precip_path: Path to precipitation NetCDF file
+    :param output_path: Path for output SPI NetCDF file
+    :param scale: Accumulation scale (default: 12)
+    :param periodicity: 'monthly' or 'daily'
+    :param calibration_start_year: Start of calibration period
+    :param calibration_end_year: End of calibration period
+    :param chunk_size: Spatial chunk size (default: 500)
+    :param var_name: Precipitation variable name (auto-detected if None)
+    :param save_params: Whether to save fitting parameters
+    :param params_path: Path for fitting parameters file (default: output_path with '_params.nc' suffix)
+    :return: Dataset with computed SPI
+
+    Example:
+        >>> # Process Global CHIRPS data
+        >>> result = spi_global(
+        ...     'chirps_global_monthly_1981_2024.nc',
+        ...     'spi_12_global.nc',
+        ...     scale=12,
+        ...     chunk_size=500  # Adjust based on available RAM
+        ... )
+    """
+    from chunked import ChunkedProcessor
+
+    if isinstance(periodicity, str):
+        periodicity = Periodicity.from_string(periodicity)
+
+    processor = ChunkedProcessor(
+        chunk_lat=chunk_size,
+        chunk_lon=chunk_size
+    )
+
+    return processor.compute_spi_chunked(
+        precip=precip_path,
+        output_path=output_path,
+        scale=scale,
+        periodicity=periodicity,
+        calibration_start_year=calibration_start_year,
+        calibration_end_year=calibration_end_year,
+        var_name=var_name,
+        save_params=save_params,
+        params_path=params_path
+    )
+
+
+def spei_global(
+    precip_path: str,
+    pet_path: str,
+    output_path: str,
+    scale: int = 12,
+    periodicity: Union[str, Periodicity] = Periodicity.monthly,
+    calibration_start_year: int = DEFAULT_CALIBRATION_START_YEAR,
+    calibration_end_year: int = DEFAULT_CALIBRATION_END_YEAR,
+    chunk_size: int = 500,
+    precip_var_name: Optional[str] = None,
+    pet_var_name: Optional[str] = None,
+    save_params: bool = True,
+    params_path: Optional[str] = None
+) -> xr.Dataset:
+    """
+    Calculate SPEI for global-scale datasets with automatic memory management.
+
+    :param precip_path: Path to precipitation NetCDF file
+    :param pet_path: Path to PET NetCDF file
+    :param output_path: Path for output SPEI NetCDF file
+    :param scale: Accumulation scale
+    :param periodicity: 'monthly' or 'daily'
+    :param calibration_start_year: Start of calibration period
+    :param calibration_end_year: End of calibration period
+    :param chunk_size: Spatial chunk size
+    :param precip_var_name: Precipitation variable name
+    :param pet_var_name: PET variable name
+    :param save_params: Whether to save fitting parameters
+    :param params_path: Path for fitting parameters file (default: output_path with '_params.nc' suffix)
+    :return: Dataset with computed SPEI
+
+    Example:
+        >>> result = spei_global(
+        ...     'chirps_global_monthly.nc',
+        ...     'pet_global_monthly.nc',
+        ...     'spei_12_global.nc',
+        ...     scale=12
+        ... )
+    """
+    from chunked import ChunkedProcessor
+
+    if isinstance(periodicity, str):
+        periodicity = Periodicity.from_string(periodicity)
+
+    processor = ChunkedProcessor(
+        chunk_lat=chunk_size,
+        chunk_lon=chunk_size
+    )
+
+    return processor.compute_spei_chunked(
+        precip=precip_path,
+        pet=pet_path,
+        output_path=output_path,
+        scale=scale,
+        periodicity=periodicity,
+        calibration_start_year=calibration_start_year,
+        calibration_end_year=calibration_end_year,
+        precip_var_name=precip_var_name,
+        pet_var_name=pet_var_name,
+        save_params=save_params,
+        params_path=params_path
+    )
+
+
+def estimate_memory_requirements(
+    precip: Union[str, xr.DataArray, xr.Dataset],
+    var_name: Optional[str] = None,
+    available_memory_gb: Optional[float] = None
+):
+    """
+    Estimate memory requirements before running SPI/SPEI computation.
+
+    Use this function to check if your data will fit in memory and
+    get recommended chunk sizes if chunking is needed.
+
+    :param precip: Precipitation data path or xarray object
+    :param var_name: Variable name if Dataset
+    :param available_memory_gb: Available RAM in GB (auto-detected if None)
+    :return: MemoryEstimate object with recommendations
+
+    Example:
+        >>> mem = estimate_memory_requirements('chirps_global.nc')
+        >>> print(mem)
+        MemoryEstimate(
+          Input size: 35.80 GB
+          Peak memory needed: 429.60 GB
+          Available memory: 150.00 GB
+          Status: ✗ Requires chunking
+          Recommended chunk size: (500, 500) (lat, lon)
+          Number of chunks: 36
+        )
+    """
+    from chunked import estimate_memory, estimate_memory_from_data
+
+    if isinstance(precip, str):
+        ds = xr.open_dataset(precip)
+        if var_name is None:
+            precip_vars = [v for v in ds.data_vars
+                          if any(x in v.lower() for x in ['precip', 'prcp', 'pr', 'ppt'])]
+            var_name = precip_vars[0] if precip_vars else list(ds.data_vars)[0]
+        return estimate_memory_from_data(ds, var_name, available_memory_gb)
+    else:
+        return estimate_memory_from_data(precip, var_name, available_memory_gb)

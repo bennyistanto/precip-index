@@ -9,8 +9,10 @@ netCDF4>=1.5.7
 # Performance optimization
 numba>=0.54.0
 
-# Optional: Parallel/distributed computing
+# Parallel/distributed computing and memory management
 dask[complete]>=2021.10.0
+zarr>=2.10.0
+psutil>=5.8.0
 
 # Optional: Visualization (for notebooks)
 matplotlib>=3.4.0

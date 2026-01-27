@@ -162,6 +162,300 @@ def spei_multi_scale(
 
 ---
 
+### spi_global()
+
+Calculate SPI for global-scale datasets with automatic memory management.
+
+```python
+def spi_global(
+    precip_path,
+    output_path,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=None,
+    calibration_end_year=None,
+    chunk_size=500,
+    var_name=None,
+    save_params=True,
+    params_path=None
+) -> xarray.Dataset
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `precip_path` | str | Yes | - | Path to precipitation NetCDF file |
+| `output_path` | str | Yes | - | Path for output SPI NetCDF file |
+| `scale` | int | No | 12 | Accumulation scale in months |
+| `periodicity` | str | No | 'monthly' | Temporal resolution |
+| `calibration_start_year` | int | No | None | Calibration period start |
+| `calibration_end_year` | int | No | None | Calibration period end |
+| `chunk_size` | int | No | 500 | Spatial chunk size (lat and lon) |
+| `var_name` | str | No | None | Precipitation variable name (auto-detected) |
+| `save_params` | bool | No | True | Save fitting parameters |
+| `params_path` | str | No | None | Custom path for parameters file |
+
+**Returns:**
+
+- `xarray.Dataset`: Dataset with computed SPI
+
+**Example:**
+
+```python
+from indices import spi_global
+
+result = spi_global(
+    'global_chirps_monthly.nc',
+    'spi_12_global.nc',
+    scale=12,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    chunk_size=500
+)
+```
+
+---
+
+### spei_global()
+
+Calculate SPEI for global-scale datasets with automatic memory management.
+
+```python
+def spei_global(
+    precip_path,
+    pet_path,
+    output_path,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=None,
+    calibration_end_year=None,
+    chunk_size=500,
+    precip_var_name=None,
+    pet_var_name=None,
+    save_params=True,
+    params_path=None
+) -> xarray.Dataset
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `precip_path` | str | Yes | - | Path to precipitation NetCDF file |
+| `pet_path` | str | Yes | - | Path to PET NetCDF file |
+| `output_path` | str | Yes | - | Path for output SPEI NetCDF file |
+| `scale` | int | No | 12 | Accumulation scale |
+| `chunk_size` | int | No | 500 | Spatial chunk size |
+| All others | - | - | - | Same as `spi_global()` |
+
+**Returns:**
+
+- `xarray.Dataset`: Dataset with computed SPEI
+
+**Example:**
+
+```python
+from indices import spei_global
+
+result = spei_global(
+    'global_precip.nc',
+    'global_pet.nc',
+    'spei_12_global.nc',
+    scale=12,
+    chunk_size=500
+)
+```
+
+---
+
+### estimate_memory_requirements()
+
+Estimate memory requirements before running computation.
+
+```python
+def estimate_memory_requirements(
+    precip,
+    var_name=None,
+    available_memory_gb=None
+) -> dict
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `precip` | str or xarray.DataArray | Yes | - | Precipitation data or path |
+| `var_name` | str | No | None | Variable name (for NetCDF path) |
+| `available_memory_gb` | float | No | None | Override system memory detection |
+
+**Returns:**
+
+- `dict` with keys:
+  - `input_size_gb`: Input data size
+  - `peak_memory_gb`: Estimated peak memory
+  - `recommended_chunk_size`: Suggested chunk dimensions
+  - `fits_in_memory`: Boolean
+  - `recommendation`: Human-readable advice
+
+**Example:**
+
+```python
+from indices import estimate_memory_requirements
+
+mem = estimate_memory_requirements('global_chirps.nc')
+print(f"Peak memory: {mem['peak_memory_gb']:.1f} GB")
+print(f"Recommended chunk: {mem['recommended_chunk_size']}")
+print(f"Recommendation: {mem['recommendation']}")
+```
+
+---
+
+## Module: chunked
+
+### ChunkedProcessor
+
+Main class for memory-efficient chunked processing.
+
+```python
+class ChunkedProcessor:
+    def __init__(
+        self,
+        chunk_lat=500,
+        chunk_lon=500,
+        n_workers=None,
+        temp_dir=None,
+        verbose=True
+    )
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `chunk_lat` | int | No | 500 | Chunk size in latitude dimension |
+| `chunk_lon` | int | No | 500 | Chunk size in longitude dimension |
+| `n_workers` | int | No | None | Number of parallel workers |
+| `temp_dir` | str | No | None | Temporary directory for intermediate files |
+| `verbose` | bool | No | True | Print progress messages |
+
+**Methods:**
+
+#### compute_spi_chunked()
+
+```python
+def compute_spi_chunked(
+    self,
+    precip,
+    output_path,
+    scale,
+    periodicity='monthly',
+    calibration_start_year=None,
+    calibration_end_year=None,
+    var_name=None,
+    save_params=True,
+    params_path=None,
+    compress=True,
+    complevel=4,
+    callback=None
+) -> xarray.Dataset
+```
+
+#### compute_spei_chunked()
+
+```python
+def compute_spei_chunked(
+    self,
+    precip,
+    pet,
+    output_path,
+    scale,
+    periodicity='monthly',
+    calibration_start_year=None,
+    calibration_end_year=None,
+    precip_var_name=None,
+    pet_var_name=None,
+    save_params=True,
+    params_path=None,
+    compress=True,
+    complevel=4,
+    callback=None
+) -> xarray.Dataset
+```
+
+**Example:**
+
+```python
+from chunked import ChunkedProcessor
+
+# Create processor
+processor = ChunkedProcessor(chunk_lat=500, chunk_lon=500)
+
+# Define progress callback
+def progress(current, total, message):
+    print(f"[{current}/{total}] {message}")
+
+# Run computation
+result = processor.compute_spi_chunked(
+    precip='global_precip.nc',
+    output_path='spi_12_global.nc',
+    scale=12,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    save_params=True,
+    callback=progress
+)
+```
+
+---
+
+### estimate_memory()
+
+Estimate memory requirements for a dataset.
+
+```python
+def estimate_memory(
+    n_time,
+    n_lat,
+    n_lon,
+    dtype=np.float64,
+    available_memory_gb=None
+) -> MemoryEstimate
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `n_time` | int | Yes | - | Number of time steps |
+| `n_lat` | int | Yes | - | Number of latitude points |
+| `n_lon` | int | Yes | - | Number of longitude points |
+| `dtype` | numpy.dtype | No | float64 | Data type |
+| `available_memory_gb` | float | No | None | Override system memory |
+
+**Returns:**
+
+- `MemoryEstimate` named tuple with:
+  - `input_size_bytes`: Raw input size
+  - `peak_memory_bytes`: Estimated peak
+  - `available_bytes`: System available memory
+  - `fits_in_memory`: Boolean
+  - `recommended_chunk_lat`: Suggested chunk size
+  - `recommended_chunk_lon`: Suggested chunk size
+
+**Example:**
+
+```python
+from chunked import estimate_memory
+
+mem = estimate_memory(528, 2160, 4320)
+print(f"Input: {mem.input_size_bytes / 1e9:.1f} GB")
+print(f"Peak: {mem.peak_memory_bytes / 1e9:.1f} GB")
+print(f"Fits in memory: {mem.fits_in_memory}")
+```
+
+---
+
 ## Module: utils
 
 ### calculate_pet()
@@ -208,6 +502,115 @@ pet = calculate_pet(temp, method='thornthwaite', latitude=lat)
 # Hargreaves
 pet = calculate_pet(temp, method='hargreaves',
                    tmin=tmin, tmax=tmax, latitude=lat)
+```
+
+---
+
+### get_optimal_chunk_size()
+
+Calculate optimal chunk dimensions based on available memory.
+
+```python
+def get_optimal_chunk_size(
+    n_time,
+    n_lat,
+    n_lon,
+    available_memory_gb=None,
+    memory_multiplier=12.0,
+    safety_factor=0.7
+) -> Tuple[int, int]
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `n_time` | int | Yes | - | Number of time steps |
+| `n_lat` | int | Yes | - | Number of latitude points |
+| `n_lon` | int | Yes | - | Number of longitude points |
+| `available_memory_gb` | float | No | None | Override system memory |
+| `memory_multiplier` | float | No | 12.0 | Peak memory multiplier |
+| `safety_factor` | float | No | 0.7 | Memory safety margin |
+
+**Returns:**
+
+- `Tuple[int, int]`: (chunk_lat, chunk_lon)
+
+**Example:**
+
+```python
+from utils import get_optimal_chunk_size
+
+chunk_lat, chunk_lon = get_optimal_chunk_size(528, 2160, 4320)
+print(f"Optimal chunk size: {chunk_lat} x {chunk_lon}")
+```
+
+---
+
+### format_bytes()
+
+Format byte count as human-readable string.
+
+```python
+def format_bytes(n_bytes: int) -> str
+```
+
+**Example:**
+
+```python
+from utils import format_bytes
+
+print(format_bytes(1073741824))  # "1.00 GB"
+print(format_bytes(536870912))   # "512.00 MB"
+```
+
+---
+
+### get_array_memory_size()
+
+Calculate memory footprint of an array.
+
+```python
+def get_array_memory_size(
+    shape: Tuple[int, ...],
+    dtype=np.float64
+) -> int
+```
+
+**Returns:**
+
+- `int`: Size in bytes
+
+**Example:**
+
+```python
+from utils import get_array_memory_size
+
+size = get_array_memory_size((528, 2160, 4320), np.float32)
+print(f"Array size: {size / 1e9:.2f} GB")
+```
+
+---
+
+### print_memory_info()
+
+Print current system memory usage.
+
+```python
+def print_memory_info()
+```
+
+**Example:**
+
+```python
+from utils import print_memory_info
+
+print_memory_info()
+# Output:
+# Memory Info:
+#   Total: 64.00 GB
+#   Available: 48.32 GB
+#   Used: 15.68 GB (24.5%)
 ```
 
 ---

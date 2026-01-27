@@ -117,12 +117,71 @@ params = load_fitting_params('spi_params.nc', scale=12, periodicity='monthly')
 spi_12_fast = spi(new_precip, scale=12, fitting_params=params)
 ```
 
-### 5. Climate Extremes Event Analysis
+## Global-Scale Processing
 
-Identify and analyze complete extreme events using run theory:
+For large datasets (e.g., global CHIRPS, ERA5), use memory-efficient chunked processing:
 
 ```python
-from runtheory import identify_events, calculate_period_statistics
+from indices import spi_global, estimate_memory_requirements
+
+# First, estimate memory requirements
+mem = estimate_memory_requirements('global_chirps_monthly.nc')
+print(f"Input size: {mem['input_size_gb']:.1f} GB")
+print(f"Peak memory: {mem['peak_memory_gb']:.1f} GB")
+print(f"Recommended chunk: {mem['recommended_chunk_size']}")
+
+# Process with automatic chunking
+result = spi_global(
+    'global_chirps_monthly.nc',
+    'spi_12_global.nc',
+    scale=12,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    chunk_size=500,  # Adjust based on available RAM
+    save_params=True  # Save parameters for reuse
+)
+```
+
+::: {.callout-tip}
+## Chunk Size Guidelines
+
+| Available RAM | Recommended Chunk Size |
+|--------------|------------------------|
+| 16 GB | 200 × 200 |
+| 32 GB | 300 × 300 |
+| 64 GB | 400 × 400 |
+| 128 GB | 600 × 600 |
+
+Larger chunks = faster processing, but require more memory.
+:::
+
+For more control, use the `ChunkedProcessor` class:
+
+```python
+from chunked import ChunkedProcessor
+
+processor = ChunkedProcessor(chunk_lat=500, chunk_lon=500)
+result = processor.compute_spi_chunked(
+    precip='global_precip.nc',
+    output_path='spi_12_global.nc',
+    scale=12,
+    save_params=True,
+    callback=lambda cur, tot, msg: print(f"[{cur}/{tot}] {msg}")
+)
+```
+
+See the [Global-Scale Processing Tutorial](../tutorials/05-global-scale-processing.qmd) for detailed examples.
+
+## Climate Extremes Event Analysis
+
+Identify and analyze complete extreme events using run theory.
+
+The same functions work for both drought (negative threshold) and wet events (positive threshold). This unified approach makes analysis consistent and straightforward.
+
+### Drought Events
+
+```python
+from runtheory import identify_events
 from visualization import plot_events
 
 # Identify drought events (negative threshold)
@@ -132,16 +191,34 @@ drought_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
 print(f"Found {len(drought_events)} drought events")
 print(drought_events[['start_date', 'end_date', 'duration', 'magnitude', 'peak']])
 
-# Or identify wet events (positive threshold) - same function!
+# Visualize events
+plot_events(spi_location, drought_events, threshold=-1.2)
+```
+
+### Wet Events
+
+```python
+# Identify wet events (positive threshold) - same function!
 wet_events = identify_events(spi_location, threshold=+1.2, min_duration=3)
 
-# Visualize events
-from visualization import plot_events
-plot_events(spi_location, drought_events, threshold=-1.2)
+print(f"Found {len(wet_events)} wet events")
+plot_events(spi_location, wet_events, threshold=+1.2)
+```
 
-# Gridded statistics for a time period
-stats = calculate_period_statistics(spi_12, threshold=-1.2,
-                                    start_year=2020, end_year=2024)
+### Gridded Statistics
+
+```python
+from runtheory import calculate_period_statistics
+
+# Calculate gridded statistics for a time period
+stats = calculate_period_statistics(
+    spi_12,
+    threshold=-1.2,
+    start_year=2020,
+    end_year=2024
+)
+
+# Plot number of events per grid cell
 stats.num_events.plot(title='Number of Drought Events 2020-2024')
 ```
 
@@ -149,54 +226,59 @@ stats.num_events.plot(title='Number of Drought Events 2020-2024')
 
 ### Format
 
-- NetCDF files (.nc)
-- Dimensions: Any order is supported (auto-transposes to CF Convention)
+- **File Type:** NetCDF files (.nc)
+- **Dimensions:** Any order is supported (auto-transposes to CF Convention)
   - Preferred: `(time, lat, lon)`
   - Also works: `(lat, lon, time)` ← Auto-detected and transposed!
-- Monthly or daily temporal resolution
+- **Temporal Resolution:** Monthly or daily
 
 ### Variables
 
 - **For SPI:**
+
   - Precipitation in mm/month or mm/day
 
 - **For SPEI:**
+
   - Precipitation in mm/month or mm/day
   - Temperature in °C (for PET calculation)
   - OR pre-computed PET in mm/month or mm/day
 
 ### Calibration Period
 
-- Default: 1991-2020 (WMO recommendation)
-- Minimum: 30 years for robust statistics
-- Should overlap with your data period
+- **Default:** 1991-2020 (WMO recommendation)
+- **Minimum:** 30 years for robust statistics
+- **Requirement:** Should overlap with your data period
 
 ## Understanding the Output
 
-### SPI/SPEI Values
+### SPI/SPEI Classification
 
-| Value Range | Category | Meaning |
-| ----------- | -------- | ------- |
-| ≥ 2.0 | Extremely wet | Top 2.3% |
-| 1.5 to 2.0 | Very wet | Top 6.7% |
-| 1.0 to 1.5 | Moderately wet | Top 15.9% |
-| -1.0 to 1.0 | Near normal | Middle 68.2% |
-| -1.5 to -1.0 | Moderately dry | Bottom 15.9% |
-| -2.0 to -1.5 | Severely dry | Bottom 6.7% |
-| ≤ -2.0 | Extremely dry | Bottom 2.3% |
+| Value Range | Category | Probability | Interpretation |
+|-------------|----------|-------------|----------------|
+| ≤ -2.00 | Exceptionally Dry | Bottom 2.3% | Exceptional drought |
+| -2.00 to -1.50 | Extremely Dry | Bottom 6.7% | Severe drought |
+| -1.50 to -1.20 | Severely Dry | Bottom 9.7% | Severe drought |
+| -1.20 to -0.70 | Moderately Dry | Bottom 24.2% | Moderate drought |
+| -0.70 to -0.50 | Abnormally Dry | Bottom 30.9% | Below normal |
+| -0.50 to +0.50 | Near Normal | Middle 38.2% | Normal conditions |
+| +0.50 to +0.70 | Abnormally Moist | Top 30.9% | Above normal |
+| +0.70 to +1.20 | Moderately Moist | Top 24.2% | Moderately wet |
+| +1.20 to +1.50 | Very Moist | Top 9.7% | Very wet conditions |
+| +1.50 to +2.00 | Extremely Moist | Top 6.7% | Extremely wet conditions |
+| ≥ +2.00 | Exceptionally Moist | Top 2.3% | Extreme flooding risk |
 
 ### Time Scales
 
-- **1-month:** Short-term meteorological drought
-- **3-month:** Seasonal agricultural drought
-- **6-month:** Medium-term agricultural/hydrological drought
-- **12-month:** Long-term water resources/hydrological drought
+| Scale | Application | Use Case |
+|-------|-------------|----------|
+| 1-month | Meteorological | Short-term precipitation deficits |
+| 3-month | Agricultural | Seasonal crop stress |
+| 6-month | Agricultural/Hydrological | Medium-term water resources |
+| 12-month | Hydrological | Long-term water supply |
+| 24-month | Socio-economic | Multi-year water planning |
 
 ## Common Issues
-
-### Issue: "ValueError: cannot reshape array"
-
-**Solution:** This was a bug, now fixed! The code automatically handles any dimension order.
 
 ### Issue: "ModuleNotFoundError: No module named 'indices'"
 
@@ -217,17 +299,21 @@ sys.path.insert(0, 'src')
 
 ## Run the Test Script
 
+Test with the included example data:
+
 ```bash
-# Test with your own data
-python test_spi.py
+python tests/run_all_tests.py
 ```
 
 This will:
 
-1. Load CHIRPS data from `input/` folder
+1. Load TerraClimate Bali data from `input/` folder
 2. Calculate SPI-3 and multi-scale SPI
-3. Save results to `output/` folder
-4. Display statistics and validation
+3. Calculate SPEI with temperature
+4. Test run theory functions
+5. Display statistics and validation
+
+Expected runtime: ~30 seconds
 
 ## Learn More
 
@@ -236,8 +322,6 @@ This will:
   - `02_calculate_spei.ipynb` - Complete SPEI guide
 
 - 📖 **Documentation:** See `README.md` for full API reference
-
-- 🧪 **Test Results:** See `TEST_RESULTS.md` for validation with real data
 
 - 📝 **Changes:** See `CHANGELOG.md` for version history
 

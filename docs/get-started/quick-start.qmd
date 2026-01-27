@@ -14,7 +14,7 @@ sys.path.insert(0, 'src')  # Or use absolute path
 
 ## Basic Usage
 
-### Calculate SPI
+### 1. Calculate SPI
 
 Calculate the Standard Precipitation Index (SPI) for your precipitation data:
 
@@ -42,7 +42,7 @@ spi_12 = spi(
 save_index_to_netcdf(spi_12, 'spi_12_output.nc')
 ```
 
-### Calculate SPEI
+### 2. Calculate SPEI
 
 Calculate the Standardized Precipitation Evapotranspiration Index (SPEI):
 
@@ -76,7 +76,7 @@ The `spei()` function automatically calculates PET using the Thornthwaite method
 If you have pre-computed PET values, use `pet=your_pet_data` instead of `temperature=`.
 :::
 
-### Multi-Scale Calculation
+### 3. Multi-Scale Calculation
 
 Calculate multiple time scales at once for efficiency:
 
@@ -104,7 +104,7 @@ spi_12 = spi_multi['spi_gamma_12_month']
 Multi-scale calculation is more efficient than calculating each scale separately, especially for large datasets.
 :::
 
-### Save and Reuse Parameters
+### 4. Save and Reuse Parameters
 
 Speed up repeated calculations by saving and reusing fitted distribution parameters:
 
@@ -127,6 +127,61 @@ save_fitting_params(
 params = load_fitting_params('spi_params.nc', scale=12, periodicity='monthly')
 spi_12_fast = spi(new_precip, scale=12, fitting_params=params)
 ```
+
+## Global-Scale Processing
+
+For large datasets (e.g., global CHIRPS, ERA5), use memory-efficient chunked processing:
+
+```python
+from indices import spi_global, estimate_memory_requirements
+
+# First, estimate memory requirements
+mem = estimate_memory_requirements('global_chirps_monthly.nc')
+print(f"Input size: {mem['input_size_gb']:.1f} GB")
+print(f"Peak memory: {mem['peak_memory_gb']:.1f} GB")
+print(f"Recommended chunk: {mem['recommended_chunk_size']}")
+
+# Process with automatic chunking
+result = spi_global(
+    'global_chirps_monthly.nc',
+    'spi_12_global.nc',
+    scale=12,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    chunk_size=500,  # Adjust based on available RAM
+    save_params=True  # Save parameters for reuse
+)
+```
+
+::: {.callout-tip}
+## Chunk Size Guidelines
+
+| Available RAM | Recommended Chunk Size |
+|--------------|------------------------|
+| 16 GB | 200 × 200 |
+| 32 GB | 300 × 300 |
+| 64 GB | 400 × 400 |
+| 128 GB | 600 × 600 |
+
+Larger chunks = faster processing, but require more memory.
+:::
+
+For more control, use the `ChunkedProcessor` class:
+
+```python
+from chunked import ChunkedProcessor
+
+processor = ChunkedProcessor(chunk_lat=500, chunk_lon=500)
+result = processor.compute_spi_chunked(
+    precip='global_precip.nc',
+    output_path='spi_12_global.nc',
+    scale=12,
+    save_params=True,
+    callback=lambda cur, tot, msg: print(f"[{cur}/{tot}] {msg}")
+)
+```
+
+See the [Global-Scale Processing Tutorial](../tutorials/05-global-scale-processing.qmd) for detailed examples.
 
 ## Climate Extremes Event Analysis
 
@@ -263,12 +318,6 @@ sys.path.insert(0, 'src')
 - Check: `precip.min()`, `precip.max()`, data year range
 :::
 
-::: {.callout-warning}
-### Issue: "ValueError: cannot reshape array"
-
-**Solution:** This was a bug in earlier versions, now fixed! The code automatically handles any dimension order.
-:::
-
 ## Run the Test Script
 
 Test with the included example data:
@@ -320,9 +369,10 @@ Complete function documentation
 Now that you know the basics:
 
 1. **Try the tutorials** - Work through interactive examples with real climate data
-2. **Read the methodology** - Understand SPI, SPEI, and run theory
-3. **Explore visualizations** - Create publication-quality plots
-4. **Use your own data** - Apply the package to your research
+2. **Process global data** - Use chunked processing for large datasets
+3. **Read the methodology** - Understand SPI, SPEI, and run theory
+4. **Explore visualizations** - Create publication-quality plots
+5. **Use your own data** - Apply the package to your research
 
 ## Support
 

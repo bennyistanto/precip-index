@@ -7,10 +7,11 @@ title: "Installation"
 **System Requirements:**
 
 - Python 3.8 or higher
-- 8GB RAM minimum (16GB recommended for global datasets)
+- 8GB RAM minimum (16GB recommended for regional datasets)
+- 64GB+ RAM recommended for global-scale processing
 - 10GB free disk space
 
-**Python Dependencies:**
+**Core Python Dependencies:**
 
 - `numpy` - Numerical computations
 - `scipy` - Statistical distributions
@@ -18,6 +19,12 @@ title: "Installation"
 - `netCDF4` - NetCDF file I/O
 - `numba` - Performance acceleration
 - `matplotlib` - Visualization
+
+**Dependencies for Global-Scale Processing:**
+
+- `dask[complete]` - Parallel/distributed computing
+- `zarr` - Efficient chunked array storage
+- `psutil` - Memory detection and monitoring
 
 ## Installation Steps
 
@@ -44,6 +51,9 @@ xarray>=0.19.0
 netCDF4>=1.5.7
 numba>=0.54.0
 matplotlib>=3.4.0
+dask[complete]>=2021.10.0
+zarr>=2.10.0
+psutil>=5.8.0
 ```
 
 #### Option B: Using conda
@@ -51,7 +61,7 @@ matplotlib>=3.4.0
 ```bash
 conda create -n precip-index python=3.10
 conda activate precip-index
-conda install -c conda-forge numpy scipy xarray netCDF4 numba matplotlib
+conda install -c conda-forge numpy scipy xarray netCDF4 numba matplotlib dask zarr psutil
 ```
 
 ### 3. Verify Installation
@@ -88,9 +98,12 @@ After installation, you should have:
 precip-index/
 ├── src/                    # Source code
 │   ├── indices.py         # SPI/SPEI calculations
+│   ├── compute.py         # Core computation algorithms
+│   ├── chunked.py         # Memory-efficient global processing
+│   ├── config.py          # Configuration and constants
 │   ├── runtheory.py       # Event analysis
 │   ├── visualization.py   # Plotting functions
-│   └── utils.py           # Utilities
+│   └── utils.py           # Utilities and memory tools
 ├── input/                 # Example data
 │   ├── terraclimate_bali_ppt_1958_2024.nc
 │   ├── terraclimate_bali_tmean_1958_2024.nc
@@ -99,7 +112,8 @@ precip-index/
 │   ├── 01_calculate_spi.ipynb
 │   ├── 02_calculate_spei.ipynb
 │   ├── 03_event_characteristics.ipynb
-│   └── 04_visualization_gallery.ipynb
+│   ├── 04_visualization_gallery.ipynb
+│   └── 05_global_scale_processing.ipynb
 ├── tests/                 # Test suite
 │   └── run_all_tests.py
 ├── docs/                  # Documentation
@@ -139,8 +153,10 @@ sys.path.insert(0, 'src')
 
 # Test imports
 from indices import spi, spei, spi_multi_scale
+from indices import spi_global, spei_global  # Global-scale processing
 from runtheory import identify_events, calculate_timeseries
 from visualization import plot_index, plot_events
+from chunked import ChunkedProcessor, estimate_memory
 
 print("✓ All imports successful!")
 ```

@@ -687,3 +687,93 @@ def count_zeros_and_non_missing(values: np.ndarray) -> Tuple[int, int]:
     zeros = np.sum(values == 0)
     non_missing = np.sum(~np.isnan(values))
     return int(zeros), int(non_missing)
+
+
+# =============================================================================
+# MEMORY AND PERFORMANCE UTILITIES
+# =============================================================================
+
+def get_optimal_chunk_size(
+    n_time: int,
+    n_lat: int,
+    n_lon: int,
+    available_memory_gb: float = None,
+    memory_multiplier: float = 12.0,
+    safety_factor: float = 0.7
+) -> Tuple[int, int]:
+    """
+    Calculate optimal spatial chunk size based on available memory.
+
+    :param n_time: Number of time steps
+    :param n_lat: Number of latitude points
+    :param n_lon: Number of longitude points
+    :param available_memory_gb: Available RAM in GB (auto-detected if None)
+    :param memory_multiplier: Peak memory as multiple of input
+    :param safety_factor: Fraction of available memory to use
+    :return: Tuple of (chunk_lat, chunk_lon)
+    """
+    # Auto-detect available memory
+    if available_memory_gb is None:
+        try:
+            import psutil
+            available_memory_gb = psutil.virtual_memory().available / (1024**3)
+        except ImportError:
+            _logger.warning("psutil not installed, assuming 16GB available")
+            available_memory_gb = 16.0
+
+    # Calculate target chunk size
+    usable_memory_gb = available_memory_gb * safety_factor
+    bytes_per_element = 8  # float64
+
+    # Target cells that fit in memory with multiplier
+    target_cells = int(
+        (usable_memory_gb / memory_multiplier) * (1024**3) / (n_time * bytes_per_element)
+    )
+
+    # Make roughly square chunks
+    chunk_size = int(np.sqrt(target_cells))
+
+    # Apply bounds
+    chunk_lat = min(max(chunk_size, 100), n_lat)
+    chunk_lon = min(max(chunk_size, 100), n_lon)
+
+    return chunk_lat, chunk_lon
+
+
+def format_bytes(n_bytes: int) -> str:
+    """
+    Format byte count as human-readable string.
+
+    :param n_bytes: Number of bytes
+    :return: Formatted string (e.g., "1.5 GB")
+    """
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if abs(n_bytes) < 1024.0:
+            return f"{n_bytes:.2f} {unit}"
+        n_bytes /= 1024.0
+    return f"{n_bytes:.2f} PB"
+
+
+def get_array_memory_size(shape: Tuple[int, ...], dtype: np.dtype = np.float64) -> int:
+    """
+    Calculate memory size of array with given shape and dtype.
+
+    :param shape: Array shape tuple
+    :param dtype: Data type (default: float64)
+    :return: Size in bytes
+    """
+    return int(np.prod(shape) * np.dtype(dtype).itemsize)
+
+
+def print_memory_info():
+    """Print current memory usage information."""
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        _logger.info(
+            f"Memory: {format_bytes(mem.used)} used / "
+            f"{format_bytes(mem.total)} total "
+            f"({mem.percent}% used)"
+        )
+    except ImportError:
+        _logger.warning("psutil not installed, cannot report memory info")
