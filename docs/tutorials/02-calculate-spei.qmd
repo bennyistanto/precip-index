@@ -352,12 +352,12 @@ print("✓ Saved computed PET")
 
 You've learned how to:
 
-✓ Calculate SPEI with pre-computed PET
-✓ Calculate SPEI with temperature (auto-PET)
-✓ Compare different PET calculation methods
-✓ Understand the difference between SPI and SPEI
-✓ Calculate multi-scale SPEI
-✓ Visualize water balance components
+✓ Calculate SPEI with pre-computed PET    
+✓ Calculate SPEI with temperature (auto-PET)    
+✓ Compare different PET calculation methods    
+✓ Understand the difference between SPI and SPEI    
+✓ Calculate multi-scale SPEI    
+✓ Visualize water balance components    
 
 ## Next Steps
 

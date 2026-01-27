@@ -160,7 +160,7 @@ def save_fitting_params(
     # Global attributes
     ds.attrs = {
         'title': f'Gamma distribution fitting parameters for {index_type.upper()}',
-        'institution': 'GFDRR/GOST, The World Bank',
+        'institution': 'GOST/DEC Data Group, The World Bank',
         'source': 'climate_indices package',
         'history': f'Created {datetime.now().isoformat()}',
         'Conventions': 'CF-1.8',
@@ -471,7 +471,7 @@ def spi_multi_scale(
     ds = xr.Dataset(results)
     ds.attrs = {
         'title': 'Standardized Precipitation Index (SPI)',
-        'institution': 'GFDRR/GOST, The World Bank',
+        'institution': 'GOST/DEC Data Group, The World Bank',
         'source': 'climate_indices package',
         'history': f'Created {datetime.now().isoformat()}',
         'Conventions': 'CF-1.8',
@@ -795,7 +795,7 @@ def spei_multi_scale(
     ds = xr.Dataset(results)
     ds.attrs = {
         'title': 'Standardized Precipitation Evapotranspiration Index (SPEI)',
-        'institution': 'GFDRR/GOST, The World Bank',
+        'institution': 'GOST/DEC Data Group, The World Bank',
         'source': 'climate_indices package',
         'history': f'Created {datetime.now().isoformat()}',
         'Conventions': 'CF-1.8',

@@ -285,12 +285,12 @@ Using saved parameters is **5-10x faster** than refitting, ideal for operational
 
 You've learned how to:
 
-✓ Load precipitation data from NetCDF
-✓ Calculate single-scale SPI (SPI-3)
-✓ Calculate multi-scale SPI (3, 6, 9, 12 months)
-✓ Visualize SPI with proper color classification
-✓ Compare different timescales
-✓ Save results to NetCDF files
+✓ Load precipitation data from NetCDF    
+✓ Calculate single-scale SPI (SPI-3)    
+✓ Calculate multi-scale SPI (3, 6, 9, 12 months)    
+✓ Visualize SPI with proper color classification    
+✓ Compare different timescales    
+✓ Save results to NetCDF files    
 ✓ Save and reuse distribution parameters
 
 ## Next Steps

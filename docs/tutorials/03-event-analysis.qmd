@@ -369,13 +369,13 @@ print(f"✓ Saved time series to {output_csv / 'drought_timeseries_bali.csv'}")
 
 You've learned how to:
 
-✓ Identify complete events using run theory
-✓ Calculate event characteristics (duration, magnitude, intensity, peak)
-✓ Analyze both drought and wet events
-✓ Monitor ongoing events
-✓ Calculate gridded period statistics
-✓ Create event timelines
-✓ Export results for further analysis
+✓ Identify complete events using run theory    
+✓ Calculate event characteristics (duration, magnitude, intensity, peak)    
+✓ Analyze both drought and wet events    
+✓ Monitor ongoing events    
+✓ Calculate gridded period statistics    
+✓ Create event timelines    
+✓ Export results for further analysis    
 
 ## Next Steps
 

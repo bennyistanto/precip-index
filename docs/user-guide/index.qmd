@@ -76,6 +76,7 @@ Create publication-quality plots and maps.
 
 If you're new to the package:
 
+0. Read **[Data Model & Outputs](../get-started/data-model.qmd)** to confirm your data contract and understand return formats
 1. Start with the **[SPI Guide](spi.qmd)** to understand basic index calculation
 2. Move to **[Run Theory](runtheory.qmd)** to learn event analysis
 3. Explore **[Visualization](visualization.qmd)** to create plots

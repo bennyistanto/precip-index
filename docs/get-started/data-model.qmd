@@ -1,0 +1,152 @@
+---
+title: "Data Model & Outputs"
+subtitle: "Input contract, calibration conventions, and what functions return"
+---
+
+## Purpose
+
+This page is the practical bridge between:
+
+- **Quick Start / Tutorials** (how to run),
+- **User Guide** (how to interpret), and
+- **Technical Docs** (why the math and design choices work).
+
+If you are unsure whether your data is “ready” for SPI/SPEI or what a function returns (DataArray vs Dataset vs DataFrame), start here.
+
+---
+
+## Input Data Contract
+
+### Supported containers
+
+- Primary: `xarray.DataArray` / `xarray.Dataset`
+- Single-location analysis: also supports `pandas.Series` for run theory functions
+
+### Required coordinates and dimensions
+
+Your gridded inputs must include:
+
+- `time`
+- `lat`
+- `lon`
+
+Dimension order can vary. Preferred is `(time, lat, lon)`.
+
+### Temporal resolution and periodicity
+
+- Your data can be **monthly or daily**.
+- Always set `periodicity` consistently with your time axis.
+- Time scales (e.g., `scale=12`) represent aggregation at the chosen periodicity.
+
+### Variable requirements
+
+| Index | Required inputs | Units (expected) |
+|------|------------------|------------------|
+| SPI | precipitation | mm/month or mm/day |
+| SPEI | precipitation + PET **or** precipitation + temperature (to compute PET) | precip: mm/*, PET: mm/*, temp: °C |
+
+### Missing values and data quality (operational guidance)
+
+- SPI/SPEI are only meaningful when the underlying record is reasonably complete.
+- Recommended minimum for robust statistics: **~30 years of monthly data**.
+- Ensure basic QC: impossible negatives, unit mistakes, and time gaps should be handled before fitting.
+
+::: {.callout-tip}
+## Quick sanity checks (recommended)
+- precipitation values are non-negative (except missing)
+- `time` is monotonic and evenly spaced for the chosen periodicity
+- unit metadata is consistent across files
+:::
+
+---
+
+## Calibration and Scale Conventions
+
+### Calibration period
+
+- Typical default used in the docs: **1991–2020** (WMO-style baseline)
+- Calibration should overlap your data range.
+- Calibration is applied **per grid cell** (each pixel fitted independently).
+
+### Zero precipitation handling (SPI)
+
+SPI commonly uses a mixed approach when zeros exist (discrete mass at zero + continuous distribution for positive precipitation).  
+See the detailed explanation in **Technical Docs → Methodology**.
+
+### Parameter reuse (recommended for operational workflows)
+
+For repeated runs (e.g., adding new months), you can:
+
+1. fit once on a calibration period,
+2. save fitted parameters,
+3. reuse them later to avoid refitting.
+
+This is especially important for large domains.
+
+---
+
+## Output Contract (What You Get Back)
+
+### SPI / SPEI single-scale outputs
+
+**Typical return:** `xarray.DataArray`
+
+- Dimensions: `(time, lat, lon)`
+- Values: standardized index (often within ~[-3, +3], but not bounded)
+- Attributes commonly include: index name, scale, distribution, calibration period
+
+### Multi-scale outputs
+
+**Typical return:** `xarray.Dataset` with one variable per scale, for example:
+
+- `spi_gamma_1_month`, `spi_gamma_3_month`, `spi_gamma_12_month`, …
+- `spei_gamma_3_month`, `spei_gamma_12_month`, …
+
+---
+
+## Run Theory Outputs (Schemas)
+
+Run theory functions operate on a **single-location time series** (DataArray/Series) or on a gridded index for period statistics.
+
+### 1) Event-based extraction: `identify_events(...)`
+
+**Returns:** `pandas.DataFrame`, one row per event
+
+| Column | Meaning |
+|--------|---------|
+| `event_id` | sequential event number |
+| `start_date` / `end_date` | event boundaries |
+| `duration` | number of time steps in event |
+| `magnitude` | cumulative magnitude |
+| `intensity` | magnitude / duration |
+| `peak` | most extreme index value during event |
+| `peak_date` | when `peak` occurs |
+| `interarrival` | time since previous event |
+
+### 2) Monitoring time series: `calculate_timeseries(...)`
+
+**Returns:** `pandas.DataFrame`, one row per time step
+
+| Column | Meaning |
+|--------|---------|
+| `time` | date |
+| `index_value` | SPI/SPEI at time |
+| `is_event` | whether threshold condition is active |
+| `event_id` | current event number (or 0) |
+| `duration` | current duration so far |
+| `magnitude_cumulative` | accumulated magnitude so far |
+| `magnitude_instantaneous` | current-step severity |
+| `intensity` | magnitude_cumulative / duration |
+
+### 3) Gridded period statistics: `calculate_period_statistics(...)`
+
+**Returns:** `xarray.Dataset` of summary layers (counts, totals, worst peak, % time in event, etc.).  
+See **User Guide → Run Theory** for the variable list and examples.
+
+---
+
+## Where to go next
+
+- Want “how-to”? → **Quick Start** and **Tutorials**
+- Want meaning/interpretation? → **User Guide**
+- Want scientific detail? → **Technical Docs → Methodology**

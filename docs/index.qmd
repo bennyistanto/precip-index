@@ -119,7 +119,7 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 
 ## Real Data Example
 
-This package includes example data from **Bali, Indonesia** (1958-2024) using TerraClimate:
+This package includes example data from **Bali, Indonesia** (1958-2024) using [TerraClimate](https://www.climatologylab.org/terraclimate.html):
 
 ::: {.panel-tabset}
 ### SPI 12-month, October 2023
@@ -173,6 +173,7 @@ Learn through interactive Jupyter notebooks with real data.
 ## Documentation
 
 - **[User Guide](user-guide/index.qmd)** - Detailed explanations of SPI, SPEI, run theory, and visualization
+- **[Data Model & Outputs](get-started/data-model.qmd)** - Input contract, calibration conventions, and output schemas
 - **[Technical Docs](technical/index.qmd)** - Methodology, implementation details, and API reference
 - **[Changelog](changelog.qmd)** - Version history and updates
 

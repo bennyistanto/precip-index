@@ -5,7 +5,8 @@ subtitle: "Methodology, Implementation, and API Reference"
 
 ## Overview
 
-Technical documentation for the **precip-index** package, including detailed methodology, implementation details, and complete API reference.
+Technical documentation for the **precip-index** package, including detailed methodology, implementation details, and complete API reference. If you’re validating inputs/outputs (rather than the math), start with **[Data Model & Outputs](../get-started/data-model.qmd)** before Methodology.
+
 
 ## Contents
 

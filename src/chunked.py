@@ -401,7 +401,7 @@ class ChunkedProcessor:
             },
             attrs={
                 'title': f'Standardized Precipitation Index (SPI-{scale})',
-                'institution': 'GFDRR/GOST, The World Bank',
+                'institution': 'GOST/DEC Data Group, The World Bank',
                 'source': 'precip-index package (chunked processing)',
                 'calibration_start_year': calibration_start_year,
                 'calibration_end_year': calibration_end_year,
@@ -675,7 +675,7 @@ class ChunkedProcessor:
             },
             attrs={
                 'title': f'Standardized Precipitation Evapotranspiration Index (SPEI-{scale})',
-                'institution': 'GFDRR/GOST, The World Bank',
+                'institution': 'GOST/DEC Data Group, The World Bank',
                 'source': 'precip-index package (chunked processing)',
                 'calibration_start_year': calibration_start_year,
                 'calibration_end_year': calibration_end_year,

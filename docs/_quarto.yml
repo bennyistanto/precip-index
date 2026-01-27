@@ -26,6 +26,8 @@ website:
             href: get-started/installation.qmd
           - text: "Quick Start"
             href: get-started/quick-start.qmd
+          - text: "Data Model & Outputs"
+            href: get-started/data-model.qmd
           - text: "Examples"
             href: get-started/examples.qmd
       - text: "Tutorials"
@@ -59,6 +61,7 @@ website:
       contents:
         - get-started/installation.qmd
         - get-started/quick-start.qmd
+        - get-started/data-model.qmd
         - get-started/examples.qmd
 
     - title: "Tutorials"
