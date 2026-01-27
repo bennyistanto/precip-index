@@ -29,7 +29,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 
 ::: {.grid-container}
 ::: {.feature-card}
-### 📊 Climate Indices
+### Climate Indices
 
 - **SPI** - Standardized Precipitation Index
 - **SPEI** - Precipitation Evapotranspiration Index
@@ -38,7 +38,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 :::
 
 ::: {.feature-card}
-### 🌡️ Bidirectional Analysis
+### Bidirectional Analysis
 
 - Monitor **drought** (dry conditions)
 - Monitor **floods** (wet conditions)
@@ -47,7 +47,16 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 :::
 
 ::: {.feature-card}
-### 📈 Run Theory Implementation
+### Multi-Distribution Support
+
+- **Gamma** - Standard for SPI (McKee et al. 1993)
+- **Pearson Type III** - Recommended for SPEI
+- **Log-Logistic** - Better tail behavior
+- Automatic method selection per distribution
+:::
+
+::: {.feature-card}
+### Run Theory Implementation
 
 - Event identification & characterization
 - Duration, magnitude, intensity, peak
@@ -56,31 +65,47 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 :::
 
 ::: {.feature-card}
-### 🎨 Visualization Suite
+### Chunked Processing
+
+- Memory-efficient spatial tiling
+- Process global-scale data (CHIRPS, ERA5)
+- Automatic memory estimation
+- Streaming I/O for datasets exceeding RAM
+:::
+
+::: {.feature-card}
+### Visualization Suite
 
 - Time series plots with event highlighting
-- 11-category SPI/SPEI classification
+- 11-category WMO SPI/SPEI classification
 - Spatial maps of event characteristics
-- 5-panel evolution timelines
+- Cross-distribution comparison charts
 :::
 :::
 
 ## Quick Example
 
-Here's how easy it is to calculate SPI and identify drought events:
+Calculate SPI with multiple distributions and identify drought events:
 
 ```python
 import xarray as xr
-from indices import spi
-from runtheory import identify_events, calculate_timeseries
-from visualization import plot_index, plot_events
+from indices import spi, spi_multi_scale
+from runtheory import identify_events
+from visualization import plot_index
 
 # Load precipitation data
 ds = xr.open_dataset('precipitation.nc')
 precip = ds['precip']
 
-# Calculate SPI-12
+# Calculate SPI-12 with Gamma (default)
 spi_12 = spi(precip, scale=12, periodicity='monthly')
+
+# Or use Pearson III / Log-Logistic
+spi_12_p3 = spi(precip, scale=12, distribution='pearson3')
+spi_12_ll = spi(precip, scale=12, distribution='log_logistic')
+
+# Multi-scale SPI in one call
+spi_multi = spi_multi_scale(precip, scales=[3, 6, 9, 12])
 
 # Identify drought events (threshold -1.2)
 events = identify_events(spi_12.isel(lat=0, lon=0), threshold=-1.2)
@@ -94,19 +119,25 @@ plot_index(spi_12.isel(lat=0, lon=0), threshold=-1.2)
 ::: {.callout-note}
 ## Bidirectional by Design
 
-Unlike traditional drought-only tools, **precip-index** treats dry and wet extremes equally. Use negative thresholds for droughts, positive thresholds for floods - same functions, same methodology.
+Unlike traditional drought-only tools, **precip-index** treats dry and wet extremes equally. Use negative thresholds for droughts, positive thresholds for floods --- same functions, same methodology.
 :::
 
 ::: {.callout-tip}
-## Optimized for Scale
+## Multi-Distribution Fitting
 
-Built for global-scale gridded data with CF conventions. Efficiently processes large datasets using NumPy, SciPy, and Numba acceleration.
+Choose the probability distribution that best fits your data. Gamma, Pearson III, and Log-Logistic each use their optimal fitting method (Method of Moments, MLE) --- validated to produce correct SPI/SPEI across all grid cells. See the [validation results](technical/validation.qmd).
 :::
 
 ::: {.callout-important}
 ## Run Theory Framework
 
 Goes beyond simple threshold exceedance. Implements full run theory to characterize event duration, magnitude (cumulative & instantaneous), intensity, and peak values.
+:::
+
+::: {.callout-note}
+## Scalable Architecture
+
+Built for datasets of any size. Small regional grids run in-memory; global datasets (CHIRPS, ERA5, TerraClimate) use the chunked processing module with automatic spatial tiling and streaming I/O.
 :::
 
 ## Example Applications
@@ -117,36 +148,49 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 - **Early Warning Systems** - Generate alerts based on evolving event characteristics
 - **Decision Support** - Gridded statistics for regional planning
 
-## Real Data Example
+## Validation Results
 
-This package includes example data from **Bali, Indonesia** (1958-2024) using [TerraClimate](https://www.climatologylab.org/terraclimate.html):
+All distributions are tested against TerraClimate Bali data (1958--2024). Cross-distribution correlation exceeds 0.98 for both SPI and SPEI.
 
 ::: {.panel-tabset}
-### SPI 12-month, October 2023
+### SPI-3 Distribution Comparison
 
-![SPI-12](images/bali_terraclimate_spi12_202310.png)
+![](images/spi3_distribution_comparison.png)
 
-### SPEI 12-month, Dry
+Three distributions (Gamma, Pearson III, Log-Logistic) produce consistent SPI-3 time series at a single land cell. The same drought and wet events are identified regardless of distribution choice.
 
-![SPEI-12 Dry](images/bali_terraclimate_spei12_1958_2020_dry.png)
+### Multi-Scale SPI
 
-### SPEI 12-month, Wet
+![](images/spi_multiscale_gamma.png)
 
-![SPEI-12 Wet](images/bali_terraclimate_spei12_1958_2020_wet.png)
+SPI at 3-, 6-, 9-, and 12-month scales. Shorter scales capture recent anomalies; longer scales reveal persistent hydrological drought.
 
+### Spatial Comparison
+
+![](images/spi3_spatial_distribution_comparison.png)
+
+Spatial SPI-3 maps across all three distributions at the same timestep. Spatial patterns remain consistent.
+
+### SPEI PET Comparison
+
+![](images/spei6_pet_vs_temp_comparison.png)
+
+SPEI-6 computed with pre-computed PET vs temperature-derived PET (Thornthwaite). Both approaches yield consistent results (r > 0.98).
+
+### Drought Events
+
+![](images/test_spatial_drought_events.png)
+
+Spatial drought event counts (2000--2023) from run theory analysis, showing drought-prone areas across Bali.
 :::
 
-::: {.callout-note}
-## Try it with your data
-
-The tutorials use real TerraClimate data included in the repository. Follow along with actual climate data, not synthetic examples!
-:::
+See the full [Validation & Test Results](technical/validation.qmd) page for detailed analysis of each output.
 
 ## Getting Started
 
 ::: {.grid-container}
 ::: {.feature-card}
-### 🚀 Installation
+### Installation
 
 Install dependencies and clone the repository in minutes.
 
@@ -154,7 +198,7 @@ Install dependencies and clone the repository in minutes.
 :::
 
 ::: {.feature-card}
-### 📖 Quick Start
+### Quick Start
 
 Follow the step-by-step guide to calculate your first SPI/SPEI.
 
@@ -162,9 +206,9 @@ Follow the step-by-step guide to calculate your first SPI/SPEI.
 :::
 
 ::: {.feature-card}
-### 💻 Tutorials
+### Tutorials
 
-Learn through interactive Jupyter notebooks with real data.
+Learn through interactive tutorials with real TerraClimate data.
 
 [View Tutorials](tutorials/01-calculate-spi.qmd){.btn .btn-primary}
 :::
@@ -173,17 +217,17 @@ Learn through interactive Jupyter notebooks with real data.
 ## Documentation
 
 - **[User Guide](user-guide/index.qmd)** - Detailed explanations of SPI, SPEI, run theory, and visualization
-- **[Data Model & Outputs](get-started/data-model.qmd)** - Input contract, calibration conventions, and output schemas
 - **[Technical Docs](technical/index.qmd)** - Methodology, implementation details, and API reference
+- **[Validation](technical/validation.qmd)** - Test results with distribution comparison plots and spatial maps
 - **[Changelog](changelog.qmd)** - Version history and updates
 
 ## Credits
 
 **Modified/adapted from:** [climate-indices](https://github.com/monocongo/climate_indices) by James Adams ([monocongo](https://github.com/monocongo/))
 
-**Author:** Benny Istanto    
-**Organization:** GOST/DEC Data Group, The World Bank    
-**Email:** bistanto@worldbank.org    
+**Author:** Benny Istanto
+**Organization:** GOST/DEC Data Group, The World Bank
+**Email:** bistanto@worldbank.org
 
 ## Citation
 
@@ -203,10 +247,10 @@ If you use this package in your research, please cite:
 
 We welcome contributions! Please see our [GitHub repository](https://github.com/bennyistanto/precip-index) for:
 
-- 🐛 **Bug reports** - Help us improve
-- 💡 **Feature requests** - Suggest enhancements
-- 🔧 **Pull requests** - Contribute code
-- 📖 **Documentation** - Improve our docs
+- **Bug reports** - Help us improve
+- **Feature requests** - Suggest enhancements
+- **Pull requests** - Contribute code
+- **Documentation** - Improve our docs
 
 ## License
 
