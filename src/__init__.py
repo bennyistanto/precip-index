@@ -40,7 +40,8 @@ Example:
     >>> spei_12 = spei(precip_da, pet=pet_da, scale=12)
 """
 
-__version__ = "2026.1"
+from .config import __version__
+
 __author__ = "Benny Istanto"
 __email__ = "bistanto@worldbank.org"
 

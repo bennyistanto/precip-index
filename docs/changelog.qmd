@@ -10,63 +10,106 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (YYYY.M).
 
 ---
 
-## [2026.1.1] - 2026-01-27
+## [2026.1.2] - 2026-01-27
 
-### Global-Scale Processing
+### Pluggable Probability Distributions
 
-Major update adding memory-efficient processing for global-scale datasets.
+Added support for multiple probability distributions across the entire SPI/SPEI pipeline. Default behavior (Gamma) is fully backward compatible.
 
-**New Module: `chunked.py`**
+**New Module: `distributions.py`**
 
-- `ChunkedProcessor` class for memory-efficient computation
-- `compute_spi_chunked()` - Chunked SPI calculation with progress tracking
-- `compute_spei_chunked()` - Chunked SPEI calculation
-- `estimate_memory()` - Pre-computation memory estimation
-- `iter_chunks()` - Spatial chunk coordinate generator
+- Unified API: `fit_distribution()`, `compute_cdf()`, `cdf_to_standard_normal()`
+- Five distributions: Gamma, Pearson III, Log-Logistic, GEV, Generalized Logistic
+- L-moments, Method of Moments, and MLE fitting with automatic fallback chains
+- Data diagnostics: `diagnose_data()`, `diagnose_fitting_failure()`
+- Goodness-of-fit testing and distribution comparison/selection
+- Robust parameter bounding and zero-inflation handling
 
-**New Functions in `indices.py`**
+**Updated: `config.py`**
 
-- `spi_global()` - Global-scale SPI with automatic chunking
-- `spei_global()` - Global-scale SPEI with automatic chunking
-- `estimate_memory_requirements()` - Memory estimation utility
+- Distribution-aware variable naming: `spi_{distribution}_{scale}_{periodicity}`
+- `DISTRIBUTION_PARAM_NAMES` mapping for all five distribution types
+- Updated `get_variable_name()`, `get_variable_attributes()`, `get_fitting_param_name()`, `get_fitting_param_attributes()` with `distribution` parameter
 
-**New Functions in `utils.py`**
+**Updated: `compute.py`**
 
-- `get_optimal_chunk_size()` - Calculate optimal chunk dimensions
-- `format_bytes()` - Human-readable byte formatting
-- `get_array_memory_size()` - Array memory footprint calculation
-- `print_memory_info()` - System memory status display
+- `compute_index_parallel()` — `distribution` parameter with Gamma fast path and generic path
+- `_compute_params_generic()` — Generic parameter fitting via `distributions.py`
+- `_transform_to_normal_generic()` — Generic CDF-to-normal transformation
+- `compute_spi_1d()`, `compute_spei_1d()` — Distribution routing
+- `compute_index_dask()`, `compute_index_dask_to_zarr()` — Distribution pass-through
 
-**New Functions in `compute.py`**
+**Updated: `indices.py`**
 
-- `_rolling_sum_3d()` - O(n) cumulative sum algorithm
-- `_compute_gamma_params_vectorized()` - Memory-optimized parameter fitting
-- `_transform_to_normal_vectorized()` - Period-by-period transformation
-- `compute_index_dask()` - Fixed Dask integration
-- `compute_index_dask_to_zarr()` - Stream output to Zarr format
+- `spi()`, `spei()` — `distribution` parameter (default: `'gamma'`)
+- `spi_multi_scale()`, `spei_multi_scale()` — `distribution` parameter
+- `spi_global()`, `spei_global()` — `distribution` parameter
+- `save_fitting_params()` — Generic distribution-aware parameter storage
+- `load_fitting_params()` — Auto-detects distribution type from file attributes
 
-**Memory Optimizations**
+**Updated: `chunked.py`**
 
-- ~12x reduction in peak memory usage
-- Float32 internal processing (50% memory reduction)
-- Cumulative sum algorithm for O(n) rolling windows
-- Period-by-period processing to limit peak memory
-- Explicit garbage collection between chunks
+- `compute_spi_chunked()`, `compute_spei_chunked()` — `distribution` parameter
+- Generic parameter array collection using `DISTRIBUTION_PARAM_NAMES`
+- `compute_spi_global()`, `compute_spei_global()` — `distribution` parameter
 
-**New Dependencies**
+**New Documentation**
 
-- `zarr>=2.10.0` - Efficient chunked array storage
-- `psutil>=5.8.0` - Memory detection and monitoring
+- [Probability Distributions](technical/distributions.qmd) — Distribution selection guide, mathematical background, usage examples
 
-**New Notebook**
+### Configurable Metadata Attributes
 
-- `05_global_scale_processing.ipynb` - Tutorial for global datasets
+Added centralized, user-configurable metadata for all NetCDF output files. Institution, source, and other global attributes are no longer hardcoded.
 
-**Configuration Updates**
+**New in `config.py`**
 
-- Added memory constants in `config.py`
-- `MEMORY_MULTIPLIER`, `MEMORY_SAFETY_FACTOR`
-- `DEFAULT_CHUNK_LAT`, `DEFAULT_CHUNK_LON`
+- `DEFAULT_METADATA` — Module-level dict for default NetCDF global attributes (institution, source, references, etc.)
+- `get_global_attributes()` — Helper that merges defaults, computed attributes, and user overrides
+
+**Updated: `indices.py`**
+
+- `spi_multi_scale()`, `spei_multi_scale()` — `global_attrs` parameter for per-call metadata override
+- `spi_global()`, `spei_global()` — `global_attrs` parameter
+- `save_fitting_params()` — Now uses centralized metadata defaults (existing `global_attrs` parameter preserved)
+
+**Updated: `chunked.py`**
+
+- `compute_spi_chunked()`, `compute_spei_chunked()` — `distribution` and `global_attrs` parameters
+- `compute_spi_global()`, `compute_spei_global()` — `distribution` and `global_attrs` parameters
+
+**Updated: Notebook 05**
+
+- Configurable `BASE_DIR` for input/output paths — supports both Windows and WSL/Linux paths
+- Auto-detection of repository root and `src` directory
+- All example paths use configurable directory variables
+
+### Centralized Configuration Hub
+
+Refactored `config.py` as the single source of truth for all user-configurable settings. Helper functions moved to `utils.py`.
+
+**New in `config.py`**
+
+- `DISTRIBUTION_DISPLAY_NAMES` — Human-readable names for all five distributions
+- `PRECIP_VAR_PATTERNS` — Auto-detection patterns for precipitation variables in NetCDF
+- `PET_VAR_PATTERNS` — Auto-detection patterns for PET variables
+- `TEMP_VAR_PATTERNS` — Auto-detection patterns for temperature variables
+- `SPEI_WATER_BALANCE_OFFSET` — Configurable offset for SPEI water balance (default: 1000.0)
+- `__version__` — Package version string (moved from `__init__.py`)
+
+**Moved from `config.py` to `utils.py`**
+
+- `get_logger()`, `get_variable_name()`, `get_fitting_param_name()`, `get_long_name()`, `get_variable_attributes()`, `get_fitting_param_attributes()`, `get_global_attributes()` — all helper functions now in `utils.py`
+
+**Updated: All source modules**
+
+- Import paths updated across `compute.py`, `indices.py`, `chunked.py`, `visualization.py`, `runtheory.py`, `__init__.py`
+- Replaced duplicated `dist_display` dicts with `DISTRIBUTION_DISPLAY_NAMES` from config
+- Replaced inline variable detection patterns with configurable constants
+- Replaced hardcoded `1000.0` water balance offset with `SPEI_WATER_BALANCE_OFFSET`
+
+**New Documentation**
+
+- [Configuration Reference](get-started/configuration.qmd) — Complete guide to all configurable settings
 
 ---
 

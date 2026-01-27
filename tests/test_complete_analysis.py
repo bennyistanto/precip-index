@@ -1,13 +1,12 @@
 """
-Complete Analysis Test - Verify All Renamed Functions
+Complete Analysis Test - Run Theory and Visualization
 
-This script tests all renamed functions with both dry and wet thresholds:
+This script tests all analysis functions with both dry and wet thresholds:
 - Run theory functions (runtheory.py)
 - Visualization functions (visualization.py)
 
-Tests both:
-- Threshold -1.2 for drought (dry) events
-- Threshold +1.2 for wet (flood/excess) events
+Tests with multiple distributions to verify run theory works on
+non-gamma SPI/SPEI outputs.
 
 Uses TerraClimate Bali data (1958-2024).
 
@@ -16,43 +15,68 @@ Date: 2026-01-25
 """
 
 import sys
+import os
+
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    os.system('chcp 65001 > nul')
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, 'src')
 
 import numpy as np
 import xarray as xr
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import os
 from datetime import datetime
 
+from config import DISTRIBUTION_DISPLAY_NAMES
+
+# Output directory
+OUTPUT_DIR = 'test_output'
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 print("="*70)
-print("COMPLETE ANALYSIS TEST - RENAMED FUNCTIONS")
+print("COMPLETE ANALYSIS TEST")
 print("="*70)
 print()
-print("Testing all renamed functions with both dry and wet thresholds")
+print("Testing run theory and visualization with both dry and wet thresholds")
 print("Using TerraClimate Bali data (1958-2024)")
 print()
 
 # ============================================================================
 # STEP 1: Load Real Test Data
 # ============================================================================
-print("Step 1: Loading TerraClimate Bali data...")
+print("Step 1: Loading SPI data...")
 
 try:
-    # Load SPI-12 from test output
-    if os.path.exists('test_output/spi_multi_bali_test.nc'):
-        ds = xr.open_dataset('test_output/spi_multi_bali_test.nc')
-        spi = ds['spi_gamma_12_month']
-        print(f"  Loaded from test output")
+    # Load gamma SPI-12
+    spi_gamma_path = os.path.join(OUTPUT_DIR, 'spi_multi_bali_test.nc')
+    if os.path.exists(spi_gamma_path):
+        ds_gamma = xr.open_dataset(spi_gamma_path)
+        spi_gamma = ds_gamma['spi_gamma_12_month']
+        print(f"  [OK] Loaded Gamma SPI-12 from test output")
     else:
-        print("  [ERROR] SPI data not found. Run test_spi.py first.")
+        print(f"  [ERROR] Gamma SPI data not found at {spi_gamma_path}. Run test_spi.py first.")
         sys.exit(1)
 
-    print(f"  SPI-12 shape: {spi.shape}")
-    print(f"  Time range: {spi.time[0].values} to {spi.time[-1].values}")
-    print(f"  SPI range: [{spi.min().values:.2f}, {spi.max().values:.2f}]")
-    print(f"  Mean: {spi.mean().values:.3f}, Std: {spi.std().values:.3f}")
+    print(f"  SPI-12 (Gamma) shape: {spi_gamma.shape}")
+    print(f"  Time range: {spi_gamma.time[0].values} to {spi_gamma.time[-1].values}")
+    print(f"  SPI range: [{spi_gamma.min().values:.2f}, {spi_gamma.max().values:.2f}]")
+    print(f"  Mean: {spi_gamma.mean().values:.3f}, Std: {spi_gamma.std().values:.3f}")
     print()
+
+    # Load Pearson III SPI-12 if available
+    spi_p3_path = os.path.join(OUTPUT_DIR, 'spi_multi_pearson3_bali_test.nc')
+    spi_pearson3 = None
+    if os.path.exists(spi_p3_path):
+        ds_p3 = xr.open_dataset(spi_p3_path)
+        spi_pearson3 = ds_p3['spi_pearson3_12_month']
+        print(f"  [OK] Loaded Pearson III SPI-12 from test output")
+        print(f"  SPI-12 (Pearson III) range: [{spi_pearson3.min().values:.2f}, {spi_pearson3.max().values:.2f}]")
+        print()
 
 except Exception as e:
     print(f"  [ERROR] {e}")
@@ -61,10 +85,10 @@ except Exception as e:
     sys.exit(1)
 
 # ============================================================================
-# STEP 2: Test Run Theory Functions
+# STEP 2: Test Run Theory Functions with Gamma SPI
 # ============================================================================
 print("="*70)
-print("STEP 2: TESTING RUN THEORY FUNCTIONS")
+print("STEP 2: TESTING RUN THEORY FUNCTIONS (Gamma SPI-12)")
 print("="*70)
 print()
 
@@ -77,12 +101,11 @@ from runtheory import (
 )
 
 # Extract single location for event-based analysis
-# Use location with known events: lat_idx=5, lon_idx=5
-spi_loc = spi.isel(lat=5, lon=5)
-lat_val = float(spi.lat.values[5])
-lon_val = float(spi.lon.values[5])
+spi_loc = spi_gamma.isel(lat=5, lon=5)
+lat_val = float(spi_gamma.lat.values[5])
+lon_val = float(spi_gamma.lon.values[5])
 
-print(f"Test location: {lat_val:.2f}°, {lon_val:.2f}° (Bali, Indonesia)")
+print(f"Test location: {lat_val:.2f}, {lon_val:.2f} (Bali, Indonesia)")
 print()
 
 # Test 2.1: identify_events() - DRY
@@ -155,7 +178,7 @@ print()
 # Test 2.9: calculate_period_statistics() - DRY
 print("Test 2.9: calculate_period_statistics() - DROUGHT (2000-2023)")
 dry_stats = calculate_period_statistics(
-    spi, threshold=-1.2, start_year=2000, end_year=2023, min_duration=2
+    spi_gamma, threshold=-1.2, start_year=2000, end_year=2023, min_duration=2
 )
 print(f"  [OK] Statistics calculated")
 print(f"    Variables: {list(dry_stats.data_vars)}")
@@ -166,12 +189,43 @@ print()
 # Test 2.10: calculate_period_statistics() - WET
 print("Test 2.10: calculate_period_statistics() - WET (2000-2023)")
 wet_stats = calculate_period_statistics(
-    spi, threshold=+1.2, start_year=2000, end_year=2023, min_duration=2
+    spi_gamma, threshold=+1.2, start_year=2000, end_year=2023, min_duration=2
 )
 print(f"  [OK] Statistics calculated")
 print(f"    Variables: {list(wet_stats.data_vars)}")
 print(f"    Mean events: {wet_stats.num_events.mean().values:.1f}")
 print()
+
+# ============================================================================
+# STEP 2b: Run Theory with Pearson III SPI (if available)
+# ============================================================================
+if spi_pearson3 is not None:
+    print("="*70)
+    print("STEP 2b: RUN THEORY WITH PEARSON III SPI-12")
+    print("="*70)
+    print()
+
+    spi_p3_loc = spi_pearson3.isel(lat=5, lon=5)
+
+    p3_dry = identify_events(spi_p3_loc, threshold=-1.2, min_duration=2)
+    print(f"  [OK] Pearson III drought events: {len(p3_dry)}")
+
+    p3_wet = identify_events(spi_p3_loc, threshold=+1.2, min_duration=2)
+    print(f"  [OK] Pearson III wet events: {len(p3_wet)}")
+
+    p3_dry_stats = calculate_period_statistics(
+        spi_pearson3, threshold=-1.2, start_year=2000, end_year=2023, min_duration=2
+    )
+    print(f"  [OK] Pearson III period statistics calculated")
+    print(f"    Mean drought events: {p3_dry_stats.num_events.mean().values:.1f}")
+
+    # Compare event counts
+    print(f"\n  Event comparison (single location):")
+    print(f"    Gamma drought events:      {len(dry_events)}")
+    print(f"    Pearson III drought events: {len(p3_dry)}")
+    print(f"    Gamma wet events:           {len(wet_events)}")
+    print(f"    Pearson III wet events:     {len(p3_wet)}")
+    print()
 
 # ============================================================================
 # STEP 3: Test Visualization Functions
@@ -189,13 +243,10 @@ from visualization import (
     plot_spatial_stats
 )
 
-# Create output directory
-os.makedirs('test_output', exist_ok=True)
-
 # Test 3.1: plot_index() - verify function works
 print("Test 3.1: plot_index()")
-fig = plot_index(spi_loc, threshold=-1.2, title='SPI-12: Drought Events - Bali')
-plt.savefig('test_output/test_plot_index.png', dpi=150, bbox_inches='tight')
+fig = plot_index(spi_loc, threshold=-1.2, title='SPI-12 (Gamma): Drought Events - Bali')
+plt.savefig(os.path.join(OUTPUT_DIR, 'test_plot_index.png'), dpi=150, bbox_inches='tight')
 plt.close()
 print("  [OK] Plot created successfully")
 print()
@@ -223,17 +274,93 @@ print()
 # Test 3.4: plot_event_timeline() - verify function works
 print("Test 3.4: plot_event_timeline()")
 fig = plot_event_timeline(dry_ts)
-plt.savefig('test_output/test_plot_timeline.png', dpi=150, bbox_inches='tight')
+plt.savefig(os.path.join(OUTPUT_DIR, 'test_plot_timeline.png'), dpi=150, bbox_inches='tight')
 plt.close()
 print("  [OK] Plot created successfully")
 print()
 
-# Test 3.5: plot_spatial_stats() - verify function works
-print("Test 3.5: plot_spatial_stats()")
-fig = plot_spatial_stats(dry_stats, variable='num_events', title='Drought Events (2000-2023) - Bali')
+# Test 3.5: plot_spatial_stats() - dry
+print("Test 3.5: plot_spatial_stats() - Drought")
+fig = plot_spatial_stats(dry_stats, variable='num_events', title='Drought Event Count (2000-2023) - Bali')
+plt.savefig(os.path.join(OUTPUT_DIR, 'test_spatial_drought_events.png'), dpi=150, bbox_inches='tight')
 plt.close()
-print("  [OK] Function executed successfully")
+print("  [OK] Saved: test_spatial_drought_events.png")
+
+# Test 3.6: plot_spatial_stats() - wet
+print("Test 3.6: plot_spatial_stats() - Wet")
+fig = plot_spatial_stats(wet_stats, variable='num_events', title='Wet Event Count (2000-2023) - Bali')
+plt.savefig(os.path.join(OUTPUT_DIR, 'test_spatial_wet_events.png'), dpi=150, bbox_inches='tight')
+plt.close()
+print("  [OK] Saved: test_spatial_wet_events.png")
+
+# Test 3.7: Spatial SPI map at a recent drought timestep
+print("Test 3.7: Spatial SPI-12 map (latest timestep)")
+latest_spi = spi_gamma.isel(time=-1)
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+im = latest_spi.plot(ax=ax, cmap='RdYlBu', vmin=-3, vmax=3, add_colorbar=True,
+                      cbar_kwargs={'label': 'SPI-12'})
+time_str = str(np.datetime_as_string(spi_gamma.time[-1].values, unit='M'))
+ax.set_title(f'SPI-12 (Gamma) - {time_str}')
+ax.set_xlabel('Longitude')
+ax.set_ylabel('Latitude')
+plt.savefig(os.path.join(OUTPUT_DIR, 'test_spatial_spi12_latest.png'), dpi=150, bbox_inches='tight')
+plt.close()
+print(f"  [OK] Saved: test_spatial_spi12_latest.png ({time_str})")
 print()
+
+# ============================================================================
+# STEP 3b: Visualization with Pearson III data
+# ============================================================================
+if spi_pearson3 is not None:
+    print("="*70)
+    print("STEP 3b: VISUALIZATION WITH PEARSON III SPI")
+    print("="*70)
+    print()
+
+    spi_p3_loc = spi_pearson3.isel(lat=5, lon=5)
+
+    print("Test 3b.1: plot_index() with Pearson III SPI")
+    fig = plot_index(spi_p3_loc, threshold=-1.2, title='SPI-12 (Pearson III): Drought Events - Bali')
+    plt.savefig(os.path.join(OUTPUT_DIR, 'test_plot_index_pearson3.png'), dpi=150, bbox_inches='tight')
+    plt.close()
+    print("  [OK] Pearson III plot saved")
+    print()
+
+    # Side-by-side distribution comparison for run theory
+    print("Test 3b.2: Distribution comparison plot for run theory")
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True, sharey=True)
+
+    for ax, data, label in zip(axes,
+                                [spi_loc, spi_p3_loc],
+                                ['SPI-12 (Gamma)', 'SPI-12 (Pearson III)']):
+        vals = data.values
+        colors = np.where(vals >= 0, '#2166ac', '#b2182b')
+        ax.bar(range(len(vals)), vals, color=colors, width=1.0, edgecolor='none')
+        ax.axhline(y=0, color='black', linewidth=0.5)
+        ax.axhline(y=-1.2, color='red', linewidth=0.8, linestyle='--', alpha=0.7, label='Threshold')
+        ax.axhline(y=+1.2, color='blue', linewidth=0.8, linestyle='--', alpha=0.7)
+        ax.set_ylabel('SPI-12')
+        ax.set_title(label)
+        ax.set_ylim(-3.5, 3.5)
+
+    time_vals = spi_gamma.time.values
+    n = len(time_vals)
+    tick_step = max(1, n // 10)
+    tick_positions = range(0, n, tick_step)
+    tick_labels = [str(np.datetime_as_string(time_vals[i], unit='M')) for i in tick_positions]
+    axes[-1].set_xticks(list(tick_positions))
+    axes[-1].set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=8)
+    axes[-1].set_xlabel('Time')
+
+    fig.suptitle(f'Run Theory Input Comparison - Bali ({lat_val:.2f}N, {lon_val:.2f}E)',
+                 fontsize=14, fontweight='bold', y=1.01)
+    plt.tight_layout()
+
+    out_path = os.path.join(OUTPUT_DIR, 'test_runtheory_distribution_comparison.png')
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  [OK] Saved: {out_path}")
+    print()
 
 # ============================================================================
 # STEP 4: Summary
@@ -250,6 +377,8 @@ print("  [OK] calculate_timeseries() - dry and wet")
 print("  [OK] summarize_events() - dry and wet")
 print("  [OK] get_event_state() - dry and wet")
 print("  [OK] calculate_period_statistics() - dry and wet")
+if spi_pearson3 is not None:
+    print("  [OK] All functions also tested with Pearson III SPI")
 print()
 print("Visualization Functions Tested:")
 print("  [OK] plot_index()")
@@ -257,23 +386,24 @@ print("  [OK] plot_events()")
 print("  [OK] plot_event_characteristics()")
 print("  [OK] plot_event_timeline()")
 print("  [OK] plot_spatial_stats()")
+if spi_pearson3 is not None:
+    print("  [OK] Distribution comparison plots created")
 print()
 print(f"Results Summary:")
-print(f"  Drought events found: {len(dry_events)}")
-print(f"  Wet events found: {len(wet_events)}")
-print(f"  Minimal test plots: 2 files in test_output/")
+print(f"  Drought events found (Gamma): {len(dry_events)}")
+print(f"  Wet events found (Gamma): {len(wet_events)}")
+print(f"  Test plots saved to: {OUTPUT_DIR}/")
 print()
 print("="*70)
-print("COMPLETE PACKAGE NEUTRALIZATION VERIFIED!")
+print("COMPLETE ANALYSIS VERIFIED!")
 print("="*70)
 print()
-print("All renamed functions work correctly for both:")
+print("All functions work correctly for both:")
 print("  - Drought (dry) events: threshold -1.2")
 print("  - Wet (flood/excess) events: threshold +1.2")
+if spi_pearson3 is not None:
+    print("  - Multiple distribution inputs verified")
 print()
 print("Dataset: TerraClimate Bali (1958-2024)")
 print("Location: Bali, Indonesia")
-print("Grid size: 3x4 cells (~4km resolution)")
-print()
-print("Package is 100% neutral and production-ready!")
 print()

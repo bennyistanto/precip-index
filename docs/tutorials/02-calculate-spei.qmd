@@ -153,6 +153,22 @@ The `spei()` function accepts either:
 Both produce similar results. Use temperature if PET is not available.
 :::
 
+::: {.callout-tip}
+## Distribution Selection for SPEI
+
+By default, SPEI uses the **Gamma** distribution. For SPEI, the **Pearson III** or **Log-Logistic** distributions are recommended as they better handle the water balance data (P - PET), which can be negative:
+
+```python
+# SPEI with Pearson III (recommended)
+spei_6_p3 = spei(precip, pet=pet_precomputed, scale=6, distribution='pearson3')
+
+# SPEI with Log-Logistic (as in original R SPEI package)
+spei_6_ll = spei(precip, pet=pet_precomputed, scale=6, distribution='log_logistic')
+```
+
+See [Probability Distributions](../technical/distributions.qmd) for detailed guidance.
+:::
+
 ## Step 2: Compare Both Methods
 
 Compare SPEI from both PET sources:
@@ -352,12 +368,12 @@ print("✓ Saved computed PET")
 
 You've learned how to:
 
-✓ Calculate SPEI with pre-computed PET    
-✓ Calculate SPEI with temperature (auto-PET)    
-✓ Compare different PET calculation methods    
-✓ Understand the difference between SPI and SPEI    
-✓ Calculate multi-scale SPEI    
-✓ Visualize water balance components    
+✓ Calculate SPEI with pre-computed PET
+✓ Calculate SPEI with temperature (auto-PET)
+✓ Compare different PET calculation methods
+✓ Understand the difference between SPI and SPEI
+✓ Calculate multi-scale SPEI
+✓ Visualize water balance components
 
 ## Next Steps
 

@@ -19,7 +19,7 @@ import matplotlib.patches as mpatches
 from matplotlib.dates import DateFormatter
 from datetime import datetime
 
-from config import get_logger
+from utils import get_logger
 
 # Module logger
 _logger = get_logger(__name__)

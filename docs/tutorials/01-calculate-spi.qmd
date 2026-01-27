@@ -123,6 +123,22 @@ print(f"  Std Dev: {float(spi_3.std()):.3f}")
 We use 1991-2020 as the calibration period (30 years) following WMO recommendations. This period is used to fit the probability distribution.
 :::
 
+::: {.callout-note}
+## Alternative Distributions
+
+By default, SPI uses the **Gamma** distribution. You can select alternative distributions via the `distribution` parameter:
+
+```python
+# SPI with Pearson III distribution
+spi_3_p3 = spi(precip, scale=3, distribution='pearson3')
+
+# SPI with GEV for extreme value analysis
+spi_3_gev = spi(precip, scale=3, distribution='gev')
+```
+
+Available options: `'gamma'` (default), `'pearson3'`, `'log_logistic'`, `'gev'`, `'gen_logistic'`. See [Probability Distributions](../technical/distributions.qmd) for guidance on when to use each.
+:::
+
 ## Step 3: Visualize SPI-3
 
 Plot the SPI time series for a location:
@@ -285,12 +301,12 @@ Using saved parameters is **5-10x faster** than refitting, ideal for operational
 
 You've learned how to:
 
-✓ Load precipitation data from NetCDF    
-✓ Calculate single-scale SPI (SPI-3)    
-✓ Calculate multi-scale SPI (3, 6, 9, 12 months)    
-✓ Visualize SPI with proper color classification    
-✓ Compare different timescales    
-✓ Save results to NetCDF files    
+✓ Load precipitation data from NetCDF
+✓ Calculate single-scale SPI (SPI-3)
+✓ Calculate multi-scale SPI (3, 6, 9, 12 months)
+✓ Visualize SPI with proper color classification
+✓ Compare different timescales
+✓ Save results to NetCDF files
 ✓ Save and reuse distribution parameters
 
 ## Next Steps

@@ -11,11 +11,20 @@ Date: 2026-01-25
 """
 
 import sys
+import os
+
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    os.system('chcp 65001 > nul')
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.insert(0, 'src')
 
 import numpy as np
 import xarray as xr
-import os
+
+# Output directory
+OUTPUT_DIR = 'test_output'
 
 print("="*70)
 print("RUN THEORY FUNCTIONS TEST")
@@ -32,16 +41,17 @@ print("1. Loading SPI-12 data...")
 
 try:
     # Load SPI-12 from test output
-    if os.path.exists('test_output/spi_multi_bali_test.nc'):
-        ds = xr.open_dataset('test_output/spi_multi_bali_test.nc')
-        spi = ds['spi_gamma_12_month']
+    spi_path = os.path.join(OUTPUT_DIR, 'spi_multi_bali_test.nc')
+    if os.path.exists(spi_path):
+        ds = xr.open_dataset(spi_path)
+        spi_data = ds['spi_gamma_12_month']
         print(f"   [OK] Loaded from test output")
     else:
-        print("   [ERROR] SPI data not found. Run test_spi.py first.")
+        print(f"   [ERROR] SPI data not found at {spi_path}. Run test_spi.py first.")
         sys.exit(1)
 
-    print(f"   Shape: {spi.shape}")
-    print(f"   Time range: {spi.time[0].values} to {spi.time[-1].values}")
+    print(f"   Shape: {spi_data.shape}")
+    print(f"   Time range: {spi_data.time[0].values} to {spi_data.time[-1].values}")
     print()
 
 except Exception as e:
@@ -58,7 +68,7 @@ from runtheory import (
 )
 
 # Extract single location for testing
-spi_loc = spi.isel(lat=5, lon=5)
+spi_loc = spi_data.isel(lat=5, lon=5)
 
 # ============================================================================
 # STEP 2: Test Event Identification
@@ -119,13 +129,13 @@ print("6. Testing calculate_period_statistics()...")
 
 # Test with a short recent period only
 dry_stats = calculate_period_statistics(
-    spi, threshold=-1.2, start_year=2020, end_year=2024, min_duration=2
+    spi_data, threshold=-1.2, start_year=2020, end_year=2024, min_duration=2
 )
 print(f"   [OK] Dry statistics calculated")
 print(f"   Variables: {list(dry_stats.data_vars)}")
 
 wet_stats = calculate_period_statistics(
-    spi, threshold=+1.2, start_year=2020, end_year=2024, min_duration=2
+    spi_data, threshold=+1.2, start_year=2020, end_year=2024, min_duration=2
 )
 print(f"   [OK] Wet statistics calculated")
 print()

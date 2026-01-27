@@ -22,13 +22,16 @@ import xarray as xr
 from numba import jit, prange
 
 from config import (
+    DEFAULT_DISTRIBUTION,
+    DISTRIBUTION_DISPLAY_NAMES,
+    DISTRIBUTION_PARAM_NAMES,
     FITTED_INDEX_VALID_MAX,
     FITTED_INDEX_VALID_MIN,
     MIN_VALUES_FOR_GAMMA_FIT,
     Periodicity,
-    get_logger,
+    SPEI_WATER_BALANCE_OFFSET,
 )
-from utils import validate_array
+from utils import get_logger, get_variable_name, validate_array
 
 # Module logger
 _logger = get_logger(__name__)
@@ -444,7 +447,8 @@ def compute_index_parallel(
     calibration_end_year: int,
     periodicity: Periodicity,
     fitting_params: Optional[Dict[str, np.ndarray]] = None,
-    memory_efficient: bool = True
+    memory_efficient: bool = True,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
     """
     Compute SPI/SPEI for 3D gridded data with parallel processing.
@@ -453,6 +457,10 @@ def compute_index_parallel(
     and scipy for gamma transformation. Memory-efficient mode reduces
     peak memory usage by processing in-place where possible.
 
+    For Gamma distribution, uses the optimized Numba/NumPy fast path.
+    For other distributions (Pearson III, Log-Logistic, GEV, etc.), uses
+    the generic scipy-based path via distributions.py.
+
     :param data: 3-D array with shape (time, lat, lon) - CF Convention
     :param scale: accumulation scale (e.g., 1, 3, 6, 12)
     :param data_start_year: first year of the data
@@ -460,17 +468,20 @@ def compute_index_parallel(
     :param calibration_end_year: last year of calibration period
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters dict with
-        'alpha', 'beta', 'prob_zero' arrays of shape (periods, lat, lon)
+        distribution-specific parameter arrays of shape (periods, lat, lon)
     :param memory_efficient: if True, optimize for lower memory usage
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: tuple of (result_array, fitting_params_dict)
     """
     n_time, n_lat, n_lon = data.shape
     periods_per_year = periodicity.value
     n_years = n_time // periods_per_year
+    dist = distribution.lower()
 
     _logger.info(
         f"Computing index: shape={data.shape}, scale={scale}, "
-        f"grid_cells={n_lat * n_lon:,}"
+        f"distribution={dist}, grid_cells={n_lat * n_lon:,}"
     )
 
     # Memory-efficient: work with float32 internally, convert at end
@@ -492,46 +503,72 @@ def compute_index_parallel(
         # Memory-efficient rolling sum
         scaled_data = _rolling_sum_3d(data, scale, dtype)
 
-    # Step 2: Compute or use provided fitting parameters
-    _logger.info("Step 2/3: Computing gamma parameters...")
+    # Calculate calibration indices (needed by both paths)
+    data_end_year = data_start_year + n_years - 1
+    cal_start = max(calibration_start_year, data_start_year)
+    cal_end = min(calibration_end_year, data_end_year)
+    cal_start_idx = cal_start - data_start_year
+    cal_end_idx = cal_end - data_start_year + 1
 
-    if fitting_params is not None:
-        alphas = fitting_params['alpha'].astype(dtype, copy=False)
-        betas = fitting_params['beta'].astype(dtype, copy=False)
-        probs_zero = fitting_params['prob_zero'].astype(dtype, copy=False)
-        _logger.info("Using pre-computed fitting parameters")
-    else:
-        # Calculate calibration indices
-        data_end_year = data_start_year + n_years - 1
-        cal_start = max(calibration_start_year, data_start_year)
-        cal_end = min(calibration_end_year, data_end_year)
-        cal_start_idx = cal_start - data_start_year
-        cal_end_idx = cal_end - data_start_year + 1
+    # Route based on distribution type
+    if dist == 'gamma':
+        # === GAMMA FAST PATH (existing optimized code) ===
+        _logger.info("Step 2/3: Computing gamma parameters...")
 
-        # Compute parameters efficiently
-        alphas, betas, probs_zero = _compute_gamma_params_vectorized(
-            scaled_data, n_years, periods_per_year, n_lat, n_lon,
-            cal_start_idx, cal_end_idx, dtype
+        if fitting_params is not None:
+            alphas = fitting_params['alpha'].astype(dtype, copy=False)
+            betas = fitting_params['beta'].astype(dtype, copy=False)
+            probs_zero = fitting_params['prob_zero'].astype(dtype, copy=False)
+            _logger.info("Using pre-computed fitting parameters")
+        else:
+            alphas, betas, probs_zero = _compute_gamma_params_vectorized(
+                scaled_data, n_years, periods_per_year, n_lat, n_lon,
+                cal_start_idx, cal_end_idx, dtype
+            )
+
+        _logger.info("Step 3/3: Transforming to standard normal...")
+        result = _transform_to_normal_vectorized(
+            scaled_data, alphas, betas, probs_zero,
+            n_years, periods_per_year, n_lat, n_lon, dtype
         )
 
-    # Step 3: Transform to standard normal (vectorized)
-    _logger.info("Step 3/3: Transforming to standard normal...")
+        # Prepare fitting parameters dict
+        params_dict = {
+            'alpha': alphas.astype(np.float64) if memory_efficient else alphas,
+            'beta': betas.astype(np.float64) if memory_efficient else betas,
+            'prob_zero': probs_zero.astype(np.float64) if memory_efficient else probs_zero,
+            'distribution': dist
+        }
+    else:
+        # === GENERIC PATH (distributions.py for non-Gamma) ===
+        _logger.info(f"Step 2/3: Computing {dist} parameters...")
 
-    # Transform in-place to save memory
-    result = _transform_to_normal_vectorized(
-        scaled_data, alphas, betas, probs_zero,
-        n_years, periods_per_year, n_lat, n_lon, dtype
-    )
+        if fitting_params is not None:
+            params_dict = {k: v.astype(dtype, copy=False) if isinstance(v, np.ndarray) else v
+                          for k, v in fitting_params.items()}
+            _logger.info("Using pre-computed fitting parameters")
+        else:
+            params_dict = _compute_params_generic(
+                scaled_data, dist, n_years, periods_per_year,
+                n_lat, n_lon, cal_start_idx, cal_end_idx, dtype
+            )
+
+        _logger.info("Step 3/3: Transforming to standard normal...")
+        result = _transform_to_normal_generic(
+            scaled_data, params_dict, dist,
+            n_years, periods_per_year, n_lat, n_lon, dtype
+        )
+
+        # Convert params to float64 for storage
+        if memory_efficient:
+            params_dict = {
+                k: v.astype(np.float64) if isinstance(v, np.ndarray) else v
+                for k, v in params_dict.items()
+            }
+        params_dict['distribution'] = dist
 
     # Clip to valid range
     np.clip(result, FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX, out=result)
-
-    # Prepare fitting parameters dict (convert back to float64 for storage)
-    params_dict = {
-        'alpha': alphas.astype(np.float64) if memory_efficient else alphas,
-        'beta': betas.astype(np.float64) if memory_efficient else betas,
-        'prob_zero': probs_zero.astype(np.float64) if memory_efficient else probs_zero
-    }
 
     # Convert result to float64 for output consistency
     if memory_efficient:
@@ -735,6 +772,174 @@ def _transform_to_normal_vectorized(
 
 
 # =============================================================================
+# GENERIC DISTRIBUTION FITTING AND TRANSFORMATION
+# =============================================================================
+
+def _compute_params_generic(
+    scaled_data: np.ndarray,
+    distribution: str,
+    n_years: int,
+    periods_per_year: int,
+    n_lat: int,
+    n_lon: int,
+    cal_start_idx: int,
+    cal_end_idx: int,
+    dtype: np.dtype
+) -> Dict[str, np.ndarray]:
+    """
+    Compute distribution parameters using the generic distributions.py module.
+
+    Works for any distribution type (Pearson III, Log-Logistic, GEV, etc.).
+    Processes each calendar period and grid cell using the unified
+    fit_distribution() interface.
+
+    :param scaled_data: 3-D array (time, lat, lon) of scaled values
+    :param distribution: distribution name (e.g., 'pearson3', 'gev')
+    :param n_years: number of years in data
+    :param periods_per_year: 12 for monthly, 366 for daily
+    :param n_lat: number of latitude points
+    :param n_lon: number of longitude points
+    :param cal_start_idx: calibration start index (year)
+    :param cal_end_idx: calibration end index (year, exclusive)
+    :param dtype: numpy data type for arrays
+    :return: dictionary of parameter arrays keyed by parameter name
+    """
+    from distributions import fit_distribution
+
+    # Get parameter names for this distribution
+    param_names = DISTRIBUTION_PARAM_NAMES.get(distribution, ('prob_zero',))
+
+    # Initialize parameter arrays: shape (periods, lat, lon)
+    params_dict = {}
+    for pname in param_names:
+        params_dict[pname] = np.full((periods_per_year, n_lat, n_lon), np.nan, dtype=dtype)
+
+    # Reshape to (years, periods, lat, lon)
+    scaled_4d = scaled_data.reshape(n_years, periods_per_year, n_lat, n_lon)
+
+    # Process each calendar period
+    for period_idx in range(periods_per_year):
+        if period_idx % 3 == 0:
+            _logger.debug(f"  Fitting period {period_idx + 1}/{periods_per_year}")
+
+        # Calibration data for this period: shape (cal_years, lat, lon)
+        calib_data = scaled_4d[cal_start_idx:cal_end_idx, period_idx, :, :]
+
+        # Process each grid cell
+        for lat_idx in range(n_lat):
+            for lon_idx in range(n_lon):
+                cell_values = calib_data[:, lat_idx, lon_idx].astype(np.float64)
+
+                # Skip all-NaN cells
+                if np.all(np.isnan(cell_values)):
+                    continue
+
+                # Fit distribution using unified interface
+                dist_params = fit_distribution(cell_values, distribution)
+
+                # Extract parameters into arrays
+                for pname in param_names:
+                    if pname == 'prob_zero':
+                        params_dict[pname][period_idx, lat_idx, lon_idx] = dist_params.prob_zero
+                    elif pname in dist_params.params:
+                        val = dist_params.params[pname]
+                        if val is not None and not np.isnan(val):
+                            params_dict[pname][period_idx, lat_idx, lon_idx] = val
+
+    return params_dict
+
+
+def _transform_to_normal_generic(
+    scaled_data: np.ndarray,
+    params_dict: Dict[str, np.ndarray],
+    distribution: str,
+    n_years: int,
+    periods_per_year: int,
+    n_lat: int,
+    n_lon: int,
+    dtype: np.dtype
+) -> np.ndarray:
+    """
+    Transform scaled data to standard normal using a generic distribution CDF.
+
+    Uses distributions.py for CDF computation and inverse normal transformation.
+    Processes one period at a time for memory efficiency.
+
+    :param scaled_data: 3-D array (time, lat, lon) of scaled values
+    :param params_dict: dictionary of parameter arrays from _compute_params_generic()
+    :param distribution: distribution name
+    :param n_years: number of years
+    :param periods_per_year: 12 for monthly, 366 for daily
+    :param n_lat: number of latitude points
+    :param n_lon: number of longitude points
+    :param dtype: numpy data type
+    :return: transformed array (same shape as scaled_data)
+    """
+    from distributions import (
+        DistributionParams, DistributionType, FittingMethod,
+        compute_cdf, cdf_to_standard_normal
+    )
+
+    n_time = n_years * periods_per_year
+    result = np.full((n_time, n_lat, n_lon), np.nan, dtype=dtype)
+
+    # Reshape for period-wise access
+    scaled_4d = scaled_data.reshape(n_years, periods_per_year, n_lat, n_lon)
+    result_4d = result.reshape(n_years, periods_per_year, n_lat, n_lon)
+
+    # Parse distribution type
+    dist_type = DistributionType(distribution)
+    param_names = DISTRIBUTION_PARAM_NAMES.get(distribution, ('prob_zero',))
+
+    # Process each calendar period
+    for period_idx in range(periods_per_year):
+        # Values for this period: shape (n_years, lat, lon)
+        period_vals = scaled_4d[:, period_idx, :, :]
+
+        # Process each grid cell
+        for lat_idx in range(n_lat):
+            for lon_idx in range(n_lon):
+                # Build DistributionParams for this cell
+                cell_params = {}
+                prob_zero = 0.0
+                has_valid = True
+
+                for pname in param_names:
+                    val = float(params_dict[pname][period_idx, lat_idx, lon_idx])
+                    if pname == 'prob_zero':
+                        prob_zero = val if not np.isnan(val) else 0.0
+                    else:
+                        if np.isnan(val):
+                            has_valid = False
+                            break
+                        cell_params[pname] = val
+
+                if not has_valid:
+                    continue
+
+                dp = DistributionParams(
+                    distribution=dist_type,
+                    params=cell_params,
+                    prob_zero=prob_zero,
+                    n_samples=0,
+                    fitting_method=FittingMethod.LMOMENTS
+                )
+
+                # Get cell time series
+                cell_values = period_vals[:, lat_idx, lon_idx].astype(np.float64)
+
+                # Compute CDF
+                cdf_vals = compute_cdf(cell_values, dp)
+
+                # Transform to standard normal
+                normal_vals = cdf_to_standard_normal(cdf_vals)
+
+                result_4d[:, period_idx, lat_idx, lon_idx] = normal_vals.astype(dtype)
+
+    return result
+
+
+# =============================================================================
 # DASK-ENABLED COMPUTATION FOR VERY LARGE DATASETS
 # =============================================================================
 
@@ -746,7 +951,8 @@ def compute_index_dask(
     calibration_end_year: int,
     periodicity: Periodicity,
     fitting_params: Optional[Dict[str, np.ndarray]] = None,
-    chunks: Optional[Dict[str, int]] = None
+    chunks: Optional[Dict[str, int]] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Tuple[xr.DataArray, Dict[str, xr.DataArray]]:
     """
     Compute SPI/SPEI using Dask for out-of-core processing.
@@ -765,11 +971,17 @@ def compute_index_dask(
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters
     :param chunks: optional chunk sizes, e.g., {'lat': 500, 'lon': 500}
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: tuple of (result DataArray, empty params dict)
     """
     import dask.array as da
 
-    _logger.info(f"Starting Dask-enabled computation for shape {data.shape}")
+    dist = distribution.lower()
+    _logger.info(
+        f"Starting Dask-enabled computation for shape {data.shape}, "
+        f"distribution={dist}"
+    )
 
     # Ensure data is chunked - keep full time dimension, chunk spatially
     if chunks is None:
@@ -793,7 +1005,8 @@ def compute_index_dask(
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
             fitting_params=fitting_params,
-            memory_efficient=True
+            memory_efficient=True,
+            distribution=dist
         )
         return result
 
@@ -813,9 +1026,10 @@ def compute_index_dask(
         dims=data.dims,
         coords=data.coords,
         attrs={
-            'long_name': f'Standardized Precipitation Index (scale={scale})',
+            'long_name': f'Standardized Index ({DISTRIBUTION_DISPLAY_NAMES.get(dist, dist)}, scale={scale})',
             'units': '1',
             'scale': scale,
+            'distribution': dist,
             'calibration_start_year': calibration_start_year,
             'calibration_end_year': calibration_end_year,
         }
@@ -841,7 +1055,8 @@ def compute_index_dask_to_zarr(
     periodicity: Periodicity,
     fitting_params: Optional[Dict[str, np.ndarray]] = None,
     chunks: Optional[Dict[str, int]] = None,
-    n_workers: int = None
+    n_workers: int = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> str:
     """
     Compute SPI/SPEI using Dask and stream output to Zarr format.
@@ -859,6 +1074,8 @@ def compute_index_dask_to_zarr(
     :param fitting_params: optional pre-computed parameters
     :param chunks: chunk sizes for processing
     :param n_workers: number of Dask workers
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: path to output Zarr store
 
     Example:
@@ -874,6 +1091,8 @@ def compute_index_dask_to_zarr(
     """
     import dask
     from dask.distributed import Client, LocalCluster
+
+    dist = distribution.lower()
 
     # Set up Dask client
     if n_workers is None:
@@ -891,12 +1110,12 @@ def compute_index_dask_to_zarr(
             result, _ = compute_index_dask(
                 data, scale, data_start_year,
                 calibration_start_year, calibration_end_year,
-                periodicity, fitting_params, chunks
+                periodicity, fitting_params, chunks,
+                distribution=dist
             )
 
             # Convert to dataset for saving
-            from config import get_variable_name
-            var_name = get_variable_name('spi', scale, periodicity)
+            var_name = get_variable_name('spi', scale, periodicity, distribution=dist)
             result = result.rename(var_name)
             ds = result.to_dataset()
 
@@ -920,12 +1139,15 @@ def compute_spi_1d(
     calibration_start_year: int,
     calibration_end_year: int,
     periodicity: Periodicity,
-    fitting_params: Optional[Dict[str, np.ndarray]] = None
+    fitting_params: Optional[Dict[str, np.ndarray]] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
     """
     Compute SPI for a single time series (1-D array).
-    
+
     Convenience function for single-point calculations.
+    For Gamma distribution, uses the optimized fast path.
+    For other distributions, uses the generic distributions.py module.
 
     :param precip: 1-D array of precipitation values
     :param scale: accumulation scale
@@ -934,55 +1156,88 @@ def compute_spi_1d(
     :param calibration_end_year: last year of calibration period
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: tuple of (SPI values, fitting_params dict)
     """
+    dist = distribution.lower()
+
     # Validate input
     precip = np.asarray(precip).flatten()
-    
+
     # Apply scaling
     scaled = sum_to_scale(precip, scale)
-    
+
     # Reshape to 2D
     periods = periodicity.value
     scaled_2d = validate_array(scaled, periodicity)
-    
-    # Extract params if provided
-    if fitting_params is not None:
-        alphas = fitting_params.get('alpha')
-        betas = fitting_params.get('beta')
-        probs_zero = fitting_params.get('prob_zero')
-    else:
-        alphas = betas = probs_zero = None
-    
-    # Transform
-    result_2d = transform_fitted_gamma(
-        scaled_2d,
-        data_start_year,
-        calibration_start_year,
-        calibration_end_year,
-        periodicity,
-        alphas, betas, probs_zero
-    )
-    
-    # Get params if not provided
-    if fitting_params is None:
-        alphas, betas, probs_zero = gamma_parameters(
+
+    if dist == 'gamma':
+        # === GAMMA FAST PATH ===
+        # Extract params if provided
+        if fitting_params is not None:
+            alphas = fitting_params.get('alpha')
+            betas = fitting_params.get('beta')
+            probs_zero = fitting_params.get('prob_zero')
+        else:
+            alphas = betas = probs_zero = None
+
+        # Transform
+        result_2d = transform_fitted_gamma(
             scaled_2d,
             data_start_year,
             calibration_start_year,
             calibration_end_year,
-            periodicity
+            periodicity,
+            alphas, betas, probs_zero
         )
-    
-    # Flatten result
-    result = result_2d.flatten()[:len(precip)]
-    
-    params = {
-        'alpha': alphas,
-        'beta': betas,
-        'prob_zero': probs_zero
-    }
-    
+
+        # Get params if not provided
+        if fitting_params is None:
+            alphas, betas, probs_zero = gamma_parameters(
+                scaled_2d,
+                data_start_year,
+                calibration_start_year,
+                calibration_end_year,
+                periodicity
+            )
+
+        # Flatten result
+        result = result_2d.flatten()[:len(precip)]
+
+        params = {
+            'alpha': alphas,
+            'beta': betas,
+            'prob_zero': probs_zero,
+            'distribution': dist
+        }
+    else:
+        # === GENERIC PATH (distributions.py) ===
+        # Reshape to 3D (time, 1, 1) for compute_index_parallel compatibility
+        n_time = scaled_2d.shape[0] * scaled_2d.shape[1]
+        scaled_3d = scaled_2d.reshape(n_time, 1, 1)
+
+        result_3d, params = compute_index_parallel(
+            scaled_3d,
+            scale=1,  # Already scaled
+            data_start_year=data_start_year,
+            calibration_start_year=calibration_start_year,
+            calibration_end_year=calibration_end_year,
+            periodicity=periodicity,
+            fitting_params=fitting_params,
+            memory_efficient=False,
+            distribution=dist
+        )
+
+        # Flatten result
+        result = result_3d.flatten()[:len(precip)]
+
+        # Squeeze spatial dims from params
+        params = {
+            k: v.squeeze() if isinstance(v, np.ndarray) else v
+            for k, v in params.items()
+        }
+
     return result, params
 
 
@@ -994,11 +1249,12 @@ def compute_spei_1d(
     calibration_start_year: int,
     calibration_end_year: int,
     periodicity: Periodicity,
-    fitting_params: Optional[Dict[str, np.ndarray]] = None
+    fitting_params: Optional[Dict[str, np.ndarray]] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
     """
     Compute SPEI for a single time series (1-D arrays).
-    
+
     Convenience function for single-point calculations.
 
     :param precip: 1-D array of precipitation values (mm)
@@ -1009,22 +1265,24 @@ def compute_spei_1d(
     :param calibration_end_year: last year of calibration period
     :param periodicity: monthly or daily
     :param fitting_params: optional pre-computed parameters
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: tuple of (SPEI values, fitting_params dict)
     """
     # Validate inputs
     precip = np.asarray(precip).flatten()
     pet = np.asarray(pet).flatten()
-    
+
     if len(precip) != len(pet):
         raise ValueError(
             f"Precipitation and PET arrays must have same length: "
             f"{len(precip)} vs {len(pet)}"
         )
-    
+
     # Compute water balance (P - PET)
     # Add offset to ensure positive values for gamma fitting
-    water_balance = (precip - pet) + 1000.0
-    
+    water_balance = (precip - pet) + SPEI_WATER_BALANCE_OFFSET
+
     # Use same logic as SPI
     return compute_spi_1d(
         water_balance,
@@ -1033,5 +1291,6 @@ def compute_spei_1d(
         calibration_start_year,
         calibration_end_year,
         periodicity,
-        fitting_params
+        fitting_params,
+        distribution=distribution
     )

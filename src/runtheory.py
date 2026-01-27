@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from config import get_logger
+from utils import get_logger
 
 # Module logger
 _logger = get_logger(__name__)

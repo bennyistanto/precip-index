@@ -1,7 +1,8 @@
 """
 Utility functions for SPI/SPEI climate indices calculation.
 
-Includes data transformations, array reshaping, and PET calculation.
+Includes data transformations, array reshaping, PET calculation,
+and helper functions for variable naming and metadata generation.
 All functions follow CF Convention with dimension order: (time, lat, lon)
 
 Modified/adapted from James Adams' climate-indices package
@@ -12,6 +13,7 @@ Organization: GOST/DEC Data Group, The World Bank
 """
 
 import calendar
+import logging
 import math
 from datetime import datetime
 from typing import Optional, Tuple, Union
@@ -19,7 +21,42 @@ from typing import Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 
-from config import Periodicity, get_logger
+from config import (
+    DEFAULT_DISTRIBUTION,
+    DEFAULT_METADATA,
+    DISTRIBUTION_DISPLAY_NAMES,
+    DISTRIBUTION_PARAM_NAMES,
+    FITTED_INDEX_VALID_MAX,
+    FITTED_INDEX_VALID_MIN,
+    FITTING_PARAM_NAMES,
+    Periodicity,
+    VAR_NAME_PATTERN,
+)
+
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+def get_logger(
+    name: str,
+    level: int = logging.INFO
+) -> logging.Logger:
+    """
+    Set up and return a logger with consistent formatting.
+
+    :param name: logger name (typically __name__ of calling module)
+    :param level: logging level (default: logging.INFO)
+    :return: configured logger instance
+    """
+    logging.basicConfig(
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    return logger
+
 
 # Module logger
 _logger = get_logger(__name__)
@@ -777,3 +814,308 @@ def print_memory_info():
         )
     except ImportError:
         _logger.warning("psutil not installed, cannot report memory info")
+
+
+# =============================================================================
+# VARIABLE NAMING AND METADATA HELPERS
+# =============================================================================
+
+def get_variable_name(
+    index: str,
+    scale: int,
+    periodicity: Periodicity,
+    distribution: str = DEFAULT_DISTRIBUTION
+) -> str:
+    """
+    Generate standardized variable name for SPI/SPEI output.
+
+    :param index: index type ('spi' or 'spei')
+    :param scale: time scale (e.g., 1, 3, 6, 12)
+    :param periodicity: Periodicity enum value
+    :param distribution: distribution name (e.g., 'gamma', 'pearson3')
+    :return: formatted variable name (e.g., 'spi_gamma_12_month')
+    """
+    return VAR_NAME_PATTERN.format(
+        index=index.lower(),
+        distribution=distribution.lower(),
+        scale=scale,
+        periodicity=periodicity.unit()
+    )
+
+
+def get_fitting_param_name(
+    param: str,
+    scale: int,
+    periodicity: Periodicity,
+    distribution: str = DEFAULT_DISTRIBUTION
+) -> str:
+    """
+    Generate standardized variable name for fitting parameters.
+
+    :param param: parameter name (e.g., 'alpha', 'beta', 'skew', 'loc', 'scale', 'prob_zero')
+    :param scale: time scale (e.g., 1, 3, 6, 12)
+    :param periodicity: Periodicity enum value
+    :param distribution: distribution name (e.g., 'gamma', 'pearson3')
+    :return: formatted parameter name (e.g., 'alpha_12_month')
+    """
+    dist_key = distribution.lower()
+    valid_params = DISTRIBUTION_PARAM_NAMES.get(dist_key, FITTING_PARAM_NAMES)
+    if param not in valid_params:
+        raise ValueError(
+            f"Invalid parameter name '{param}' for distribution '{dist_key}'. "
+            f"Must be one of: {valid_params}"
+        )
+    return f"{param}_{scale}_{periodicity.unit()}"
+
+
+def get_long_name(
+    index: str,
+    scale: int,
+    periodicity: Periodicity,
+    distribution: str = DEFAULT_DISTRIBUTION
+) -> str:
+    """
+    Generate long descriptive name for NetCDF attributes.
+
+    :param index: index type ('spi' or 'spei')
+    :param scale: time scale (e.g., 1, 3, 6, 12)
+    :param periodicity: Periodicity enum value
+    :param distribution: distribution name (e.g., 'gamma', 'pearson3')
+    :return: formatted long name
+    """
+    index_names = {
+        'spi': 'Standardized Precipitation Index',
+        'spei': 'Standardized Precipitation Evapotranspiration Index'
+    }
+
+    index_full = index_names.get(index.lower(), index.upper())
+    dist_name = DISTRIBUTION_DISPLAY_NAMES.get(distribution.lower(), distribution)
+    return f"{index_full} ({dist_name}), {scale}-{periodicity.unit()}"
+
+
+def get_variable_attributes(
+    index: str,
+    scale: int,
+    periodicity: Periodicity,
+    distribution: str = DEFAULT_DISTRIBUTION
+) -> dict:
+    """
+    Generate standard NetCDF variable attributes for SPI/SPEI.
+
+    :param index: index type ('spi' or 'spei')
+    :param scale: time scale (e.g., 1, 3, 6, 12)
+    :param periodicity: Periodicity enum value
+    :param distribution: distribution name (e.g., 'gamma', 'pearson3')
+    :return: dictionary of attributes
+    """
+    dist = distribution.lower()
+    return {
+        'long_name': get_long_name(index, scale, periodicity, dist),
+        'standard_name': f'{index.lower()}_{dist}_{scale}_{periodicity.unit()}',
+        'units': '1',  # dimensionless
+        'valid_min': FITTED_INDEX_VALID_MIN,
+        'valid_max': FITTED_INDEX_VALID_MAX,
+        'distribution': dist,
+        'scale': scale,
+        'periodicity': periodicity.name,
+    }
+
+
+def get_fitting_param_attributes(
+    param: str,
+    scale: int,
+    periodicity: Periodicity,
+    distribution: str = DEFAULT_DISTRIBUTION
+) -> dict:
+    """
+    Generate NetCDF attributes for fitting parameter variables.
+
+    :param param: parameter name (e.g., 'alpha', 'beta', 'skew', 'loc', 'scale', 'prob_zero')
+    :param scale: time scale
+    :param periodicity: Periodicity enum value
+    :param distribution: distribution name (e.g., 'gamma', 'pearson3')
+    :return: dictionary of attributes
+    """
+    dist = distribution.lower()
+    dist_name = DISTRIBUTION_DISPLAY_NAMES.get(dist, dist)
+
+    descriptions = {
+        'alpha': f"Shape parameter (alpha) of the {dist_name} distribution computed from "
+                 f"{scale}-{periodicity.unit()} scaled values",
+        'beta': f"Scale parameter (beta) of the {dist_name} distribution computed from "
+                f"{scale}-{periodicity.unit()} scaled values",
+        'skew': f"Skewness parameter of the {dist_name} distribution computed from "
+                f"{scale}-{periodicity.unit()} scaled values",
+        'loc': f"Location parameter of the {dist_name} distribution computed from "
+               f"{scale}-{periodicity.unit()} scaled values",
+        'scale': f"Scale parameter of the {dist_name} distribution computed from "
+                 f"{scale}-{periodicity.unit()} scaled values",
+        'shape': f"Shape parameter of the {dist_name} distribution computed from "
+                 f"{scale}-{periodicity.unit()} scaled values",
+        'prob_zero': f"Probability of zero values within calibration period for "
+                     f"{scale}-{periodicity.unit()} scale",
+    }
+
+    return {
+        'long_name': f"{dist_name} {param} parameter ({scale}-{periodicity.unit()})",
+        'description': descriptions.get(param, f"{param} parameter"),
+        'units': '1',
+    }
+
+
+def get_global_attributes(
+    title: str,
+    distribution: str = DEFAULT_DISTRIBUTION,
+    calibration_start_year=None,
+    calibration_end_year=None,
+    extra_attrs: dict = None,
+    global_attrs: dict = None,
+) -> dict:
+    """
+    Build global attributes dict for NetCDF output.
+
+    Merges DEFAULT_METADATA with computed attributes and user overrides.
+    Empty default strings are excluded from output.
+
+    Priority order (lowest to highest):
+        1. DEFAULT_METADATA (module-level defaults)
+        2. Computed attributes (title, history, distribution, calibration)
+        3. extra_attrs (additional computed attributes like scales list)
+        4. global_attrs (user overrides — highest priority)
+
+    :param title: dataset title
+    :param distribution: distribution type used
+    :param calibration_start_year: calibration start year
+    :param calibration_end_year: calibration end year
+    :param extra_attrs: additional computed attributes (e.g., scales list)
+    :param global_attrs: user overrides (highest priority)
+    :return: merged attributes dict
+    """
+    attrs = {}
+    # Start with defaults (skip empty strings)
+    for k, v in DEFAULT_METADATA.items():
+        if v:  # Only include non-empty defaults
+            attrs[k] = v
+
+    # Add computed attributes
+    attrs['title'] = title
+    attrs['history'] = f'Created {datetime.now().isoformat()}'
+    attrs['distribution'] = distribution.lower()
+
+    if calibration_start_year is not None:
+        attrs['calibration_start_year'] = calibration_start_year
+    if calibration_end_year is not None:
+        attrs['calibration_end_year'] = calibration_end_year
+
+    # Add any extra computed attributes
+    if extra_attrs:
+        attrs.update(extra_attrs)
+
+    # User overrides (highest priority)
+    if global_attrs:
+        attrs.update(global_attrs)
+
+    return attrs
+
+
+# =============================================================================
+# DATA COMPLETENESS REPORTING
+# =============================================================================
+
+def summarize_data_completeness(
+    data: Union[np.ndarray, 'xr.DataArray'],
+    time_dim: str = 'time'
+) -> dict:
+    """
+    Report land-aware data completeness for gridded datasets.
+
+    Separates ocean/no-data cells (all-NaN across time) from land cells
+    (at least one valid timestep), then reports temporal completeness
+    only for land cells. This avoids misleading NaN percentages for
+    island or coastal datasets where ocean cells are expected to be NaN.
+
+    :param data: 3-D array (time, lat, lon) — xarray DataArray or numpy array
+    :param time_dim: name of the time dimension (for xarray inputs)
+    :return: dictionary with completeness statistics
+    """
+    # Convert to numpy if xarray
+    if hasattr(data, 'values'):
+        values = data.values
+        # Get spatial dimension sizes
+        dims = data.dims
+        time_axis = dims.index(time_dim) if time_dim in dims else 0
+        spatial_shape = tuple(s for i, s in enumerate(data.shape) if i != time_axis)
+    else:
+        values = np.asarray(data)
+        time_axis = 0
+        spatial_shape = values.shape[1:]
+
+    n_timesteps = values.shape[time_axis]
+    total_cells = int(np.prod(spatial_shape))
+
+    # Count valid (non-NaN) timesteps per spatial cell
+    valid_counts = np.sum(~np.isnan(values), axis=time_axis)
+    flat_counts = valid_counts.flatten()
+
+    # Land mask: cells with at least one valid timestep
+    land_mask = flat_counts > 0
+    n_land = int(np.sum(land_mask))
+    n_ocean = total_cells - n_land
+
+    result = {
+        'total_cells': total_cells,
+        'spatial_shape': spatial_shape,
+        'land_cells': n_land,
+        'ocean_cells': n_ocean,
+        'land_fraction': n_land / total_cells * 100 if total_cells > 0 else 0.0,
+        'total_timesteps': n_timesteps,
+    }
+
+    if n_land > 0:
+        land_counts = flat_counts[land_mask]
+        completeness = land_counts / n_timesteps * 100
+        n_fully_complete = int(np.sum(land_counts == n_timesteps))
+
+        result.update({
+            'mean_temporal_completeness': float(np.mean(completeness)),
+            'min_temporal_completeness': float(np.min(completeness)),
+            'max_temporal_completeness': float(np.max(completeness)),
+            'fully_complete_land_cells': n_fully_complete,
+        })
+    else:
+        result.update({
+            'mean_temporal_completeness': 0.0,
+            'min_temporal_completeness': 0.0,
+            'max_temporal_completeness': 0.0,
+            'fully_complete_land_cells': 0,
+        })
+
+    return result
+
+
+def print_data_completeness(report: dict, indent: str = "   ") -> None:
+    """
+    Print a formatted data completeness report.
+
+    :param report: dictionary from summarize_data_completeness()
+    :param indent: prefix string for each line
+    """
+    sp = report['spatial_shape']
+    sp_str = ' x '.join(str(s) for s in sp)
+
+    print(f"{indent}Spatial coverage:")
+    print(f"{indent}  Total grid cells: {report['total_cells']:,} ({sp_str})")
+    print(f"{indent}  Land cells: {report['land_cells']:,} ({report['land_fraction']:.1f}%)")
+    print(f"{indent}  Ocean/NoData cells: {report['ocean_cells']:,} ({100 - report['land_fraction']:.1f}%)")
+
+    print(f"{indent}Temporal completeness (land cells only):")
+    print(f"{indent}  Time steps: {report['total_timesteps']:,}")
+
+    if report['land_cells'] > 0:
+        print(f"{indent}  Mean completeness: {report['mean_temporal_completeness']:.1f}%")
+        print(f"{indent}  Min completeness: {report['min_temporal_completeness']:.1f}%")
+        fc = report['fully_complete_land_cells']
+        lc = report['land_cells']
+        print(f"{indent}  Fully complete cells: {fc} / {lc} ({100*fc/lc:.1f}%)")
+    else:
+        print(f"{indent}  No land cells found — dataset is entirely NaN")

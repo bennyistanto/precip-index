@@ -57,9 +57,12 @@ MIN_NONZERO_VALUES = 10
 # Maximum proportion of zeros allowed (beyond this, fitting is unreliable)
 MAX_ZERO_PROPORTION = 0.95
 
-# Valid range for fitted index values (prevents numerical issues)
-FITTED_INDEX_VALID_MIN = -3.5
-FITTED_INDEX_VALID_MAX = 3.5
+# Valid range for fitted index values (±3.09 = 99.9th percentile of standard normal)
+try:
+    from config import FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX
+except ImportError:
+    FITTED_INDEX_VALID_MIN = -3.09
+    FITTED_INDEX_VALID_MAX = 3.09
 
 # Small value to avoid division by zero
 EPSILON = 1e-10
@@ -512,7 +515,7 @@ def gamma_cdf(
 
 def fit_pearson3(
     values: np.ndarray,
-    method: FittingMethod = FittingMethod.LMOMENTS
+    method: FittingMethod = FittingMethod.MOMENTS
 ) -> DistributionParams:
     """
     Fit Pearson Type III distribution to data.
@@ -869,7 +872,7 @@ def pearson3_cdf(
 
 def fit_log_logistic(
     values: np.ndarray,
-    method: FittingMethod = FittingMethod.LMOMENTS
+    method: FittingMethod = FittingMethod.MLE
 ) -> DistributionParams:
     """
     Fit Log-Logistic (Fisk) distribution to data.
@@ -1271,7 +1274,7 @@ RECOMMENDED_DISTRIBUTIONS = {
 def fit_distribution(
     values: np.ndarray,
     distribution: Union[str, DistributionType] = DistributionType.GAMMA,
-    method: Union[str, FittingMethod] = FittingMethod.LMOMENTS,
+    method: Union[str, FittingMethod, None] = None,
     calibration_indices: Optional[Tuple[int, int]] = None
 ) -> DistributionParams:
     """
@@ -1279,7 +1282,8 @@ def fit_distribution(
 
     :param values: 1-D array of values
     :param distribution: distribution type (string or DistributionType)
-    :param method: fitting method (string or FittingMethod)
+    :param method: fitting method (string or FittingMethod). If None, uses
+        the recommended default for each distribution.
     :param calibration_indices: optional (start, end) indices for calibration
     :return: DistributionParams object
 
@@ -1301,7 +1305,11 @@ def fit_distribution(
 
     # Get fitting function and fit
     fit_func, _ = _DISTRIBUTION_FUNCTIONS[distribution]
-    return fit_func(values, method)
+    if method is not None:
+        return fit_func(values, method)
+    else:
+        # Use each distribution's recommended default method
+        return fit_func(values)
 
 
 def compute_cdf(

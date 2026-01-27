@@ -31,13 +31,23 @@ import xarray as xr
 from config import (
     DEFAULT_CALIBRATION_END_YEAR,
     DEFAULT_CALIBRATION_START_YEAR,
+    DEFAULT_DISTRIBUTION,
+    DISTRIBUTION_DISPLAY_NAMES,
+    DISTRIBUTION_PARAM_NAMES,
     FITTED_INDEX_VALID_MAX,
     FITTED_INDEX_VALID_MIN,
     FITTING_PARAM_NAMES,
     NC_FILL_VALUE,
+    PET_VAR_PATTERNS,
     Periodicity,
+    PRECIP_VAR_PATTERNS,
+    SPEI_WATER_BALANCE_OFFSET,
+    TEMP_VAR_PATTERNS,
+)
+from utils import (
     get_fitting_param_attributes,
     get_fitting_param_name,
+    get_global_attributes,
     get_logger,
     get_variable_attributes,
     get_variable_name,
@@ -74,16 +84,20 @@ def save_fitting_params(
     calibration_start_year: Optional[int] = None,
     calibration_end_year: Optional[int] = None,
     coords: Optional[Dict] = None,
-    global_attrs: Optional[Dict] = None
+    global_attrs: Optional[Dict] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> str:
     """
-    Save gamma fitting parameters to NetCDF file for later reuse.
-    
-    Parameters can be loaded later to speed up recalculation or
-    to apply the same calibration to new data.
+    Save distribution fitting parameters to NetCDF file for later reuse.
 
-    :param params: dictionary containing 'alpha', 'beta', 'prob_zero' arrays
-        Arrays should have shape (periods,) for 1D or (periods, lat, lon) for 3D
+    Parameters can be loaded later to speed up recalculation or
+    to apply the same calibration to new data. Supports any distribution
+    type — parameter names are determined from DISTRIBUTION_PARAM_NAMES.
+
+    :param params: dictionary containing distribution-specific parameter arrays.
+        For gamma: 'alpha', 'beta', 'prob_zero'.
+        For pearson3: 'skew', 'loc', 'scale', 'prob_zero'.
+        Arrays should have shape (periods,) for 1D or (periods, lat, lon) for 3D.
     :param filepath: output NetCDF file path
     :param scale: accumulation scale (e.g., 1, 3, 6, 12)
     :param periodicity: monthly or daily
@@ -92,29 +106,48 @@ def save_fitting_params(
     :param calibration_end_year: end year of calibration period
     :param coords: optional coordinate dict with 'lat', 'lon' for gridded data
     :param global_attrs: optional additional global attributes
+    :param distribution: distribution type used for fitting (default: 'gamma')
     :return: filepath of saved file
     """
-    _logger.info(f"Saving fitting parameters to: {filepath}")
-    
+    dist = distribution.lower()
+    _logger.info(f"Saving {dist} fitting parameters to: {filepath}")
+
     # Convert periodicity if string
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
+    # Determine which parameter names to save
+    # Use distribution from params dict if available, else use argument
+    dist_key = params.get('distribution', dist)
+    if isinstance(dist_key, str):
+        dist_key = dist_key.lower()
+    param_names = DISTRIBUTION_PARAM_NAMES.get(dist_key, FITTING_PARAM_NAMES)
+
     # Create dataset
     ds = xr.Dataset()
-    
-    # Determine dimensionality from alpha shape
-    alpha = params['alpha']
-    if isinstance(alpha, xr.DataArray):
-        alpha = alpha.values
-    
-    ndim = alpha.ndim
+
+    # Find first array param to determine dimensionality
+    first_array = None
+    for pname in param_names:
+        if pname in params:
+            val = params[pname]
+            if isinstance(val, xr.DataArray):
+                first_array = val.values
+            elif isinstance(val, np.ndarray):
+                first_array = val
+            if first_array is not None:
+                break
+
+    if first_array is None:
+        raise ValueError(f"No parameter arrays found in params dict for distribution '{dist_key}'")
+
+    ndim = first_array.ndim
     periods = periodicity.value
     period_dim = periodicity.unit()  # 'month' or 'day'
-    
+
     # Create period coordinate
     period_coord = np.arange(periods)
-    
+
     if ndim == 1:
         # 1D: shape (periods,)
         dims = (period_dim,)
@@ -125,61 +158,59 @@ def save_fitting_params(
         if coords is not None:
             coords_dict = {
                 period_dim: period_coord,
-                'lat': coords.get('lat', np.arange(alpha.shape[1])),
-                'lon': coords.get('lon', np.arange(alpha.shape[2]))
+                'lat': coords.get('lat', np.arange(first_array.shape[1])),
+                'lon': coords.get('lon', np.arange(first_array.shape[2]))
             }
         else:
             coords_dict = {
                 period_dim: period_coord,
-                'lat': np.arange(alpha.shape[1]),
-                'lon': np.arange(alpha.shape[2])
+                'lat': np.arange(first_array.shape[1]),
+                'lon': np.arange(first_array.shape[2])
             }
     else:
         raise ValueError(f"Unsupported parameter array dimensions: {ndim}")
-    
+
     # Add each parameter as a variable
-    for param_name in FITTING_PARAM_NAMES:
+    for param_name in param_names:
         if param_name not in params:
             _logger.warning(f"Parameter '{param_name}' not found in params dict")
             continue
-        
+
         param_data = params[param_name]
         if isinstance(param_data, xr.DataArray):
             param_data = param_data.values
-        
-        var_name = get_fitting_param_name(param_name, scale, periodicity)
-        var_attrs = get_fitting_param_attributes(param_name, scale, periodicity)
-        
+        if not isinstance(param_data, np.ndarray):
+            continue  # Skip non-array entries like 'distribution'
+
+        var_name = get_fitting_param_name(param_name, scale, periodicity, distribution=dist_key)
+        var_attrs = get_fitting_param_attributes(param_name, scale, periodicity, distribution=dist_key)
+
         ds[var_name] = xr.DataArray(
             data=param_data,
             dims=dims,
             coords=coords_dict,
             attrs=var_attrs
         )
-    
-    # Global attributes
-    ds.attrs = {
-        'title': f'Gamma distribution fitting parameters for {index_type.upper()}',
-        'institution': 'GOST/DEC Data Group, The World Bank',
-        'source': 'climate_indices package',
-        'history': f'Created {datetime.now().isoformat()}',
-        'Conventions': 'CF-1.8',
-        'index_type': index_type.upper(),
-        'distribution': 'gamma',
-        'scale': scale,
-        'periodicity': periodicity.name,
-        'calibration_start_year': calibration_start_year or 'not specified',
-        'calibration_end_year': calibration_end_year or 'not specified',
-    }
-    
-    if global_attrs:
-        ds.attrs.update(global_attrs)
-    
+
+    # Global attributes (centralized via config.get_global_attributes)
+    ds.attrs = get_global_attributes(
+        title=f'{DISTRIBUTION_DISPLAY_NAMES.get(dist_key, dist_key)} distribution fitting parameters for {index_type.upper()}',
+        distribution=dist_key,
+        calibration_start_year=calibration_start_year or 'not specified',
+        calibration_end_year=calibration_end_year or 'not specified',
+        extra_attrs={
+            'index_type': index_type.upper(),
+            'scale': scale,
+            'periodicity': periodicity.name,
+        },
+        global_attrs=global_attrs,
+    )
+
     # Ensure directory exists
     dir_path = os.path.dirname(os.path.abspath(filepath))
     if dir_path:
         os.makedirs(dir_path, exist_ok=True)
-    
+
     # Set encoding
     encoding = {}
     for var in ds.data_vars:
@@ -189,59 +220,81 @@ def save_fitting_params(
             'zlib': True,
             'complevel': 4
         }
-    
+
     # Save
     ds.to_netcdf(filepath, encoding=encoding)
     _logger.info(f"Fitting parameters saved: {filepath}")
-    
+
     return filepath
 
 
 def load_fitting_params(
     filepath: str,
     scale: int,
-    periodicity: Union[str, Periodicity]
+    periodicity: Union[str, Periodicity],
+    distribution: Optional[str] = None
 ) -> Dict[str, np.ndarray]:
     """
-    Load gamma fitting parameters from NetCDF file.
+    Load distribution fitting parameters from NetCDF file.
+
+    Automatically detects the distribution type from file attributes
+    if not specified, and loads the corresponding parameter set.
 
     :param filepath: path to NetCDF file with fitting parameters
     :param scale: accumulation scale to load (e.g., 12)
     :param periodicity: monthly or daily
-    :return: dictionary with 'alpha', 'beta', 'prob_zero' arrays
+    :param distribution: distribution type to load (auto-detected from file if None)
+    :return: dictionary with distribution-specific parameter arrays and 'distribution' key
     :raises FileNotFoundError: if file doesn't exist
     :raises KeyError: if required variables not found
     """
     _logger.info(f"Loading fitting parameters from: {filepath}")
-    
+
     # Convert periodicity if string
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Fitting parameters file not found: {filepath}")
-    
+
     ds = xr.open_dataset(filepath)
-    
+
+    # Determine distribution from file or argument
+    if distribution is not None:
+        dist = distribution.lower()
+    else:
+        dist = ds.attrs.get('distribution', DEFAULT_DISTRIBUTION)
+        if isinstance(dist, str):
+            dist = dist.lower()
+
+    # Get parameter names for this distribution
+    param_names = DISTRIBUTION_PARAM_NAMES.get(dist, FITTING_PARAM_NAMES)
+
     params = {}
-    for param_name in FITTING_PARAM_NAMES:
-        var_name = get_fitting_param_name(param_name, scale, periodicity)
-        
+    for param_name in param_names:
+        var_name = get_fitting_param_name(param_name, scale, periodicity, distribution=dist)
+
         if var_name not in ds:
             raise KeyError(
                 f"Variable '{var_name}' not found in {filepath}. "
                 f"Available variables: {list(ds.data_vars)}"
             )
-        
+
         params[param_name] = ds[var_name].values
-    
+
+    params['distribution'] = dist
+
     ds.close()
-    
+
+    # Find first array param for shape logging
+    first_key = next((k for k in param_names if k in params and isinstance(params[k], np.ndarray)), None)
+    shape_info = params[first_key].shape if first_key else 'unknown'
+
     _logger.info(
-        f"Loaded parameters for scale={scale}, periodicity={periodicity.name}, "
-        f"shape={params['alpha'].shape}"
+        f"Loaded {dist} parameters for scale={scale}, periodicity={periodicity.name}, "
+        f"shape={shape_info}"
     )
-    
+
     return params
 
 
@@ -258,12 +311,13 @@ def spi(
     calibration_end_year: int = DEFAULT_CALIBRATION_END_YEAR,
     fitting_params: Optional[Dict[str, np.ndarray]] = None,
     return_params: bool = False,
-    var_name: Optional[str] = None
+    var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Union[xr.DataArray, Tuple[xr.DataArray, Dict[str, np.ndarray]]]:
     """
     Calculate Standardized Precipitation Index (SPI).
-    
-    SPI is computed by fitting precipitation data to a gamma distribution
+
+    SPI is computed by fitting precipitation data to a probability distribution
     and transforming to standard normal distribution.
 
     :param precip: precipitation data in mm
@@ -275,35 +329,41 @@ def spi(
     :param data_start_year: first year of data (auto-detected for xarray)
     :param calibration_start_year: first year of calibration period (default: 1991)
     :param calibration_end_year: last year of calibration period (default: 2020)
-    :param fitting_params: optional pre-computed gamma parameters from save_fitting_params()
+    :param fitting_params: optional pre-computed parameters from save_fitting_params()
     :param return_params: if True, return (result, params) tuple
     :param var_name: variable name if precip is a Dataset
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: SPI values as xarray DataArray, or tuple (SPI, params) if return_params=True
-    
+
     Example:
-        >>> # Basic usage
+        >>> # Basic usage (Gamma distribution, default)
         >>> spi_12 = spi(precip_da, scale=12)
-        
+
+        >>> # Using Pearson III distribution
+        >>> spi_12 = spi(precip_da, scale=12, distribution='pearson3')
+
         >>> # With parameter saving
         >>> spi_12, params = spi(precip_da, scale=12, return_params=True)
         >>> save_fitting_params(params, 'spi_params.nc', scale=12, periodicity='monthly')
-        
+
         >>> # Using pre-computed parameters
         >>> params = load_fitting_params('spi_params.nc', scale=12, periodicity='monthly')
         >>> spi_12 = spi(new_precip_da, scale=12, fitting_params=params)
     """
-    _logger.info(f"Computing SPI-{scale}")
-    
+    dist = distribution.lower()
+    _logger.info(f"Computing SPI-{scale} (distribution={dist})")
+
     # Convert periodicity string to enum
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
     # Handle different input types
     if isinstance(precip, xr.Dataset):
         if var_name is None:
             # Try to find precipitation variable
-            precip_vars = [v for v in precip.data_vars 
-                          if 'precip' in v.lower() or 'prcp' in v.lower() or v.lower() == 'pr']
+            precip_vars = [v for v in precip.data_vars
+                          if any(p in v.lower() for p in PRECIP_VAR_PATTERNS)]
             if len(precip_vars) == 1:
                 var_name = precip_vars[0]
             else:
@@ -318,7 +378,7 @@ def spi(
         # Numpy array
         precip_da = None
         precip_array = np.asarray(precip)
-    
+
     # Extract data and metadata from xarray
     if precip_da is not None:
         # Ensure CF Convention dimension order (time, lat, lon)
@@ -340,7 +400,7 @@ def spi(
 
         # Convert to numpy
         precip_array = precip_da.values
-        
+
         _logger.info(
             f"Input shape: {precip_array.shape}, dims: {dims}, "
             f"data_start_year: {data_start_year}"
@@ -350,10 +410,10 @@ def spi(
             raise ValueError("data_start_year required for numpy array input")
         coords = None
         dims = None
-    
+
     # Clip negative values
     precip_array = np.clip(precip_array, 0, None)
-    
+
     # Compute SPI based on array dimensions
     if precip_array.ndim == 1:
         # 1D time series
@@ -364,7 +424,8 @@ def spi(
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
-            fitting_params=fitting_params
+            fitting_params=fitting_params,
+            distribution=dist
         )
     elif precip_array.ndim == 3:
         # 3D gridded data (time, lat, lon) - CF Convention
@@ -375,22 +436,23 @@ def spi(
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
-            fitting_params=fitting_params
+            fitting_params=fitting_params,
+            distribution=dist
         )
     else:
         raise ValueError(
             f"Unsupported array dimensions: {precip_array.ndim}. "
             f"Expected 1D (time,) or 3D (time, lat, lon)"
         )
-    
+
     # Create output DataArray
-    output_var_name = get_variable_name('spi', scale, periodicity)
-    output_attrs = get_variable_attributes('spi', scale, periodicity)
+    output_var_name = get_variable_name('spi', scale, periodicity, distribution=dist)
+    output_attrs = get_variable_attributes('spi', scale, periodicity, distribution=dist)
     output_attrs.update({
         'calibration_start_year': calibration_start_year,
         'calibration_end_year': calibration_end_year,
     })
-    
+
     if coords is not None:
         result_da = xr.DataArray(
             data=result,
@@ -405,9 +467,9 @@ def spi(
             name=output_var_name,
             attrs=output_attrs
         )
-    
+
     _logger.info(f"SPI-{scale} computation complete. Output shape: {result.shape}")
-    
+
     if return_params:
         return result_da, params
     else:
@@ -422,7 +484,9 @@ def spi_multi_scale(
     calibration_start_year: int = DEFAULT_CALIBRATION_START_YEAR,
     calibration_end_year: int = DEFAULT_CALIBRATION_END_YEAR,
     return_params: bool = False,
-    var_name: Optional[str] = None
+    var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION,
+    global_attrs: Optional[Dict] = None
 ) -> Union[xr.Dataset, Tuple[xr.Dataset, Dict[int, Dict[str, np.ndarray]]]]:
     """
     Calculate SPI for multiple time scales.
@@ -435,54 +499,62 @@ def spi_multi_scale(
     :param calibration_end_year: last year of calibration period
     :param return_params: if True, return (result, params_dict) tuple
     :param var_name: variable name if precip is a Dataset
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
+    :param global_attrs: optional dict of global attributes to override defaults
+        (e.g., {'institution': 'My Org', 'source': 'My Project'})
     :return: Dataset with SPI for all scales, or tuple (Dataset, params_dict)
-    
+
     Example:
         >>> spi_ds = spi_multi_scale(precip_da, scales=[1, 3, 6, 12])
         >>> spi_12 = spi_ds['spi_gamma_12_month']
+        >>> # With Pearson III
+        >>> spi_ds = spi_multi_scale(precip_da, scales=[3, 12], distribution='pearson3')
+        >>> # With custom metadata
+        >>> spi_ds = spi_multi_scale(precip_da, scales=[3, 12],
+        ...     global_attrs={'institution': 'My University'})
     """
-    _logger.info(f"Computing SPI for scales: {scales}")
-    
+    dist = distribution.lower()
+    _logger.info(f"Computing SPI for scales: {scales} (distribution={dist})")
+
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
     results = {}
     all_params = {}
-    
-    for scale in scales:
-        _logger.info(f"Processing scale {scale}...")
-        
+
+    for s in scales:
+        _logger.info(f"Processing scale {s}...")
+
         result_da, params = spi(
             precip,
-            scale=scale,
+            scale=s,
             periodicity=periodicity,
             data_start_year=data_start_year,
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             return_params=True,
-            var_name=var_name
+            var_name=var_name,
+            distribution=dist
         )
-        
-        var_name_out = get_variable_name('spi', scale, periodicity)
+
+        var_name_out = get_variable_name('spi', s, periodicity, distribution=dist)
         results[var_name_out] = result_da
-        all_params[scale] = params
-    
+        all_params[s] = params
+
     # Create output Dataset
     ds = xr.Dataset(results)
-    ds.attrs = {
-        'title': 'Standardized Precipitation Index (SPI)',
-        'institution': 'GOST/DEC Data Group, The World Bank',
-        'source': 'climate_indices package',
-        'history': f'Created {datetime.now().isoformat()}',
-        'Conventions': 'CF-1.8',
-        'scales': scales,
-        'distribution': 'gamma',
-        'calibration_start_year': calibration_start_year,
-        'calibration_end_year': calibration_end_year,
-    }
-    
+    ds.attrs = get_global_attributes(
+        title=f'Standardized Precipitation Index (SPI) - {DISTRIBUTION_DISPLAY_NAMES.get(dist, dist)}',
+        distribution=dist,
+        calibration_start_year=calibration_start_year,
+        calibration_end_year=calibration_end_year,
+        extra_attrs={'scales': scales},
+        global_attrs=global_attrs,
+    )
+
     _logger.info(f"Multi-scale SPI complete. Variables: {list(ds.data_vars)}")
-    
+
     if return_params:
         return ds, all_params
     else:
@@ -507,11 +579,12 @@ def spei(
     return_params: bool = False,
     precip_var_name: Optional[str] = None,
     pet_var_name: Optional[str] = None,
-    temp_var_name: Optional[str] = None
+    temp_var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> Union[xr.DataArray, Tuple[xr.DataArray, Dict[str, np.ndarray]]]:
     """
     Calculate Standardized Precipitation Evapotranspiration Index (SPEI).
-    
+
     SPEI uses the water balance (P - PET) instead of just precipitation.
     PET can be provided directly or calculated from temperature using
     the Thornthwaite method.
@@ -525,36 +598,43 @@ def spei(
     :param data_start_year: first year of data
     :param calibration_start_year: first year of calibration period
     :param calibration_end_year: last year of calibration period
-    :param fitting_params: optional pre-computed gamma parameters
+    :param fitting_params: optional pre-computed distribution parameters
     :param return_params: if True, return (result, params) tuple
     :param precip_var_name: variable name for precipitation in Dataset
     :param pet_var_name: variable name for PET in Dataset
     :param temp_var_name: variable name for temperature in Dataset
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'.
+        Note: Pearson III or Log-Logistic are recommended for SPEI.
     :return: SPEI values as xarray DataArray, or tuple (SPEI, params)
-    
+
     Example:
-        >>> # With pre-computed PET
+        >>> # With pre-computed PET (Gamma, default)
         >>> spei_12 = spei(precip_da, pet=pet_da, scale=12)
-        
+
+        >>> # With Pearson III distribution (recommended for SPEI)
+        >>> spei_12 = spei(precip_da, pet=pet_da, scale=12, distribution='pearson3')
+
         >>> # With temperature (auto-compute PET)
         >>> spei_12 = spei(precip_da, temperature=temp_da, latitude=lat_da, scale=12)
-        
+
         >>> # Save and reuse parameters
         >>> spei_12, params = spei(precip_da, pet=pet_da, scale=12, return_params=True)
-        >>> save_fitting_params(params, 'spei_params.nc', scale=12, 
+        >>> save_fitting_params(params, 'spei_params.nc', scale=12,
         ...                     periodicity='monthly', index_type='spei')
     """
-    _logger.info(f"Computing SPEI-{scale}")
-    
+    dist = distribution.lower()
+    _logger.info(f"Computing SPEI-{scale} (distribution={dist})")
+
     # Convert periodicity
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
     # Handle Dataset input for precip
     if isinstance(precip, xr.Dataset):
         if precip_var_name is None:
-            precip_vars = [v for v in precip.data_vars 
-                          if 'precip' in v.lower() or 'prcp' in v.lower() or v.lower() == 'pr']
+            precip_vars = [v for v in precip.data_vars
+                          if any(p in v.lower() for p in PRECIP_VAR_PATTERNS)]
             if len(precip_vars) == 1:
                 precip_var_name = precip_vars[0]
             else:
@@ -565,13 +645,13 @@ def spei(
     else:
         precip_da = None
         precip_array = np.asarray(precip)
-    
+
     # Get/compute PET
     if pet is not None:
         # PET provided directly
         if isinstance(pet, xr.Dataset):
             if pet_var_name is None:
-                pet_vars = [v for v in pet.data_vars if 'pet' in v.lower() or 'et' in v.lower()]
+                pet_vars = [v for v in pet.data_vars if any(p in v.lower() for p in PET_VAR_PATTERNS)]
                 if len(pet_vars) == 1:
                     pet_var_name = pet_vars[0]
                 else:
@@ -585,15 +665,15 @@ def spei(
     elif temperature is not None:
         # Compute PET from temperature
         _logger.info("Computing PET from temperature using Thornthwaite method")
-        
+
         if latitude is None:
             raise ValueError("latitude required for PET calculation from temperature")
-        
+
         # Handle temperature input
         if isinstance(temperature, xr.Dataset):
             if temp_var_name is None:
-                temp_vars = [v for v in temperature.data_vars 
-                            if 'temp' in v.lower() or 'tas' in v.lower() or 't2m' in v.lower()]
+                temp_vars = [v for v in temperature.data_vars
+                            if any(p in v.lower() for p in TEMP_VAR_PATTERNS)]
                 if len(temp_vars) == 1:
                     temp_var_name = temp_vars[0]
                 else:
@@ -603,20 +683,20 @@ def spei(
             temp_da = temperature
         else:
             temp_da = xr.DataArray(np.asarray(temperature))
-        
+
         # Auto-detect start year
         if data_start_year is None and precip_da is not None:
             data_start_year, _ = get_data_year_range(xr.Dataset({'var': precip_da}))
-        
+
         if data_start_year is None:
             raise ValueError("data_start_year required for PET calculation")
-        
+
         # Calculate PET
         pet_da = calculate_pet(temp_da, latitude, data_start_year)
         pet_array = pet_da.values if isinstance(pet_da, xr.DataArray) else pet_da
     else:
         raise ValueError("Either 'pet' or 'temperature' (with 'latitude') must be provided")
-    
+
     # Extract arrays and metadata
     if precip_da is not None:
         # Ensure CF Convention dimension order (time, lat, lon)
@@ -647,23 +727,23 @@ def spei(
         dims = None
         if pet_da is not None:
             pet_array = pet_da.values
-    
+
     # Validate shapes match
     if precip_array.shape != pet_array.shape:
         raise ValueError(
             f"Precipitation and PET shapes must match: "
             f"{precip_array.shape} vs {pet_array.shape}"
         )
-    
+
     _logger.info(
         f"Input shape: {precip_array.shape}, "
         f"data_start_year: {data_start_year}"
     )
-    
+
     # Compute water balance: P - PET
     # Add offset to ensure positive values for gamma fitting
-    water_balance = (precip_array - pet_array) + 1000.0
-    
+    water_balance = (precip_array - pet_array) + SPEI_WATER_BALANCE_OFFSET
+
     # Compute SPEI (same algorithm as SPI, but on water balance)
     if water_balance.ndim == 1:
         result, params = compute_spei_1d(
@@ -674,7 +754,8 @@ def spei(
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
-            fitting_params=fitting_params
+            fitting_params=fitting_params,
+            distribution=dist
         )
     elif water_balance.ndim == 3:
         result, params = compute_index_parallel(
@@ -684,22 +765,23 @@ def spei(
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
             periodicity=periodicity,
-            fitting_params=fitting_params
+            fitting_params=fitting_params,
+            distribution=dist
         )
     else:
         raise ValueError(
             f"Unsupported array dimensions: {water_balance.ndim}. "
             f"Expected 1D (time,) or 3D (time, lat, lon)"
         )
-    
+
     # Create output DataArray
-    output_var_name = get_variable_name('spei', scale, periodicity)
-    output_attrs = get_variable_attributes('spei', scale, periodicity)
+    output_var_name = get_variable_name('spei', scale, periodicity, distribution=dist)
+    output_attrs = get_variable_attributes('spei', scale, periodicity, distribution=dist)
     output_attrs.update({
         'calibration_start_year': calibration_start_year,
         'calibration_end_year': calibration_end_year,
     })
-    
+
     if coords is not None:
         result_da = xr.DataArray(
             data=result,
@@ -714,9 +796,9 @@ def spei(
             name=output_var_name,
             attrs=output_attrs
         )
-    
+
     _logger.info(f"SPEI-{scale} computation complete. Output shape: {result.shape}")
-    
+
     if return_params:
         return result_da, params
     else:
@@ -736,7 +818,9 @@ def spei_multi_scale(
     return_params: bool = False,
     precip_var_name: Optional[str] = None,
     pet_var_name: Optional[str] = None,
-    temp_var_name: Optional[str] = None
+    temp_var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION,
+    global_attrs: Optional[Dict] = None
 ) -> Union[xr.Dataset, Tuple[xr.Dataset, Dict[int, Dict[str, np.ndarray]]]]:
     """
     Calculate SPEI for multiple time scales.
@@ -754,29 +838,37 @@ def spei_multi_scale(
     :param precip_var_name: variable name for precipitation
     :param pet_var_name: variable name for PET
     :param temp_var_name: variable name for temperature
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
+    :param global_attrs: optional dict of global attributes to override defaults
+        (e.g., {'institution': 'My Org', 'source': 'My Project'})
     :return: Dataset with SPEI for all scales
-    
+
     Example:
         >>> spei_ds = spei_multi_scale(precip_da, pet=pet_da, scales=[1, 3, 6, 12])
         >>> spei_12 = spei_ds['spei_gamma_12_month']
+        >>> # With Pearson III (recommended for SPEI)
+        >>> spei_ds = spei_multi_scale(precip_da, pet=pet_da, scales=[3, 12],
+        ...                            distribution='pearson3')
     """
-    _logger.info(f"Computing SPEI for scales: {scales}")
-    
+    dist = distribution.lower()
+    _logger.info(f"Computing SPEI for scales: {scales} (distribution={dist})")
+
     if isinstance(periodicity, str):
         periodicity = Periodicity.from_string(periodicity)
-    
+
     results = {}
     all_params = {}
-    
-    for scale in scales:
-        _logger.info(f"Processing scale {scale}...")
-        
+
+    for s in scales:
+        _logger.info(f"Processing scale {s}...")
+
         result_da, params = spei(
             precip,
             pet=pet,
             temperature=temperature,
             latitude=latitude,
-            scale=scale,
+            scale=s,
             periodicity=periodicity,
             data_start_year=data_start_year,
             calibration_start_year=calibration_start_year,
@@ -784,29 +876,27 @@ def spei_multi_scale(
             return_params=True,
             precip_var_name=precip_var_name,
             pet_var_name=pet_var_name,
-            temp_var_name=temp_var_name
+            temp_var_name=temp_var_name,
+            distribution=dist
         )
-        
-        var_name_out = get_variable_name('spei', scale, periodicity)
+
+        var_name_out = get_variable_name('spei', s, periodicity, distribution=dist)
         results[var_name_out] = result_da
-        all_params[scale] = params
-    
+        all_params[s] = params
+
     # Create output Dataset
     ds = xr.Dataset(results)
-    ds.attrs = {
-        'title': 'Standardized Precipitation Evapotranspiration Index (SPEI)',
-        'institution': 'GOST/DEC Data Group, The World Bank',
-        'source': 'climate_indices package',
-        'history': f'Created {datetime.now().isoformat()}',
-        'Conventions': 'CF-1.8',
-        'scales': scales,
-        'distribution': 'gamma',
-        'calibration_start_year': calibration_start_year,
-        'calibration_end_year': calibration_end_year,
-    }
-    
+    ds.attrs = get_global_attributes(
+        title=f'Standardized Precipitation Evapotranspiration Index (SPEI) - {DISTRIBUTION_DISPLAY_NAMES.get(dist, dist)}',
+        distribution=dist,
+        calibration_start_year=calibration_start_year,
+        calibration_end_year=calibration_end_year,
+        extra_attrs={'scales': scales},
+        global_attrs=global_attrs,
+    )
+
     _logger.info(f"Multi-scale SPEI complete. Variables: {list(ds.data_vars)}")
-    
+
     if return_params:
         return ds, all_params
     else:
@@ -994,7 +1084,8 @@ def spi_global(
     chunk_size: int = 500,
     var_name: Optional[str] = None,
     save_params: bool = True,
-    params_path: Optional[str] = None
+    distribution: str = DEFAULT_DISTRIBUTION,
+    global_attrs: Optional[Dict] = None
 ) -> xr.Dataset:
     """
     Calculate SPI for global-scale datasets with automatic memory management.
@@ -1011,7 +1102,10 @@ def spi_global(
     :param chunk_size: Spatial chunk size (default: 500)
     :param var_name: Precipitation variable name (auto-detected if None)
     :param save_params: Whether to save fitting parameters
-    :param params_path: Path for fitting parameters file (default: output_path with '_params.nc' suffix)
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
+    :param global_attrs: optional dict of global attributes to override defaults
+        (e.g., {'institution': 'My Org', 'source': 'My Project'})
     :return: Dataset with computed SPI
 
     Example:
@@ -1021,6 +1115,13 @@ def spi_global(
         ...     'spi_12_global.nc',
         ...     scale=12,
         ...     chunk_size=500  # Adjust based on available RAM
+        ... )
+        >>> # With Pearson III distribution
+        >>> result = spi_global(
+        ...     'chirps_global_monthly_1981_2024.nc',
+        ...     'spi_pearson3_12_global.nc',
+        ...     scale=12,
+        ...     distribution='pearson3'
         ... )
     """
     from chunked import ChunkedProcessor
@@ -1042,7 +1143,8 @@ def spi_global(
         calibration_end_year=calibration_end_year,
         var_name=var_name,
         save_params=save_params,
-        params_path=params_path
+        distribution=distribution,
+        global_attrs=global_attrs
     )
 
 
@@ -1058,7 +1160,8 @@ def spei_global(
     precip_var_name: Optional[str] = None,
     pet_var_name: Optional[str] = None,
     save_params: bool = True,
-    params_path: Optional[str] = None
+    distribution: str = DEFAULT_DISTRIBUTION,
+    global_attrs: Optional[Dict] = None
 ) -> xr.Dataset:
     """
     Calculate SPEI for global-scale datasets with automatic memory management.
@@ -1074,7 +1177,11 @@ def spei_global(
     :param precip_var_name: Precipitation variable name
     :param pet_var_name: PET variable name
     :param save_params: Whether to save fitting parameters
-    :param params_path: Path for fitting parameters file (default: output_path with '_params.nc' suffix)
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'.
+        Note: Pearson III or Log-Logistic are recommended for SPEI.
+    :param global_attrs: optional dict of global attributes to override defaults
+        (e.g., {'institution': 'My Org', 'source': 'My Project'})
     :return: Dataset with computed SPEI
 
     Example:
@@ -1083,6 +1190,14 @@ def spei_global(
         ...     'pet_global_monthly.nc',
         ...     'spei_12_global.nc',
         ...     scale=12
+        ... )
+        >>> # With Pearson III (recommended for SPEI)
+        >>> result = spei_global(
+        ...     'chirps_global_monthly.nc',
+        ...     'pet_global_monthly.nc',
+        ...     'spei_pearson3_12_global.nc',
+        ...     scale=12,
+        ...     distribution='pearson3'
         ... )
     """
     from chunked import ChunkedProcessor
@@ -1106,7 +1221,8 @@ def spei_global(
         precip_var_name=precip_var_name,
         pet_var_name=pet_var_name,
         save_params=save_params,
-        params_path=params_path
+        distribution=distribution,
+        global_attrs=global_attrs
     )
 
 
@@ -1144,7 +1260,7 @@ def estimate_memory_requirements(
         ds = xr.open_dataset(precip)
         if var_name is None:
             precip_vars = [v for v in ds.data_vars
-                          if any(x in v.lower() for x in ['precip', 'prcp', 'pr', 'ppt'])]
+                          if any(x in v.lower() for x in PRECIP_VAR_PATTERNS)]
             var_name = precip_vars[0] if precip_vars else list(ds.data_vars)[0]
         return estimate_memory_from_data(ds, var_name, available_memory_gb)
     else:

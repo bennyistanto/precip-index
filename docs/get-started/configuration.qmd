@@ -1,0 +1,226 @@
+---
+title: "Configuration Reference"
+subtitle: "Customize settings before running calculations"
+---
+
+## Overview
+
+All configurable settings live in **`src/config.py`** — the central configuration hub. Before running any calculations, review and adjust the settings that matter for your workflow.
+
+```python
+import sys
+sys.path.insert(0, 'src')
+
+from config import DEFAULT_METADATA, DEFAULT_DISTRIBUTION
+```
+
+---
+
+## Output Metadata
+
+Control the global attributes written to every NetCDF output file by modifying `DEFAULT_METADATA`:
+
+```python
+from config import DEFAULT_METADATA
+
+# Set your organization's metadata once at the start
+DEFAULT_METADATA['institution'] = 'My University, Department of Geography'
+DEFAULT_METADATA['source'] = 'precip-index package v2026.1'
+DEFAULT_METADATA['references'] = 'McKee et al. (1993)'
+DEFAULT_METADATA['comment'] = 'Regional drought monitoring study'
+```
+
+All subsequent calls to `spi()`, `spei()`, `spi_multi_scale()`, `save_fitting_params()`, etc. will include these attributes in the output.
+
+You can also override metadata per function call using `global_attrs`:
+
+```python
+from indices import spi_multi_scale
+
+spi_ds = spi_multi_scale(
+    precip, scales=[3, 12],
+    global_attrs={
+        'institution': 'ACME Research Lab',
+        'project': 'Drought Monitoring System',
+    }
+)
+```
+
+::: {.callout-note}
+Empty strings in `DEFAULT_METADATA` are automatically excluded from output. Only non-empty values are written.
+:::
+
+**Default values:**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `institution` | `''` (empty) | Your organization name |
+| `source` | `'precip-index package'` | Software source |
+| `Conventions` | `'CF-1.8'` | CF Convention version |
+| `references` | `''` (empty) | Literature references |
+| `comment` | `''` (empty) | Additional notes |
+
+---
+
+## Variable Detection Patterns
+
+When loading NetCDF datasets, the package automatically detects precipitation, PET, and temperature variables by matching against name patterns. You can add patterns for your data:
+
+```python
+from config import PRECIP_VAR_PATTERNS, PET_VAR_PATTERNS, TEMP_VAR_PATTERNS
+
+# Default patterns:
+# PRECIP_VAR_PATTERNS = ['precip', 'prcp', 'pr', 'ppt', 'rainfall']
+# PET_VAR_PATTERNS    = ['pet', 'eto', 'et', 'evap']
+# TEMP_VAR_PATTERNS   = ['temp', 'tas', 't2m']
+
+# Add your custom variable names
+PRECIP_VAR_PATTERNS.append('rain')
+TEMP_VAR_PATTERNS.append('temperature_2m')
+```
+
+::: {.callout-tip}
+Pattern matching is case-insensitive and uses substring matching. For example, `'precip'` matches variable names like `'precipitation'`, `'total_precip'`, etc.
+:::
+
+---
+
+## Distribution Settings
+
+### Default Distribution
+
+The default probability distribution for all SPI/SPEI calculations:
+
+```python
+from config import DEFAULT_DISTRIBUTION
+# DEFAULT_DISTRIBUTION = "gamma"
+```
+
+To change the default, modify it before any calculations:
+
+```python
+import config
+config.DEFAULT_DISTRIBUTION = "pearson3"
+```
+
+Or pass `distribution=` to individual function calls:
+
+```python
+spi_12 = spi(precip, scale=12, distribution='pearson3')
+```
+
+### Supported Distributions
+
+| Key | Display Name | Typical Use |
+|-----|-------------|-------------|
+| `'gamma'` | Gamma | Standard for SPI (McKee et al. 1993) |
+| `'pearson3'` | Pearson III | Recommended for SPEI (Vicente-Serrano et al. 2010) |
+| `'log_logistic'` | Log-Logistic | Alternative for SPEI (R SPEI package) |
+| `'gev'` | GEV | Extreme value analysis |
+| `'gen_logistic'` | Generalized Logistic | European drought indices |
+
+See the [Probability Distributions](../technical/distributions.qmd) page for detailed guidance on distribution selection.
+
+---
+
+## Calibration Period
+
+The default calibration period follows the WMO 30-year standard:
+
+```python
+from config import DEFAULT_CALIBRATION_START_YEAR, DEFAULT_CALIBRATION_END_YEAR
+# DEFAULT_CALIBRATION_START_YEAR = 1991
+# DEFAULT_CALIBRATION_END_YEAR   = 2020
+```
+
+These defaults are used when you don't specify `calibration_start_year` and `calibration_end_year` in function calls. You can override them per call:
+
+```python
+spi_12 = spi(precip, scale=12,
+             calibration_start_year=1981,
+             calibration_end_year=2010)
+```
+
+::: {.callout-important}
+The calibration period must overlap with your data. A minimum of 30 years is recommended for robust statistics.
+:::
+
+---
+
+## Processing Constants
+
+### Index Value Bounds
+
+SPI/SPEI output values are clipped to this range:
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `FITTED_INDEX_VALID_MIN` | `-3.09` | Minimum index value |
+| `FITTED_INDEX_VALID_MAX` | `3.09` | Maximum index value |
+
+### Missing Data
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `NC_FILL_VALUE` | `-9999.0` | Fill value for missing data in NetCDF |
+
+### SPEI Water Balance
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `SPEI_WATER_BALANCE_OFFSET` | `1000.0` | Offset added to water balance (P - PET) to ensure positive values for distribution fitting |
+
+### Gamma Fitting
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `MIN_VALUES_FOR_GAMMA_FIT` | `4` | Minimum non-NaN values required for fitting |
+
+---
+
+## Memory and Chunking
+
+For global-scale processing, these constants control chunk sizes and memory usage:
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_CHUNK_LAT` | `500` | Default latitude chunk size |
+| `DEFAULT_CHUNK_LON` | `500` | Default longitude chunk size |
+| `MIN_CHUNK_SIZE` | `100` | Minimum chunk size (smaller is inefficient) |
+| `MAX_SINGLE_CHUNK_GB` | `2.0` | Maximum array size (GB) for single-chunk processing |
+| `MEMORY_MULTIPLIER` | `12.0` | Peak memory as multiple of input array size |
+| `MEMORY_SAFETY_FACTOR` | `0.7` | Fraction of available memory to use |
+
+### Chunk Size Guidelines
+
+| Available RAM | Recommended Chunk Size |
+|--------------|------------------------|
+| 16 GB | 200 x 200 |
+| 32 GB | 300 x 300 |
+| 64 GB | 400 x 400 |
+| 128 GB | 600 x 600 |
+
+---
+
+## Quick Reference
+
+All configurable constants in `config.py`:
+
+| Constant | Default | Category |
+|----------|---------|----------|
+| `DEFAULT_METADATA` | `{...}` | Output metadata |
+| `PRECIP_VAR_PATTERNS` | `['precip', 'prcp', 'pr', 'ppt', 'rainfall']` | Variable detection |
+| `PET_VAR_PATTERNS` | `['pet', 'eto', 'et', 'evap']` | Variable detection |
+| `TEMP_VAR_PATTERNS` | `['temp', 'tas', 't2m']` | Variable detection |
+| `DEFAULT_DISTRIBUTION` | `'gamma'` | Distribution |
+| `DEFAULT_CALIBRATION_START_YEAR` | `1991` | Calibration |
+| `DEFAULT_CALIBRATION_END_YEAR` | `2020` | Calibration |
+| `FITTED_INDEX_VALID_MIN` | `-3.09` | Index bounds |
+| `FITTED_INDEX_VALID_MAX` | `3.09` | Index bounds |
+| `NC_FILL_VALUE` | `-9999.0` | Missing data |
+| `SPEI_WATER_BALANCE_OFFSET` | `1000.0` | SPEI computation |
+| `MIN_VALUES_FOR_GAMMA_FIT` | `4` | Fitting |
+| `DEFAULT_CHUNK_LAT` | `500` | Chunked processing |
+| `DEFAULT_CHUNK_LON` | `500` | Chunked processing |
+| `MEMORY_MULTIPLIER` | `12.0` | Memory estimation |
+| `MEMORY_SAFETY_FACTOR` | `0.7` | Memory estimation |
