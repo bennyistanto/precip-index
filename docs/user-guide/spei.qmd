@@ -260,6 +260,6 @@ pet = calculate_pet(temp, method='thornthwaite')  # Parallel
 
 ## See Also
 
-- [SPI Guide](spi.md) - For precipitation-only drought
-- [Drought Characteristics](runtheory.md) - Event analysis
-- [Visualization](visualization.md) - Plotting options
+- [SPI Guide](spi.qmd) - For precipitation-only drought
+- [Drought Characteristics](runtheory.qmd) - Event analysis
+- [Visualization](visualization.qmd) - Plotting options

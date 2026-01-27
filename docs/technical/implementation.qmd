@@ -543,7 +543,7 @@ jupyter>=1.0.0      # Notebook support
 
 - 2026.1: Complete package with SPI/SPEI, run theory, and dual magnitude
 
-**See:** [CHANGELOG.md](../../CHANGELOG.md) for details
+**See:** [CHANGELOG](../changelog.qmd) for details
 
 ## References
 
@@ -560,7 +560,7 @@ jupyter>=1.0.0      # Notebook support
 2. Export in `__init__.py`
 3. Document in user guide
 4. Add test case
-5. Update CHANGELOG.md
+5. Update CHANGELOG
 
 **Maintain:**
 

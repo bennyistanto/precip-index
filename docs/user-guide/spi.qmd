@@ -365,6 +365,6 @@ spi_12 = spi(precip_morocco, scale=12)
 
 ## See Also
 
-- [SPEI Guide](spei.md) - For temperature-influenced drought
-- [Drought Characteristics](runtheory.md) - Event analysis
-- [Visualization Guide](visualization.md) - Plotting options
+- [SPEI Guide](spei.qmd) - For temperature-influenced drought
+- [Drought Characteristics](runtheory.qmd) - Event analysis
+- [Visualization Guide](visualization.qmd) - Plotting options

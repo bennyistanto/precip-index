@@ -1167,6 +1167,6 @@ plt.savefig('output/plots/spatial/comparison.png', dpi=300)
 
 ## See Also
 
-- [Implementation Details](implementation.md) - Architecture and optimization
-- [Methodology](methodology.md) - Scientific background
+- [Implementation Details](implementation.qmd) - Architecture and optimization
+- [Methodology](methodology.qmd) - Scientific background
 - [User Guides](../user-guide/) - Detailed usage instructions

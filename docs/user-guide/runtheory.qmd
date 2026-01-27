@@ -152,7 +152,7 @@ wet_stats.num_events.plot(title='Wet Events 2023')
 - Like NDVI crop phenology
 - Use for: Monitoring evolution, peak detection
 
-See [Magnitude Explained](magnitude.md) for detailed comparison.
+See [Magnitude Explained](magnitude.qmd) for detailed comparison.
 
 ## Mode 1: Event-Based Analysis
 
@@ -431,7 +431,7 @@ stats_2020s.num_events.plot()
 
 ## See Also
 
-- [Magnitude Explained](magnitude.md) - Cumulative vs Instantaneous
-- [Visualization Guide](visualization.md) - All plotting options
-- [SPI Guide](spi.md) - Index calculation
-- [SPEI Guide](spei.md) - Temperature-inclusive index
+- [Magnitude Explained](magnitude.qmd) - Cumulative vs Instantaneous
+- [Visualization Guide](visualization.qmd) - All plotting options
+- [SPI Guide](spi.qmd) - Index calculation
+- [SPEI Guide](spei.qmd) - Temperature-inclusive index

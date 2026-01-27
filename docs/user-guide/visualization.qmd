@@ -151,6 +151,6 @@ Filenames include coordinates for easy identification.
 
 ## See Also
 
-- [Run Theory Guide](runtheory.md) - Analysis functions
-- [SPI Guide](spi.md) - Index calculation
-- [SPEI Guide](spei.md) - Temperature-inclusive index
+- [Run Theory Guide](runtheory.qmd) - Analysis functions
+- [SPI Guide](spi.qmd) - Index calculation
+- [SPEI Guide](spei.qmd) - Temperature-inclusive index

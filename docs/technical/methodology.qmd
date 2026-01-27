@@ -728,6 +728,6 @@ spi_new = spi(precip_new, scale=12, fitting_params=params)
 
 ## See Also
 
-- [Implementation Details](implementation.md) - Code architecture
-- [API Reference](api-reference.md) - Function documentation
+- [Implementation Details](implementation.qmd) - Code architecture
+- [API Reference](api-reference.qmd) - Function documentation
 - [User Guides](../user-guide/) - Practical usage
