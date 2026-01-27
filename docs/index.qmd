@@ -215,7 +215,7 @@ This project is licensed under the BSD-3-Clause License. See [LICENSE](LICENSE) 
 ---
 
 ::: {.callout-warning}
-## ⚠️ Active Development
+## Active Development
 
 This package is under active development. Some features may not work as expected and bugs may be present. Please report issues on [GitHub](https://github.com/bennyistanto/precip-index/issues).
 :::

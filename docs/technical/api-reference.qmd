@@ -14,13 +14,14 @@ Calculate Standardized Precipitation Index for monitoring both dry (drought) and
 def spi(
     precip,
     scale,
-    distribution='gamma',
-    data_start_year=None,
-    data_end_year=None,
-    calibration_start_year=None,
-    calibration_end_year=None,
     periodicity='monthly',
-    fitting_params=None
+    data_start_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    fitting_params=None,
+    return_params=False,
+    var_name=None,
+    distribution='gamma'
 ) -> xarray.DataArray
 ```
 
@@ -30,18 +31,19 @@ def spi(
 | ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data with dimensions (time, lat, lon) |
 | `scale` | int | Yes | - | Time scale in months (1, 3, 6, 12, 24, etc.) |
-| `distribution` | str | No | 'gamma' | Distribution type ('gamma' only) |
+| `periodicity` | str | No | 'monthly' | Temporal resolution ('monthly' or 'daily') |
 | `data_start_year` | int | No | None | First year of data (auto-detected if None) |
-| `data_end_year` | int | No | None | Last year of data (auto-detected if None) |
-| `calibration_start_year` | int | No | None | Calibration period start (uses full period if None) |
-| `calibration_end_year` | int | No | None | Calibration period end (uses full period if None) |
-| `periodicity` | str | No | 'monthly' | Temporal resolution ('monthly' only) |
-| `fitting_params` | xarray.Dataset | No | None | Pre-fitted parameters for operational use |
+| `calibration_start_year` | int | No | 1991 | Calibration period start |
+| `calibration_end_year` | int | No | 2020 | Calibration period end |
+| `fitting_params` | dict | No | None | Pre-fitted parameters for operational use |
+| `return_params` | bool | No | False | If True, return (result, params) tuple |
+| `var_name` | str | No | None | Variable name if precip is a Dataset |
+| `distribution` | str | No | 'gamma' | Distribution type: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic' |
 
 **Returns:**
 
 - `xarray.DataArray`: SPI values with same dimensions as input
-  - Variable name: `spi_gamma_{scale}_month`
+  - Variable name: `spi_{distribution}_{scale}_month` (e.g., `spi_gamma_12_month`)
   - Range: typically -3 to +3
   - Negative values: dry conditions (drought)
   - Positive values: wet conditions (flooding/excess)
@@ -59,8 +61,15 @@ import xarray as xr
 from indices import spi
 
 precip = xr.open_dataset('precip.nc')['precip']
+
+# Default (Gamma distribution)
 spi_12 = spi(precip, scale=12)
-spi_12.to_netcdf('spi_12.nc')
+
+# With Pearson III distribution
+spi_12_p3 = spi(precip, scale=12, distribution='pearson3')
+
+# Save and reuse parameters
+spi_12, params = spi(precip, scale=12, return_params=True)
 ```
 
 ---
@@ -73,6 +82,7 @@ Calculate SPI for multiple time scales simultaneously.
 def spi_multi_scale(
     precip,
     scales,
+    distribution='gamma',
     **kwargs
 ) -> xarray.Dataset
 ```
@@ -83,12 +93,13 @@ def spi_multi_scale(
 | ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data |
 | `scales` | list of int | Yes | - | List of time scales [3, 6, 12] |
+| `distribution` | str | No | 'gamma' | Distribution type |
 | `**kwargs` | - | No | - | Same parameters as `spi()` |
 
 **Returns:**
 
 - `xarray.Dataset`: Dataset with one variable per scale
-  - Variables: `spi_gamma_3_month`, `spi_gamma_6_month`, etc.
+  - Variables: `spi_{distribution}_{scale}_month` (e.g., `spi_gamma_3_month`, `spi_pearson3_12_month`)
 
 **Example:**
 
@@ -97,7 +108,9 @@ from indices import spi_multi_scale
 
 scales = [3, 6, 12]
 spi_all = spi_multi_scale(precip, scales=scales)
-print(spi_all.data_vars)  # All three scales
+
+# With Pearson III
+spi_all_p3 = spi_multi_scale(precip, scales=scales, distribution='pearson3')
 ```
 
 ---
@@ -109,15 +122,17 @@ Calculate Standardized Precipitation Evapotranspiration Index.
 ```python
 def spei(
     precip,
-    pet,
-    scale,
-    distribution='gamma',
-    data_start_year=None,
-    data_end_year=None,
-    calibration_start_year=None,
-    calibration_end_year=None,
+    pet=None,
+    temperature=None,
+    latitude=None,
+    scale=12,
     periodicity='monthly',
-    pe_fitting_params=None
+    data_start_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    fitting_params=None,
+    return_params=False,
+    distribution='gamma'
 ) -> xarray.DataArray
 ```
 
@@ -126,23 +141,31 @@ def spei(
 | Parameter | Type | Required | Default | Description |
 | ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data (mm/month) |
-| `pet` | xarray.DataArray | Yes | - | Potential evapotranspiration (mm/month) |
-| `scale` | int | Yes | - | Time scale in months |
+| `pet` | xarray.DataArray | No | None | Potential evapotranspiration (mm/month) |
+| `temperature` | xarray.DataArray | No | None | Temperature for PET calculation (if pet not provided) |
+| `latitude` | xarray.DataArray | No | None | Latitude for PET calculation |
+| `scale` | int | No | 12 | Time scale in months |
+| `distribution` | str | No | 'gamma' | Distribution type: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic'. Pearson III recommended for SPEI. |
 | All others | - | - | - | Same as `spi()` |
 
 **Returns:**
 
 - `xarray.DataArray`: SPEI values
-  - Variable name: `spei_gamma_{scale}_month`
+  - Variable name: `spei_{distribution}_{scale}_month` (e.g., `spei_pearson3_12_month`)
 
 **Example:**
 
 ```python
 from indices import spei
-from utils import calculate_pet
 
-pet = calculate_pet(temp, method='thornthwaite')
+# Default (Gamma)
 spei_12 = spei(precip, pet=pet, scale=12)
+
+# Pearson III (recommended for SPEI)
+spei_12 = spei(precip, pet=pet, scale=12, distribution='pearson3')
+
+# Auto-compute PET from temperature
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
 ```
 
 ---
@@ -154,13 +177,14 @@ Calculate SPEI for multiple time scales.
 ```python
 def spei_multi_scale(
     precip,
-    pet,
-    scales,
+    pet=None,
+    scales=[1, 3, 6, 12],
+    distribution='gamma',
     **kwargs
 ) -> xarray.Dataset
 ```
 
-**Parameters:** Same pattern as `spi_multi_scale()` but requires `pet`
+**Parameters:** Same pattern as `spi_multi_scale()` but requires `pet`. Pearson III or Log-Logistic recommended for SPEI.
 
 ---
 
@@ -174,12 +198,12 @@ def spi_global(
     output_path,
     scale=12,
     periodicity='monthly',
-    calibration_start_year=None,
-    calibration_end_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
     chunk_size=500,
     var_name=None,
     save_params=True,
-    params_path=None
+    distribution='gamma'
 ) -> xarray.Dataset
 ```
 
@@ -191,12 +215,12 @@ def spi_global(
 | `output_path` | str | Yes | - | Path for output SPI NetCDF file |
 | `scale` | int | No | 12 | Accumulation scale in months |
 | `periodicity` | str | No | 'monthly' | Temporal resolution |
-| `calibration_start_year` | int | No | None | Calibration period start |
-| `calibration_end_year` | int | No | None | Calibration period end |
+| `calibration_start_year` | int | No | 1991 | Calibration period start |
+| `calibration_end_year` | int | No | 2020 | Calibration period end |
 | `chunk_size` | int | No | 500 | Spatial chunk size (lat and lon) |
 | `var_name` | str | No | None | Precipitation variable name (auto-detected) |
 | `save_params` | bool | No | True | Save fitting parameters |
-| `params_path` | str | No | None | Custom path for parameters file |
+| `distribution` | str | No | 'gamma' | Distribution type: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic' |
 
 **Returns:**
 
@@ -230,13 +254,13 @@ def spei_global(
     output_path,
     scale=12,
     periodicity='monthly',
-    calibration_start_year=None,
-    calibration_end_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
     chunk_size=500,
     precip_var_name=None,
     pet_var_name=None,
     save_params=True,
-    params_path=None
+    distribution='gamma'
 ) -> xarray.Dataset
 ```
 
@@ -249,6 +273,7 @@ def spei_global(
 | `output_path` | str | Yes | - | Path for output SPEI NetCDF file |
 | `scale` | int | No | 12 | Accumulation scale |
 | `chunk_size` | int | No | 500 | Spatial chunk size |
+| `distribution` | str | No | 'gamma' | Distribution type. Pearson III or Log-Logistic recommended for SPEI. |
 | All others | - | - | - | Same as `spi_global()` |
 
 **Returns:**
@@ -352,14 +377,15 @@ def compute_spi_chunked(
     output_path,
     scale,
     periodicity='monthly',
-    calibration_start_year=None,
-    calibration_end_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
     var_name=None,
     save_params=True,
     params_path=None,
     compress=True,
     complevel=4,
-    callback=None
+    callback=None,
+    distribution='gamma'
 ) -> xarray.Dataset
 ```
 
@@ -373,15 +399,16 @@ def compute_spei_chunked(
     output_path,
     scale,
     periodicity='monthly',
-    calibration_start_year=None,
-    calibration_end_year=None,
+    calibration_start_year=1991,
+    calibration_end_year=2020,
     precip_var_name=None,
     pet_var_name=None,
     save_params=True,
     params_path=None,
     compress=True,
     complevel=4,
-    callback=None
+    callback=None,
+    distribution='gamma'
 ) -> xarray.Dataset
 ```
 
@@ -1167,6 +1194,7 @@ plt.savefig('output/plots/spatial/comparison.png', dpi=300)
 
 ## See Also
 
+- [Probability Distributions](distributions.qmd) - Distribution selection guide and mathematical details
 - [Implementation Details](implementation.qmd) - Architecture and optimization
 - [Methodology](methodology.qmd) - Scientific background
 - [User Guides](../user-guide/) - Detailed usage instructions

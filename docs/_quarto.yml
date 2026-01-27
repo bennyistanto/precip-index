@@ -90,6 +90,7 @@ website:
         - technical/index.qmd
         - text: "---"
         - technical/methodology.qmd
+        - technical/distributions.qmd
         - technical/implementation.qmd
         - technical/api-reference.qmd
 

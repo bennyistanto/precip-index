@@ -1,0 +1,360 @@
+---
+title: "Probability Distributions"
+---
+
+## Overview
+
+The `precip-index` package supports five probability distributions for SPI and SPEI calculation. Each distribution offers different characteristics suited to various data types and use cases.
+
+All distributions are implemented in the `distributions` module with a unified API, and can be selected via the `distribution` parameter in any SPI/SPEI function.
+
+| Distribution | String Key | Recommended For | Parameters |
+|---|---|---|---|
+| Gamma | `'gamma'` | SPI (default) | alpha, beta, prob_zero |
+| Pearson Type III | `'pearson3'` | SPEI | skew, loc, scale, prob_zero |
+| Log-Logistic | `'log_logistic'` | SPEI (alternative) | alpha, beta, prob_zero |
+| GEV | `'gev'` | Extreme value analysis | shape, loc, scale, prob_zero |
+| Generalized Logistic | `'gen_logistic'` | European drought indices | shape, loc, scale, prob_zero |
+
+---
+
+## Distribution Selection
+
+### When to Use Each Distribution
+
+**Gamma (default for SPI)**
+
+- Standard choice for precipitation data (McKee et al. 1993)
+- Two-parameter distribution: simple, well-understood
+- Efficient Numba-optimized fast path in this package
+- Best for precipitation-only analysis (SPI)
+
+**Pearson Type III (recommended for SPEI)**
+
+- Three-parameter distribution that handles skewed data
+- Recommended by Vicente-Serrano et al. (2010) for water balance data
+- Better fit for P-PET distributions which can be negative
+- Includes skewness parameter for asymmetric tails
+
+**Log-Logistic (alternative for SPEI)**
+
+- Used in the original SPEI R package by Begueria & Vicente-Serrano
+- Good tail behavior for extreme events
+- Two-parameter (alpha, beta) with closed-form L-moments estimators
+- Computationally efficient
+
+**GEV (Generalized Extreme Value)**
+
+- Designed for modeling extreme values (block maxima)
+- Three-parameter (shape, location, scale)
+- Appropriate for analyzing extreme drought or flood events
+- Shape parameter controls tail behavior (Gumbel, Frechet, Weibull subtypes)
+
+**Generalized Logistic**
+
+- Used in some European drought monitoring systems
+- Three-parameter with flexible tail behavior
+- Good for regions with moderate climate variability
+
+### Quick Recommendation
+
+```python
+from indices import spi, spei
+
+# SPI: use Gamma (default)
+spi_12 = spi(precip, scale=12)
+
+# SPEI: use Pearson III
+spei_12 = spei(precip, pet=pet, scale=12, distribution='pearson3')
+
+# Extreme analysis: use GEV
+spi_extreme = spi(precip, scale=1, distribution='gev')
+```
+
+---
+
+## Mathematical Background
+
+### Gamma Distribution
+
+**PDF:**
+
+$$
+f(x) = \frac{1}{\beta^\alpha \Gamma(\alpha)} x^{\alpha-1} e^{-x/\beta}, \quad x > 0
+$$
+
+**Parameters:**
+
+- $\alpha$ (shape) > 0: controls the shape of the distribution
+- $\beta$ (scale) > 0: controls the spread
+
+**Estimation:** Method of Moments using the Thom (1958) approximation:
+
+$$
+A = \ln(\bar{x}) - \frac{\sum \ln(x_i)}{n}, \quad
+\alpha = \frac{1 + \sqrt{1 + 4A/3}}{4A}, \quad
+\beta = \frac{\bar{x}}{\alpha}
+$$
+
+### Pearson Type III Distribution
+
+**PDF:**
+
+$$
+f(x) = \frac{|b|}{\Gamma(a)} \left|b(x - c)\right|^{a-1} e^{-b(x-c)}
+$$
+
+**Parameters:**
+
+- skew: skewness coefficient
+- loc: location (mean)
+- scale: standard deviation
+
+**Estimation:** L-moments method for improved robustness with small samples.
+
+### Log-Logistic Distribution
+
+**CDF:**
+
+$$
+F(x) = \frac{1}{1 + (\alpha/x)^\beta}, \quad x > 0
+$$
+
+**Parameters:**
+
+- $\alpha$ (scale) > 0
+- $\beta$ (shape) > 0
+
+**Estimation:** L-moments with closed-form solutions:
+
+$$
+\beta = \frac{2\lambda_2 - \lambda_1}{\lambda_1 - 2\lambda_2} \cdot \frac{\Gamma(1+1/\beta)\Gamma(1-1/\beta)}{\lambda_1}
+$$
+
+### Generalized Extreme Value (GEV)
+
+**CDF:**
+
+$$
+F(x) = \exp\left\{-\left[1 + \xi\left(\frac{x-\mu}{\sigma}\right)\right]^{-1/\xi}\right\}
+$$
+
+**Parameters:**
+
+- $\xi$ (shape): controls tail behavior
+- $\mu$ (location): center of the distribution
+- $\sigma$ (scale) > 0: spread
+
+**Special cases:**
+
+- $\xi = 0$: Gumbel (Type I)
+- $\xi > 0$: Frechet (Type II, heavy tail)
+- $\xi < 0$: Weibull (Type III, bounded upper tail)
+
+### Generalized Logistic
+
+**CDF:**
+
+$$
+F(x) = \frac{1}{1 + \left[1 - k\left(\frac{x-\mu}{\sigma}\right)\right]^{1/k}}
+$$
+
+**Parameters:** shape ($k$), location ($\mu$), scale ($\sigma$)
+
+---
+
+## Zero-Inflation Handling
+
+Precipitation data often contains zero values, requiring a mixed distribution approach. All distributions in this package handle zero-inflation using:
+
+$$
+H(x) = q + (1-q) \cdot F(x)
+$$
+
+Where:
+
+- $q$ = probability of zero (proportion of zeros in calibration data)
+- $F(x)$ = CDF of the continuous distribution fitted to non-zero values
+- $H(x)$ = mixed CDF used for standardization
+
+This ensures that:
+
+1. Zero values receive appropriate probability mass
+2. The continuous distribution is fitted only to positive values
+3. The final SPI/SPEI transformation correctly accounts for both components
+
+---
+
+## Fitting Methods
+
+The package supports three parameter estimation methods:
+
+### Method of Moments
+
+- **Speed:** Fast
+- **Used for:** Gamma distribution (default fast path)
+- **Approach:** Match sample moments (mean, variance) to distribution parameters
+- **Limitation:** Can be sensitive to outliers
+
+### L-Moments
+
+- **Speed:** Moderate
+- **Used for:** Pearson III, Log-Logistic, GEV, Generalized Logistic
+- **Approach:** Use linear combinations of order statistics
+- **Advantage:** More robust than conventional moments, especially for small samples and skewed data
+- **Reference:** Hosking (1990)
+
+### Maximum Likelihood Estimation (MLE)
+
+- **Speed:** Slower (iterative optimization)
+- **Used for:** Available as fallback
+- **Approach:** Maximize the log-likelihood function
+- **Advantage:** Asymptotically efficient (optimal for large samples)
+
+---
+
+## Robustness Features
+
+The distribution fitting includes several safeguards:
+
+### Fallback Chains
+
+If the primary fitting method fails, the system automatically tries alternatives:
+
+1. **L-moments** (primary for non-Gamma)
+2. **Method of Moments** (fallback)
+3. **MLE** (secondary fallback)
+
+### Parameter Bounding
+
+All fitted parameters are bounded to prevent numerical overflow:
+
+- Shape parameters: capped at 1000
+- Scale parameters: bounded between $10^{-10}$ and $10^{10}$
+- Probabilities: clamped to $(10^{-10}, 1 - 10^{-10})$ before normal quantile transform
+
+### Data Diagnostics
+
+Before fitting, the module checks:
+
+- Minimum sample size (30 valid values required)
+- Minimum non-zero values (10 required for reliable fitting)
+- Maximum zero proportion (95% threshold)
+- Minimum variance (prevents degenerate fits)
+
+---
+
+## Usage Examples
+
+### Basic Distribution Selection
+
+```python
+from indices import spi, spei
+
+# SPI with default Gamma distribution
+spi_gamma = spi(precip, scale=12)
+
+# SPI with Pearson III
+spi_p3 = spi(precip, scale=12, distribution='pearson3')
+
+# SPEI with Log-Logistic (as in original R SPEI package)
+spei_ll = spei(precip, pet=pet, scale=12, distribution='log_logistic')
+
+# SPEI with Pearson III (recommended)
+spei_p3 = spei(precip, pet=pet, scale=12, distribution='pearson3')
+```
+
+### Multi-Scale with Distribution
+
+```python
+from indices import spi_multi_scale, spei_multi_scale
+
+# Multi-scale SPI with GEV for extreme analysis
+spi_ds = spi_multi_scale(precip, scales=[1, 3, 6, 12], distribution='gev')
+
+# Multi-scale SPEI with Pearson III
+spei_ds = spei_multi_scale(precip, pet=pet, scales=[3, 6, 12],
+                           distribution='pearson3')
+```
+
+### Global-Scale Processing
+
+```python
+from indices import spi_global, spei_global
+
+# Global SPI with Pearson III
+result = spi_global(
+    'chirps_global_monthly.nc',
+    'spi_pearson3_12_global.nc',
+    scale=12,
+    distribution='pearson3'
+)
+
+# Global SPEI with Log-Logistic
+result = spei_global(
+    'chirps_global_monthly.nc',
+    'pet_global_monthly.nc',
+    'spei_loglogistic_12_global.nc',
+    scale=12,
+    distribution='log_logistic'
+)
+```
+
+### Save and Load Parameters
+
+```python
+from indices import spi, save_fitting_params, load_fitting_params
+
+# Fit with Pearson III and save parameters
+spi_12, params = spi(precip, scale=12, distribution='pearson3',
+                      return_params=True)
+
+save_fitting_params(
+    params, 'params_pearson3.nc',
+    scale=12, periodicity='monthly',
+    distribution='pearson3'
+)
+
+# Load and reuse parameters
+params = load_fitting_params('params_pearson3.nc', scale=12,
+                             periodicity='monthly')
+# Distribution auto-detected from file
+spi_12_new = spi(new_precip, scale=12, fitting_params=params,
+                  distribution='pearson3')
+```
+
+---
+
+## Output Variable Naming
+
+Output variables include the distribution name in the variable name:
+
+| Distribution | SPI Variable Name | SPEI Variable Name |
+|---|---|---|
+| Gamma | `spi_gamma_12_month` | `spei_gamma_12_month` |
+| Pearson III | `spi_pearson3_12_month` | `spei_pearson3_12_month` |
+| Log-Logistic | `spi_log_logistic_12_month` | `spei_log_logistic_12_month` |
+| GEV | `spi_gev_12_month` | `spei_gev_12_month` |
+| Gen. Logistic | `spi_gen_logistic_12_month` | `spei_gen_logistic_12_month` |
+
+---
+
+## Performance Notes
+
+- **Gamma distribution** uses a Numba-optimized fast path with vectorized NumPy/SciPy operations. This is significantly faster than other distributions for large datasets.
+- **Non-Gamma distributions** use the generic `distributions.py` module, which is scipy-based and processes cells individually. For global-scale datasets, expect longer computation times.
+- For large datasets, consider using the chunked processing pipeline (`spi_global()`, `spei_global()`) which manages memory automatically regardless of distribution choice.
+
+---
+
+## References
+
+1. McKee, T.B., Doesken, N.J., Kleist, J. (1993). The relationship of drought frequency and duration to time scales. *8th Conference on Applied Climatology*.
+
+2. Vicente-Serrano, S.M., Begueria, S., Lopez-Moreno, J.I. (2010). A Multiscalar Drought Index Sensitive to Global Warming: The Standardized Precipitation Evapotranspiration Index. *Journal of Climate*, 23(7), 1696-1718.
+
+3. Stagge, J.H., Tallaksen, L.M., Gudmundsson, L., Van Loon, A.F., Stahl, K. (2015). Candidate Distributions for Climatological Drought Indices (SPI and SPEI). *International Journal of Climatology*, 35(13), 4027-4040.
+
+4. Hosking, J.R.M. (1990). L-moments: Analysis and estimation of distributions using linear combinations of order statistics. *Journal of the Royal Statistical Society, Series B*, 52(1), 105-124.
+
+5. Thom, H.C.S. (1958). A note on the gamma distribution. *Monthly Weather Review*, 86(4), 117-122.

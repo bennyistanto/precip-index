@@ -18,7 +18,12 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 
-from config import Periodicity, get_logger
+from config import (
+    DEFAULT_DISTRIBUTION,
+    DISTRIBUTION_PARAM_NAMES,
+    Periodicity,
+    get_logger,
+)
 
 _logger = get_logger(__name__)
 
@@ -292,7 +297,8 @@ class ChunkedProcessor:
         params_path: Optional[str] = None,
         compress: bool = True,
         complevel: int = 4,
-        callback: Optional[Callable[[ChunkInfo, float], None]] = None
+        callback: Optional[Callable[[ChunkInfo, float], None]] = None,
+        distribution: str = DEFAULT_DISTRIBUTION
     ) -> xr.Dataset:
         """
         Compute SPI using chunked processing for large datasets.
@@ -309,11 +315,15 @@ class ChunkedProcessor:
         :param compress: Use compression for output
         :param complevel: Compression level (1-9)
         :param callback: Optional callback function(chunk_info, progress_pct)
+        :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+            'gev', 'gen_logistic'). Default: 'gamma'
         :return: Dataset with computed SPI
         """
         from compute import compute_index_parallel
         from indices import save_fitting_params
         from utils import get_data_year_range
+
+        dist = distribution.lower()
 
         # Convert periodicity
         if isinstance(periodicity, str):
@@ -368,7 +378,8 @@ class ChunkedProcessor:
             return self._compute_single_chunk(
                 precip_da, output_path, scale, periodicity,
                 data_start_year, calibration_start_year, calibration_end_year,
-                save_params, params_path, compress, complevel
+                save_params, params_path, compress, complevel,
+                distribution=dist
             )
 
         # Prepare output file
@@ -387,7 +398,7 @@ class ChunkedProcessor:
         # Initialize output arrays with fill value
         from config import NC_FILL_VALUE, get_variable_name, get_variable_attributes
 
-        var_name_out = get_variable_name('spi', scale, periodicity)
+        var_name_out = get_variable_name('spi', scale, periodicity, distribution=dist)
 
         # Create empty dataset
         out_ds = xr.Dataset(
@@ -396,13 +407,14 @@ class ChunkedProcessor:
                     data=np.full((n_time, n_lat, n_lon), np.nan, dtype=np.float32),
                     dims=['time', 'lat', 'lon'],
                     coords=coords,
-                    attrs=get_variable_attributes('spi', scale, periodicity)
+                    attrs=get_variable_attributes('spi', scale, periodicity, distribution=dist)
                 )
             },
             attrs={
                 'title': f'Standardized Precipitation Index (SPI-{scale})',
                 'institution': 'GOST/DEC Data Group, The World Bank',
                 'source': 'precip-index package (chunked processing)',
+                'distribution': dist,
                 'calibration_start_year': calibration_start_year,
                 'calibration_end_year': calibration_end_year,
             }
@@ -423,18 +435,19 @@ class ChunkedProcessor:
         out_ds.to_netcdf(output_path, mode='w', encoding=encoding)
         out_ds.close()
 
-        # Initialize parameter arrays if saving
+        # Initialize parameter arrays if saving (distribution-aware)
+        param_names = DISTRIBUTION_PARAM_NAMES.get(dist, ('alpha', 'beta', 'prob_zero'))
         if save_params:
             periods = periodicity.value
-            all_alphas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_betas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_probs_zero = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
+            all_params_arrays = {}
+            for pname in param_names:
+                all_params_arrays[pname] = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
 
         # Process chunks
         chunks = list(iter_chunks(n_lat, n_lon, chunk_lat, chunk_lon))
         total_chunks = len(chunks)
 
-        self._log(f"Processing {total_chunks} chunks with size ({chunk_lat}, {chunk_lon})")
+        self._log(f"Processing {total_chunks} chunks with size ({chunk_lat}, {chunk_lon}), distribution={dist}")
 
         for chunk_info in chunks:
             progress_pct = (chunk_info.chunk_idx + 1) / total_chunks * 100
@@ -457,7 +470,8 @@ class ChunkedProcessor:
                     data_start_year=data_start_year,
                     calibration_start_year=calibration_start_year,
                     calibration_end_year=calibration_end_year,
-                    periodicity=periodicity
+                    periodicity=periodicity,
+                    distribution=dist
                 )
 
                 # Write result chunk to output file
@@ -469,14 +483,15 @@ class ChunkedProcessor:
                     ] = result_chunk.astype(np.float32)
                     out_ds.to_netcdf(output_path, mode='a')
 
-                # Store parameters
+                # Store parameters (generic for any distribution)
                 if save_params:
-                    all_alphas[:, chunk_info.lat_start:chunk_info.lat_end,
-                              chunk_info.lon_start:chunk_info.lon_end] = params['alpha']
-                    all_betas[:, chunk_info.lat_start:chunk_info.lat_end,
-                             chunk_info.lon_start:chunk_info.lon_end] = params['beta']
-                    all_probs_zero[:, chunk_info.lat_start:chunk_info.lat_end,
-                                   chunk_info.lon_start:chunk_info.lon_end] = params['prob_zero']
+                    for pname in param_names:
+                        if pname in params and isinstance(params[pname], np.ndarray):
+                            all_params_arrays[pname][
+                                :,
+                                chunk_info.lat_start:chunk_info.lat_end,
+                                chunk_info.lon_start:chunk_info.lon_end
+                            ] = params[pname]
 
             except Exception as e:
                 _logger.error(f"Error processing {chunk_info}: {e}")
@@ -497,18 +512,15 @@ class ChunkedProcessor:
 
             self._log(f"Saving fitting parameters to: {params_path}")
             save_fitting_params(
-                {
-                    'alpha': all_alphas,
-                    'beta': all_betas,
-                    'prob_zero': all_probs_zero
-                },
+                all_params_arrays,
                 params_path,
                 scale=scale,
                 periodicity=periodicity,
                 index_type='spi',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=dist
             )
 
         self._log(f"Chunked SPI computation complete: {output_path}")
@@ -528,7 +540,8 @@ class ChunkedProcessor:
         save_params: bool,
         params_path: Optional[str],
         compress: bool,
-        complevel: int
+        complevel: int,
+        distribution: str = DEFAULT_DISTRIBUTION
     ) -> xr.Dataset:
         """Process data that fits in memory as a single chunk."""
         from indices import spi, save_fitting_params, save_index_to_netcdf
@@ -539,7 +552,8 @@ class ChunkedProcessor:
             periodicity=periodicity,
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
-            return_params=True
+            return_params=True,
+            distribution=distribution
         )
 
         # Save result
@@ -558,7 +572,8 @@ class ChunkedProcessor:
                 index_type='spi',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=distribution
             )
 
         return xr.open_dataset(output_path)
@@ -578,7 +593,8 @@ class ChunkedProcessor:
         params_path: Optional[str] = None,
         compress: bool = True,
         complevel: int = 4,
-        callback: Optional[Callable[[ChunkInfo, float], None]] = None
+        callback: Optional[Callable[[ChunkInfo, float], None]] = None,
+        distribution: str = DEFAULT_DISTRIBUTION
     ) -> xr.Dataset:
         """
         Compute SPEI using chunked processing for large datasets.
@@ -597,11 +613,16 @@ class ChunkedProcessor:
         :param compress: Use compression for output
         :param complevel: Compression level
         :param callback: Optional callback for progress
+        :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+            'gev', 'gen_logistic'). Default: 'gamma'.
+            Note: Pearson III or Log-Logistic are recommended for SPEI.
         :return: Dataset with computed SPEI
         """
         from compute import compute_index_parallel
         from indices import save_fitting_params
         from utils import get_data_year_range
+
+        dist = distribution.lower()
 
         if isinstance(periodicity, str):
             periodicity = Periodicity.from_string(periodicity)
@@ -659,7 +680,7 @@ class ChunkedProcessor:
 
         from config import NC_FILL_VALUE, get_variable_name, get_variable_attributes
 
-        var_name_out = get_variable_name('spei', scale, periodicity)
+        var_name_out = get_variable_name('spei', scale, periodicity, distribution=dist)
 
         # Create output dataset
         coords = {'time': precip_da.time, 'lat': precip_da.lat, 'lon': precip_da.lon}
@@ -670,13 +691,14 @@ class ChunkedProcessor:
                     data=np.full((n_time, n_lat, n_lon), np.nan, dtype=np.float32),
                     dims=['time', 'lat', 'lon'],
                     coords=coords,
-                    attrs=get_variable_attributes('spei', scale, periodicity)
+                    attrs=get_variable_attributes('spei', scale, periodicity, distribution=dist)
                 )
             },
             attrs={
                 'title': f'Standardized Precipitation Evapotranspiration Index (SPEI-{scale})',
                 'institution': 'GOST/DEC Data Group, The World Bank',
                 'source': 'precip-index package (chunked processing)',
+                'distribution': dist,
                 'calibration_start_year': calibration_start_year,
                 'calibration_end_year': calibration_end_year,
             }
@@ -698,18 +720,19 @@ class ChunkedProcessor:
         out_ds.to_netcdf(output_path, mode='w', encoding=encoding)
         out_ds.close()
 
-        # Initialize parameter arrays
+        # Initialize parameter arrays (distribution-aware)
+        param_names = DISTRIBUTION_PARAM_NAMES.get(dist, ('alpha', 'beta', 'prob_zero'))
         if save_params:
             periods = periodicity.value
-            all_alphas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_betas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_probs_zero = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
+            all_params_arrays = {}
+            for pname in param_names:
+                all_params_arrays[pname] = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
 
         # Process chunks
         chunks = list(iter_chunks(n_lat, n_lon, chunk_lat, chunk_lon))
         total_chunks = len(chunks)
 
-        self._log(f"Processing {total_chunks} chunks")
+        self._log(f"Processing {total_chunks} chunks, distribution={dist}")
 
         for chunk_info in chunks:
             progress_pct = (chunk_info.chunk_idx + 1) / total_chunks * 100
@@ -729,7 +752,8 @@ class ChunkedProcessor:
                     data_start_year=data_start_year,
                     calibration_start_year=calibration_start_year,
                     calibration_end_year=calibration_end_year,
-                    periodicity=periodicity
+                    periodicity=periodicity,
+                    distribution=dist
                 )
 
                 # Write result
@@ -741,13 +765,15 @@ class ChunkedProcessor:
                     ] = result_chunk.astype(np.float32)
                     out_ds.to_netcdf(output_path, mode='a')
 
+                # Store parameters (generic for any distribution)
                 if save_params:
-                    all_alphas[:, chunk_info.lat_start:chunk_info.lat_end,
-                              chunk_info.lon_start:chunk_info.lon_end] = params['alpha']
-                    all_betas[:, chunk_info.lat_start:chunk_info.lat_end,
-                             chunk_info.lon_start:chunk_info.lon_end] = params['beta']
-                    all_probs_zero[:, chunk_info.lat_start:chunk_info.lat_end,
-                                   chunk_info.lon_start:chunk_info.lon_end] = params['prob_zero']
+                    for pname in param_names:
+                        if pname in params and isinstance(params[pname], np.ndarray):
+                            all_params_arrays[pname][
+                                :,
+                                chunk_info.lat_start:chunk_info.lat_end,
+                                chunk_info.lon_start:chunk_info.lon_end
+                            ] = params[pname]
 
             except Exception as e:
                 _logger.error(f"Error processing {chunk_info}: {e}")
@@ -766,14 +792,15 @@ class ChunkedProcessor:
 
             self._log(f"Saving fitting parameters to: {params_path}")
             save_fitting_params(
-                {'alpha': all_alphas, 'beta': all_betas, 'prob_zero': all_probs_zero},
+                all_params_arrays,
                 params_path,
                 scale=scale,
                 periodicity=periodicity,
                 index_type='spei',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=dist
             )
 
         self._log(f"Chunked SPEI computation complete: {output_path}")
@@ -799,7 +826,8 @@ def compute_spi_global(
     calibration_end_year: int = 2020,
     chunk_size: int = 500,
     n_workers: int = None,
-    var_name: Optional[str] = None
+    var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> xr.Dataset:
     """
     Compute SPI for global dataset with automatic memory management.
@@ -814,6 +842,8 @@ def compute_spi_global(
     :param chunk_size: Spatial chunk size (default: 500)
     :param n_workers: Number of parallel workers
     :param var_name: Precipitation variable name
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: Dataset with computed SPI
 
     Example:
@@ -835,7 +865,8 @@ def compute_spi_global(
         scale=scale,
         calibration_start_year=calibration_start_year,
         calibration_end_year=calibration_end_year,
-        var_name=var_name
+        var_name=var_name,
+        distribution=distribution
     )
 
 
@@ -849,7 +880,8 @@ def compute_spei_global(
     chunk_size: int = 500,
     n_workers: int = None,
     precip_var_name: Optional[str] = None,
-    pet_var_name: Optional[str] = None
+    pet_var_name: Optional[str] = None,
+    distribution: str = DEFAULT_DISTRIBUTION
 ) -> xr.Dataset:
     """
     Compute SPEI for global dataset with automatic memory management.
@@ -864,6 +896,8 @@ def compute_spei_global(
     :param n_workers: Number of parallel workers
     :param precip_var_name: Precipitation variable name
     :param pet_var_name: PET variable name
+    :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
+        'gev', 'gen_logistic'). Default: 'gamma'
     :return: Dataset with computed SPEI
     """
     processor = ChunkedProcessor(
@@ -880,5 +914,6 @@ def compute_spei_global(
         calibration_start_year=calibration_start_year,
         calibration_end_year=calibration_end_year,
         precip_var_name=precip_var_name,
-        pet_var_name=pet_var_name
+        pet_var_name=pet_var_name,
+        distribution=distribution
     )
