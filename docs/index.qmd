@@ -145,7 +145,7 @@ Benchmarked on **CHIRPS v3 global** (0.05° resolution):
 
 - **Dataset:** 2400 × 7200 grid (17.3M cells), 539 months, ~69 GB
 - **Processing:** 12 spatial chunks, SPI-12 with Gamma distribution
-- **Total time:** ~2 hours 47 minutes on a workstation with 343 GB RAM
+- **Total time:** ~2 hours 47 minutes on a workstation with 128 GB RAM
 
 Regional subsets (country-level) complete in seconds to minutes.
 :::
