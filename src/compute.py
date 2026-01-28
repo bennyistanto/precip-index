@@ -476,13 +476,22 @@ def compute_index_parallel(
     """
     n_time, n_lat, n_lon = data.shape
     periods_per_year = periodicity.value
-    n_years = n_time // periods_per_year
+    remainder = n_time % periods_per_year
+    n_years = n_time // periods_per_year + (1 if remainder else 0)
+    n_time_original = n_time  # remember original length before padding
     dist = distribution.lower()
 
     _logger.info(
         f"Computing index: shape={data.shape}, scale={scale}, "
         f"distribution={dist}, grid_cells={n_lat * n_lon:,}"
     )
+
+    if remainder:
+        _logger.info(
+            f"Data has {n_time} timesteps (not divisible by {periods_per_year}). "
+            f"Padding {periods_per_year - remainder} NaN timesteps to complete "
+            f"final year ({n_years} years total)."
+        )
 
     # Memory-efficient: work with float32 internally, convert at end
     dtype = np.float32 if memory_efficient else np.float64
@@ -502,6 +511,14 @@ def compute_index_parallel(
     else:
         # Memory-efficient rolling sum
         scaled_data = _rolling_sum_3d(data, scale, dtype)
+
+    # Pad to complete years if needed (after scaling, so rolling sum uses real data)
+    if remainder:
+        pad_count = periods_per_year - remainder
+        pad_shape = (pad_count, n_lat, n_lon)
+        pad_array = np.full(pad_shape, np.nan, dtype=dtype)
+        scaled_data = np.concatenate([scaled_data, pad_array], axis=0)
+        del pad_array
 
     # Calculate calibration indices (needed by both paths)
     data_end_year = data_start_year + n_years - 1
@@ -566,6 +583,10 @@ def compute_index_parallel(
                 for k, v in params_dict.items()
             }
         params_dict['distribution'] = dist
+
+    # Trim result back to original time length if we padded
+    if remainder:
+        result = result[:n_time_original]
 
     # Clip to valid range
     np.clip(result, FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX, out=result)

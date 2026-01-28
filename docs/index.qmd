@@ -140,6 +140,20 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 Built for datasets of any size. Small regional grids run in-memory; global datasets (CHIRPS, ERA5, TerraClimate) use the chunked processing module with automatic spatial tiling and streaming I/O.
 :::
 
+::: {.callout-tip}
+## Global-Scale Performance
+
+Benchmarked on **CHIRPS v3 global** (0.05° resolution):
+
+**Dataset:** 2400 x 7200 grid (17.3M cells), 539 months, ~69 GB input\
+**Index:** SPI-12, Gamma distribution\
+**Processing:** 12 spatial chunks (1200 x 1200 each)\
+**Total time:** ~2 hours 47 minutes (including parameter saving)\
+**System:** Workstation with 343 GB RAM
+
+Regional subsets (e.g., country-level) complete in seconds to minutes.
+:::
+
 ## Example Applications
 
 - **Operational Drought Monitoring** - Track ongoing droughts with real-time updates
