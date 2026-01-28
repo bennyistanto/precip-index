@@ -99,6 +99,7 @@ precip-index/
 ├── src/                    # Source code
 │   ├── indices.py         # SPI/SPEI calculations
 │   ├── compute.py         # Core computation algorithms
+│   ├── distributions.py   # Multi-distribution fitting (Gamma, Pearson III, etc.)
 │   ├── chunked.py         # Memory-efficient global processing
 │   ├── config.py          # Configuration and constants
 │   ├── runtheory.py       # Event analysis

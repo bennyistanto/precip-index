@@ -110,18 +110,18 @@ precip-index/
 
 ### 5. runtheory.py
 
-**Purpose:** Drought event analysis using run theory (Yevjevich 1967)
+**Purpose:** Climate extreme event analysis using run theory (Yevjevich 1967)
 
 **Key Functions:**
 
 **Event-Based:**
 
-- `identify_drought_events()` - Extract complete events
-- `summarize_drought_events()` - Event statistics
+- `identify_events()` - Extract complete events (dry and wet)
+- `summarize_events()` - Event statistics
 
 **Time-Series:**
 
-- `calculate_drought_timeseries()` - Month-by-month tracking
+- `calculate_timeseries()` - Month-by-month tracking
 - Real-time monitoring capability
 
 **Gridded Statistics:**

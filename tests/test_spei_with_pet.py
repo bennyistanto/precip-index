@@ -416,7 +416,7 @@ try:
     time_str = str(np.datetime_as_string(spei6_pet_results['gamma'].time[time_idx].values, unit='M'))
 
     n_dist = len(TEST_DISTRIBUTIONS)
-    fig, axes = plt.subplots(1, n_dist, figsize=(6 * n_dist, 5))
+    fig, axes = plt.subplots(1, n_dist, figsize=(6 * n_dist, 6))
     if n_dist == 1:
         axes = [axes]
 
@@ -428,11 +428,11 @@ try:
         ax.set_xlabel('Longitude')
         ax.set_ylabel('Latitude')
 
-    fig.colorbar(im, ax=axes, label='SPEI-6', shrink=0.8, pad=0.02,
-                 orientation='vertical', aspect=30)
     fig.suptitle(f'SPEI-6 Spatial Distribution Comparison - {time_str}',
                  fontsize=14, fontweight='bold')
-    plt.tight_layout(rect=[0, 0, 0.95, 0.95])
+    fig.subplots_adjust(bottom=0.18, wspace=0.3)
+    cbar_ax = fig.add_axes([0.15, 0.06, 0.7, 0.03])
+    fig.colorbar(im, cax=cbar_ax, label='SPEI-6', orientation='horizontal')
 
     out_path = os.path.join(OUTPUT_DIR, 'spei6_spatial_distribution_comparison.png')
     plt.savefig(out_path, dpi=150, bbox_inches='tight')

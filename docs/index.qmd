@@ -85,7 +85,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 
 ## Quick Example
 
-Calculate SPI with multiple distributions and identify drought events:
+Calculate SPI with multiple distributions and identify climate extreme events:
 
 ```python
 import xarray as xr
@@ -241,19 +241,19 @@ Learn through interactive tutorials with real TerraClimate data.
 
 **Author:** Benny Istanto</br>
 **Organization:** GOST/DEC Data Group, The World Bank</br>
-**Email:** bistanto@worldbank.org</br>
+**Email:** [bistanto@worldbank.org](mailto:bistanto@worldbank.org)</br>
 
 ## Citation
 
 If you use this package in your research, please cite:
 
 ```bibtex
-@software{precip_index_2025,
+@software{precip_index_2026,
   author = {Istanto, Benny},
   title = {Precipitation Index: SPI \& SPEI for Climate Extremes Monitoring},
-  year = {2025},
+  year = {2026},
   url = {https://github.com/bennyistanto/precip-index},
-  version = {0.1.0}
+  version = {2026.1}
 }
 ```
 

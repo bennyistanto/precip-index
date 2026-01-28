@@ -29,6 +29,9 @@ Added support for multiple probability distributions across the entire SPI/SPEI 
 
 - Distribution-aware variable naming: `spi_{distribution}_{scale}_{periodicity}`
 - `DISTRIBUTION_PARAM_NAMES` mapping for all five distribution types
+
+**Updated: `utils.py`**
+
 - Updated `get_variable_name()`, `get_variable_attributes()`, `get_fitting_param_name()`, `get_fitting_param_attributes()` with `distribution` parameter
 
 **Updated: `compute.py`**
