@@ -234,8 +234,7 @@ Learn through interactive examples with real data.
 ## Credits
 
 ::: {.credits-section}
-**Benny Istanto**
-GOST/DEC Data Group, The World Bank
+**Benny Istanto**, GOST/DEC Data Group, The World Bank
 
 Developed to support operational hydrometeorological monitoring — enabling the World Bank to regularly assess extreme dry and wet periods across regions.
 
