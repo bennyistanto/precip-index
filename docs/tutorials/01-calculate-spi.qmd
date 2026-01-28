@@ -126,7 +126,7 @@ print(f"  Zero values: {int((precip == 0).sum())} ({100 * float((precip == 0).su
 ```
 
 ::: {.callout-note}
-## Data Format
+### Data Format
 
 The precipitation data is in NetCDF format with dimensions `(time, lat, lon)`. TerraClimate provides monthly precipitation in mm/month at ~4km resolution.
 :::
@@ -184,7 +184,7 @@ print(f"  NaN values: {int(np.isnan(spi_12).sum())} ({100 * float(np.isnan(spi_1
 ```
 
 ::: {.callout-tip}
-## Calibration Period
+### Calibration Period
 
 We use 1991-2020 as the calibration period (30 years) following WMO recommendations. This period is used to fit the probability distribution. NaN values come from two sources: (1) the first 11 months where SPI-12 cannot be calculated, and (2) ocean grid cells with no data.
 :::
@@ -289,7 +289,7 @@ print("  Results are identical!" if max_diff < 1e-6 else "  Warning: Results dif
 ```
 
 ::: {.callout-tip}
-## Performance Benefits
+### Performance Benefits
 
 Using saved parameters is **5-10x faster** than refitting, ideal for operational monitoring where you update with new data regularly.
 :::
@@ -364,7 +364,7 @@ print("  - Extreme events persist longer at longer time scales")
 ```
 
 ::: {.callout-important}
-## Time Scale Interpretation
+### Time Scale Interpretation
 
 - **SPI-1:** Month-to-month meteorological anomalies
 - **SPI-3:** Seasonal agricultural drought

@@ -379,7 +379,7 @@ class ChunkedProcessor:
             return self._compute_single_chunk(
                 precip_da, output_path, scale, periodicity,
                 data_start_year, calibration_start_year, calibration_end_year,
-                save_params, params_path, compress, complevel
+                save_params, params_path, compress, complevel, dist
             )
 
         # Prepare output file
@@ -439,9 +439,10 @@ class ChunkedProcessor:
         # Initialize parameter arrays if saving
         if save_params:
             periods = periodicity.value
-            all_alphas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_betas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_probs_zero = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
+            param_names = DISTRIBUTION_PARAM_NAMES.get(dist, ("alpha", "beta", "prob_zero"))
+            all_params = {}
+            for pname in param_names:
+                all_params[pname] = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
 
         # Process chunks
         chunks = list(iter_chunks(n_lat, n_lon, chunk_lat, chunk_lon))
@@ -470,7 +471,8 @@ class ChunkedProcessor:
                     data_start_year=data_start_year,
                     calibration_start_year=calibration_start_year,
                     calibration_end_year=calibration_end_year,
-                    periodicity=periodicity
+                    periodicity=periodicity,
+                    distribution=dist
                 )
 
                 # Write result chunk to output file
@@ -484,12 +486,10 @@ class ChunkedProcessor:
 
                 # Store parameters
                 if save_params:
-                    all_alphas[:, chunk_info.lat_start:chunk_info.lat_end,
-                              chunk_info.lon_start:chunk_info.lon_end] = params['alpha']
-                    all_betas[:, chunk_info.lat_start:chunk_info.lat_end,
-                             chunk_info.lon_start:chunk_info.lon_end] = params['beta']
-                    all_probs_zero[:, chunk_info.lat_start:chunk_info.lat_end,
-                                   chunk_info.lon_start:chunk_info.lon_end] = params['prob_zero']
+                    for pname in param_names:
+                        if pname in params:
+                            all_params[pname][:, chunk_info.lat_start:chunk_info.lat_end,
+                                              chunk_info.lon_start:chunk_info.lon_end] = params[pname]
 
             except Exception as e:
                 _logger.error(f"Error processing {chunk_info}: {e}")
@@ -510,18 +510,15 @@ class ChunkedProcessor:
 
             self._log(f"Saving fitting parameters to: {params_path}")
             save_fitting_params(
-                {
-                    'alpha': all_alphas,
-                    'beta': all_betas,
-                    'prob_zero': all_probs_zero
-                },
+                all_params,
                 params_path,
                 scale=scale,
                 periodicity=periodicity,
                 index_type='spi',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=dist
             )
 
         self._log(f"Chunked SPI computation complete: {output_path}")
@@ -541,7 +538,8 @@ class ChunkedProcessor:
         save_params: bool,
         params_path: Optional[str],
         compress: bool,
-        complevel: int
+        complevel: int,
+        distribution: str = 'gamma'
     ) -> xr.Dataset:
         """Process data that fits in memory as a single chunk."""
         from indices import spi, save_fitting_params, save_index_to_netcdf
@@ -552,6 +550,7 @@ class ChunkedProcessor:
             periodicity=periodicity,
             calibration_start_year=calibration_start_year,
             calibration_end_year=calibration_end_year,
+            distribution=distribution,
             return_params=True
         )
 
@@ -571,7 +570,8 @@ class ChunkedProcessor:
                 index_type='spi',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=distribution
             )
 
         return xr.open_dataset(output_path)
@@ -720,9 +720,10 @@ class ChunkedProcessor:
         # Initialize parameter arrays
         if save_params:
             periods = periodicity.value
-            all_alphas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_betas = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
-            all_probs_zero = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
+            param_names = DISTRIBUTION_PARAM_NAMES.get(dist, ("alpha", "beta", "prob_zero"))
+            all_params = {}
+            for pname in param_names:
+                all_params[pname] = np.full((periods, n_lat, n_lon), np.nan, dtype=np.float32)
 
         # Process chunks
         chunks = list(iter_chunks(n_lat, n_lon, chunk_lat, chunk_lon))
@@ -748,7 +749,8 @@ class ChunkedProcessor:
                     data_start_year=data_start_year,
                     calibration_start_year=calibration_start_year,
                     calibration_end_year=calibration_end_year,
-                    periodicity=periodicity
+                    periodicity=periodicity,
+                    distribution=dist
                 )
 
                 # Write result
@@ -761,12 +763,10 @@ class ChunkedProcessor:
                     out_ds.to_netcdf(output_path, mode='a')
 
                 if save_params:
-                    all_alphas[:, chunk_info.lat_start:chunk_info.lat_end,
-                              chunk_info.lon_start:chunk_info.lon_end] = params['alpha']
-                    all_betas[:, chunk_info.lat_start:chunk_info.lat_end,
-                             chunk_info.lon_start:chunk_info.lon_end] = params['beta']
-                    all_probs_zero[:, chunk_info.lat_start:chunk_info.lat_end,
-                                   chunk_info.lon_start:chunk_info.lon_end] = params['prob_zero']
+                    for pname in param_names:
+                        if pname in params:
+                            all_params[pname][:, chunk_info.lat_start:chunk_info.lat_end,
+                                              chunk_info.lon_start:chunk_info.lon_end] = params[pname]
 
             except Exception as e:
                 _logger.error(f"Error processing {chunk_info}: {e}")
@@ -785,14 +785,15 @@ class ChunkedProcessor:
 
             self._log(f"Saving fitting parameters to: {params_path}")
             save_fitting_params(
-                {'alpha': all_alphas, 'beta': all_betas, 'prob_zero': all_probs_zero},
+                all_params,
                 params_path,
                 scale=scale,
                 periodicity=periodicity,
                 index_type='spei',
                 calibration_start_year=calibration_start_year,
                 calibration_end_year=calibration_end_year,
-                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values}
+                coords={'lat': precip_da.lat.values, 'lon': precip_da.lon.values},
+                distribution=dist
             )
 
         self._log(f"Chunked SPEI computation complete: {output_path}")

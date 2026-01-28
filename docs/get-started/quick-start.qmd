@@ -290,19 +290,22 @@ The same functions work for both drought (negative threshold) and wet events (po
 
 ### SPI/SPEI Classification
 
-| Value Range | Category | Probability | Interpretation |
-|-------------|----------|-------------|----------------|
-| ≤ -2.00 | Exceptionally Dry | Bottom 2.3% | Exceptional drought |
-| -2.00 to -1.50 | Extremely Dry | Bottom 6.7% | Severe drought |
-| -1.50 to -1.20 | Severely Dry | Bottom 9.7% | Severe drought |
-| -1.20 to -0.70 | Moderately Dry | Bottom 24.2% | Moderate drought |
-| -0.70 to -0.50 | Abnormally Dry | Bottom 30.9% | Below normal |
-| -0.50 to +0.50 | Near Normal | Middle 38.2% | Normal conditions |
-| +0.50 to +0.70 | Abnormally Moist | Top 30.9% | Above normal |
-| +0.70 to +1.20 | Moderately Moist | Top 24.2% | Moderately wet |
-| +1.20 to +1.50 | Very Moist | Top 9.7% | Very wet conditions |
-| +1.50 to +2.00 | Extremely Moist | Top 6.7% | Extremely wet conditions |
-| ≥ +2.00 | Exceptionally Moist | Top 2.3% | Extreme flooding risk |
+| Value Range | Category | Percentile band (approx.) | Interpretation |
+|-------------|----------|---------------------------|----------------|
+| ≤ -2.00 | Exceptionally Dry | 0–2.3% | Exceptional drought |
+| -2.00 to -1.50 | Extremely Dry | 2.3–6.7% | Severe drought |
+| -1.50 to -1.20 | Severely Dry | 6.7–11.5% | Severe drought |
+| -1.20 to -0.70 | Moderately Dry | 11.5–24.2% | Moderate drought |
+| -0.70 to -0.50 | Abnormally Dry | 24.2–30.9% | Below normal |
+| -0.50 to +0.50 | Near Normal | 30.9–69.1% | Normal conditions |
+| +0.50 to +0.70 | Abnormally Moist | 69.1–75.8% | Above normal |
+| +0.70 to +1.20 | Moderately Moist | 75.8–88.5% | Moderately wet |
+| +1.20 to +1.50 | Very Moist | 88.5–93.3% | Very wet conditions |
+| +1.50 to +2.00 | Extremely Moist | 93.3–97.7% | Extremely wet conditions |
+| ≥ +2.00 | Exceptionally Moist | 97.7–100% | Extreme flooding risk |
+
+> Percentile bands are approximate (standard normal) and provided for intuitive frequency interpretation.
+
 
 ### Time Scales
 

@@ -207,7 +207,7 @@ plt.show()
 Each annotation shows the duration (D) of the event in months, positioned at the event peak. Longer durations indicate more persistent drought conditions.
 
 ::: {.callout-tip}
-## Event Highlighting
+### Event Highlighting
 
 Events are highlighted with:
 
@@ -374,7 +374,7 @@ else:
 ```
 
 ::: {.callout-note}
-## Magnitude Types
+### Magnitude Types
 
 - **Cumulative**: Total deficit, monotonically increases during event --- like debt accumulation. Use for event comparison and total impact assessment.
 - **Instantaneous**: Current severity, varies within event --- like NDVI crop phenology. Use for monitoring evolution and trend detection.
@@ -614,7 +614,7 @@ print("Reset to default settings")
 ```
 
 ::: {.callout-tip}
-## Export Best Practices
+### Export Best Practices
 
 - **DPI**: 300 for publications, 150 for presentations, 72 for web
 - **Format**: PNG for raster, PDF/SVG for vector graphics

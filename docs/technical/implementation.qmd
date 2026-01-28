@@ -12,7 +12,7 @@ precip-index/
 │   ├── chunked.py           # Memory-efficient chunked processing
 │   ├── config.py            # Configuration and constants
 │   ├── utils.py             # PET, data validation, memory utilities
-│   ├── runtheory.py         # Drought event analysis
+│   ├── runtheory.py         # Event analysis (dry & wet)
 │   ├── visualization.py     # Plotting functions
 │   └── __init__.py          # Package exports
 ├── input/                   # User data (not in repo)
@@ -20,14 +20,14 @@ precip-index/
 │   ├── netcdf/
 │   ├── csv/
 │   └── plots/
-└── notebooks/               # Tutorials
+└── notebook/               # Tutorials
 ```
 
 ## Core Modules
 
 ### 1. indices.py
 
-**Purpose:** Calculate SPI and SPEI drought indices
+**Purpose:** Calculate SPI and SPEI indices
 
 **Key Functions:**
 

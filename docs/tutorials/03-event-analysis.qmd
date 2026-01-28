@@ -191,7 +191,7 @@ print(events_dry[['start_date', 'end_date', 'duration', 'magnitude', 'intensity'
 ```
 
 ::: {.callout-note}
-## Threshold Selection
+### Threshold Selection
 
 Common thresholds for SPI/SPEI event analysis:
 
@@ -312,7 +312,7 @@ plt.show()
 ```
 
 ::: {.callout-important}
-## Bidirectional Analysis
+### Bidirectional Analysis
 
 The same functions work for both extremes:
 

@@ -98,19 +98,22 @@ spi_12.to_netcdf('output/netcdf/spi_12.nc')
 
 **SPI Value Interpretation:**
 
-| SPI Value | Category | Probability |
-| ----------- | -------- | ----------- |
-| ≤ -2.00 | Exceptionally Dry | Bottom 2.3% |
-| -2.00 to -1.50 | Extremely Dry | Bottom 6.7% |
-| -1.50 to -1.20 | Severely Dry | Bottom 9.7% |
-| -1.20 to -0.70 | Moderately Dry | Bottom 24.2% |
-| -0.70 to -0.50 | Abnormally Dry | Bottom 30.9% |
-| -0.50 to +0.50 | Near Normal | Middle 38.2% |
-| +0.50 to +0.70 | Abnormally Moist | Top 30.9% |
-| +0.70 to +1.20 | Moderately Moist | Top 24.2% |
-| +1.20 to +1.50 | Very Moist | Top 9.7% |
-| +1.50 to +2.00 | Extremely Moist | Top 6.7% |
-| ≥ +2.00 | Exceptionally Moist | Top 2.3% |
+| SPI Value | Category | Percentile band (approx.) |
+|-----------|----------|---------------------------|
+| ≤ -2.00 | Exceptionally Dry | 0–2.3% |
+| -2.00 to -1.50 | Extremely Dry | 2.3–6.7% |
+| -1.50 to -1.20 | Severely Dry | 6.7–11.5% |
+| -1.20 to -0.70 | Moderately Dry | 11.5–24.2% |
+| -0.70 to -0.50 | Abnormally Dry | 24.2–30.9% |
+| -0.50 to +0.50 | Near Normal | 30.9–69.1% |
+| +0.50 to +0.70 | Abnormally Moist | 69.1–75.8% |
+| +0.70 to +1.20 | Moderately Moist | 75.8–88.5% |
+| +1.20 to +1.50 | Very Moist | 88.5–93.3% |
+| +1.50 to +2.00 | Extremely Moist | 93.3–97.7% |
+| ≥ +2.00 | Exceptionally Moist | 97.7–100% |
+
+> Percentile bands are approximate (standard normal) and provided for intuitive frequency interpretation.
+
 
 ## Examples
 

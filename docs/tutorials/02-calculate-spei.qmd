@@ -138,7 +138,7 @@ print(f"  Output directory: {output_netcdf}")
 ```
 
 ::: {.callout-note}
-## PET Calculation Methods
+### PET Calculation Methods
 
 The `spei()` function accepts either:
 
@@ -284,7 +284,7 @@ else:
 When using temperature, the trend line shows how temperatures have changed over the record. Warming trends increase PET, which affects the water balance and makes SPEI more negative relative to SPI.
 
 ::: {.callout-tip}
-## Distribution Selection for SPEI
+### Distribution Selection for SPEI
 
 By default, SPEI uses the **Gamma** distribution. For SPEI, the **Pearson III** or **Log-Logistic** distributions are also available and may better handle the water balance data (P - PET), which can be negative:
 
@@ -464,7 +464,7 @@ print(f"  Difference: {spei_drought - spi_drought} months ({100*(spei_drought - 
 ```
 
 ::: {.callout-important}
-## SPI vs SPEI: Key Differences
+### SPI vs SPEI: Key Differences
 
 **SPI (Precipitation only):**
 
@@ -571,7 +571,7 @@ print("  - Extreme events persist longer at longer time scales")
 ```
 
 ::: {.callout-note}
-## Time Scale Interpretation
+### Time Scale Interpretation
 
 - **SPEI-1:** Month-to-month meteorological anomalies
 - **SPEI-3:** Seasonal agricultural drought --- crop water stress

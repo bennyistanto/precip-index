@@ -239,9 +239,9 @@ Learn through interactive tutorials with real TerraClimate data.
 
 **Modified/adapted from:** [climate-indices](https://github.com/monocongo/climate_indices) by James Adams ([monocongo](https://github.com/monocongo/))
 
-**Author:** Benny Istanto
-**Organization:** GOST/DEC Data Group, The World Bank
-**Email:** bistanto@worldbank.org
+**Author:** Benny Istanto</br>
+**Organization:** GOST/DEC Data Group, The World Bank</br>
+**Email:** bistanto@worldbank.org</br>
 
 ## Citation
 
