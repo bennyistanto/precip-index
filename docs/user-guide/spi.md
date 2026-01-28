@@ -59,8 +59,8 @@ spi_12.to_netcdf('output/netcdf/spi_12.nc')
 
 - **`distribution`** (str): Statistical distribution
   - Default: 'gamma'
-  - Options: 'gamma', 'pearson'
-  - Recommendation: Use 'gamma' for precipitation
+  - Options: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic'
+  - Recommendation: Use 'gamma' for SPI (default)
 
 - **`data_start_year`** (int): Calibration start year
   - Default: 1991
@@ -295,7 +295,7 @@ plt.show()
 # Single location
 location_spi = spi_12.isel(lat=50, lon=100)
 location_spi.plot()
-plt.axhline(y=-1.2, color='red', linestyle='--', label='Drought threshold')
+plt.axhline(y=-1.2, color='red', linestyle='--', label='Dry event threshold')
 plt.title('SPI-12 Time Series')
 plt.legend()
 plt.show()
@@ -361,6 +361,7 @@ spi_12 = spi(precip_morocco, scale=12)
 
 ## See Also
 
-- [SPEI Guide](spei.md) - For temperature-influenced drought
-- [Drought Characteristics](runtheory.md) - Event analysis
+- [SPEI Guide](spei.md) - Temperature-influenced dry/wet index
+- [Run Theory](runtheory.md) - Dry/wet event analysis
+- [Magnitude Explained](magnitude.md) - Cumulative vs instantaneous severity
 - [Visualization Guide](visualization.md) - Plotting options

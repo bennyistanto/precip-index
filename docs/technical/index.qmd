@@ -57,6 +57,24 @@ Complete function documentation:
 - **visualization.py** - Plotting functions
 - **utils.py** - Utility functions
 
+### [Probability Distributions](distributions.qmd)
+
+Distribution selection and fitting:
+
+- **Supported Distributions** - Gamma, Pearson III, Log-Logistic, GEV, Generalized Logistic
+- **Selection Guide** - When to use each distribution
+- **Mathematical Background** - PDFs, CDFs, parameter estimation
+- **Zero-Inflation Handling** - Mixed distribution approach
+
+### [Validation & Test Results](validation.qmd)
+
+Quality assurance and verification:
+
+- **Distribution Comparison** - SPI/SPEI across distributions
+- **Spatial Validation** - Maps and difference analysis
+- **Event Analysis Tests** - Run theory verification
+- **Test Suite Results** - Comprehensive test coverage
+
 ## Quick Links
 
 ::: {.grid-container}
@@ -83,6 +101,22 @@ Complete function documentation with parameters.
 
 [View API](api-reference.qmd)
 :::
+
+::: {.feature-card}
+### 📊 Distributions
+
+Distribution selection and fitting methods.
+
+[View Distributions](distributions.qmd)
+:::
+
+::: {.feature-card}
+### ✅ Validation
+
+Test results and quality verification.
+
+[View Validation](validation.qmd)
+:::
 :::
 
 ## For Developers
@@ -91,15 +125,19 @@ If you're contributing to the package or want to understand the internals:
 
 1. **Start with [Methodology](methodology.qmd)** - Understand the science
 2. **Review [Implementation](implementation.qmd)** - Learn the architecture
-3. **Reference [API docs](api-reference.qmd)** - Function signatures and parameters
+3. **Explore [Distributions](distributions.qmd)** - Distribution fitting details
+4. **Reference [API docs](api-reference.qmd)** - Function signatures and parameters
+5. **Check [Validation](validation.qmd)** - Test results and quality verification
 
 ## For Researchers
 
 If you're citing the package or validating results:
 
 - **[Methodology](methodology.qmd)** provides mathematical details
+- **[Distributions](distributions.qmd)** covers distribution selection and fitting
+- **[Validation](validation.qmd)** shows test results with real data
 - **[Implementation](implementation.qmd)** describes quality assurance
-- See [GitHub repository](https://github.com/bennyistanto/precip-index) for test results
+- See [GitHub repository](https://github.com/bennyistanto/precip-index) for source code
 
 ## Key References
 
@@ -120,5 +158,7 @@ If you're citing the package or validating results:
 For technical questions:
 
 - Review the [API Reference](api-reference.qmd)
-- Check the [Implementation](implementation.qmd) guide
+- Check the [Distributions](distributions.qmd) guide for fitting issues
+- See [Validation](validation.qmd) for expected output quality
+- Review [Implementation](implementation.qmd) for architecture details
 - Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)

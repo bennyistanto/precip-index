@@ -24,8 +24,13 @@ References:
     - Hosking, J.R.M. (1990). L-moments: Analysis and estimation of
       distributions using linear combinations of order statistics.
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
+
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 """
 
 from __future__ import annotations

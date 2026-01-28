@@ -80,7 +80,7 @@ from visualization import plot_spatial_stats
 plot_spatial_stats(stats_dataset, variable='num_events')
 ```
 
-- Maps of drought statistics
+- Maps of dry/wet event statistics
 - Customizable colormaps
 - Ready for reports
 
@@ -151,6 +151,7 @@ Filenames include coordinates for easy identification.
 
 ## See Also
 
-- [Run Theory Guide](runtheory.qmd) - Analysis functions
-- [SPI Guide](spi.qmd) - Index calculation
+- [Run Theory Guide](runtheory.qmd) - Dry/wet event analysis
+- [Magnitude Explained](magnitude.qmd) - Cumulative vs instantaneous severity
+- [SPI Guide](spi.qmd) - Precipitation-only index
 - [SPEI Guide](spei.qmd) - Temperature-inclusive index

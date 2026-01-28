@@ -358,3 +358,13 @@ Output variables include the distribution name in the variable name:
 4. Hosking, J.R.M. (1990). L-moments: Analysis and estimation of distributions using linear combinations of order statistics. *Journal of the Royal Statistical Society, Series B*, 52(1), 105-124.
 
 5. Thom, H.C.S. (1958). A note on the gamma distribution. *Monthly Weather Review*, 86(4), 117-122.
+
+---
+
+## See Also
+
+- [Validation & Test Results](validation.qmd) - Quality verification across distributions
+- [Methodology](methodology.qmd) - Scientific background
+- [Implementation Details](implementation.qmd) - Code architecture
+- [API Reference](api-reference.qmd) - Function documentation
+- [User Guides](../user-guide/) - Practical usage

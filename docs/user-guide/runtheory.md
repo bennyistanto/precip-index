@@ -66,7 +66,7 @@ ts = calculate_timeseries(spi_ts, threshold=-1.2)
 # Returns: DataFrame with one row per time step
 ```
 
-**Use for:** Real-time monitoring, drought evolution tracking, operational systems
+**Use for:** Real-time monitoring, event evolution tracking, operational systems
 
 ### Mode 3: Period Statistics (Gridded)
 
@@ -97,12 +97,12 @@ spi = xr.open_dataset('output/netcdf/spi_12.nc')['spi_gamma_12_month']
 # Drought events (negative threshold)
 spi_location = spi.isel(lat=50, lon=100)
 dry_events = identify_events(spi_location, threshold=-1.2)
-print(f"Found {len(dry_events)} drought events")
+print(f"Found {len(dry_events)} dry events")
 
-# Gridded drought statistics
-drought_stats = calculate_period_statistics(spi, threshold=-1.2,
-                                            start_year=2023, end_year=2023)
-drought_stats.num_events.plot(title='Drought Events 2023')
+# Gridded dry event statistics
+dry_stats = calculate_period_statistics(spi, threshold=-1.2,
+                                        start_year=2023, end_year=2023)
+dry_stats.num_events.plot(title='Dry Events 2023')
 ```
 
 ### Wet (Flood/Excess) Events
@@ -120,14 +120,14 @@ wet_stats.num_events.plot(title='Wet Events 2023')
 
 **💡 Key Point:** Same functions, different thresholds:
 
-- **Drought:** `threshold < 0` (e.g., -1.2, -1.5, -2.0)
-- **Wet:** `threshold > 0` (e.g., +1.2, +1.5, +2.0)
+- **Dry (drought):** `threshold < 0` (e.g., -1.2, -1.5, -2.0)
+- **Wet (flood/excess):** `threshold > 0` (e.g., +1.2, +1.5, +2.0)
 
-## Drought Characteristics
+## Event Characteristics
 
 | Characteristic | Formula | Meaning |
 |----------------|---------|---------|
-| **Duration (D)** | end - start + 1 | Months in drought |
+| **Duration (D)** | end - start + 1 | Months in event |
 | **Magnitude (Cumulative)** | Σ(threshold - SPI) | Total water deficit |
 | **Magnitude (Instantaneous)** | threshold - SPI[t] | Current severity |
 | **Intensity (I)** | Magnitude / Duration | Average severity |
@@ -139,7 +139,7 @@ wet_stats.num_events.plot(title='Wet Events 2023')
 **Cumulative** (blue in plots):
 
 - Total accumulated deficit
-- Always increases during drought
+- Always increases during event
 - Like debt accumulation
 - Use for: Total impact, event comparison
 
@@ -203,19 +203,19 @@ ts = calculate_timeseries(spi_ts, threshold=-1.2)
 
 # Check current status
 current = ts.tail(1)
-if current['is_drought'].values[0]:
-    print(f"IN DROUGHT")
+if current['is_event'].values[0]:
+    print(f"IN DRY EVENT")
     print(f"Duration: {current['duration'].values[0]} months")
     print(f"Cumulative magnitude: {current['magnitude_cumulative'].values[0]:.2f}")
     print(f"Current severity: {current['magnitude_instantaneous'].values[0]:.2f}")
 else:
-    print("Not in drought")
+    print("No event detected")
 ```
 
 ### Monitoring Evolution
 
 ```python
-# Is drought worsening or easing?
+# Is event worsening or easing?
 recent = ts['magnitude_instantaneous'].tail(3)
 if recent.is_monotonic_decreasing:
     print("EASING - severity decreasing")
@@ -288,26 +288,26 @@ All period statistics functions return xarray Dataset with:
 
 | Variable | Description | Units |
 |----------|-------------|-------|
-| `num_events` | Number of drought events | count |
-| `total_drought_months` | Total months in drought | months |
+| `num_events` | Number of dry/wet events | count |
+| `total_event_months` | Total months in events | months |
 | `total_magnitude` | Sum of all event magnitudes | index units |
 | `mean_magnitude` | Average magnitude per event | index units |
 | `max_magnitude` | Largest single event | index units |
 | `worst_peak` | Most severe SPI/SPEI value | index units |
 | `mean_intensity` | Average intensity | index units/month |
 | `max_intensity` | Maximum intensity | index units/month |
-| `pct_time_in_drought` | % of time in drought | % |
+| `pct_time_in_event` | % of time in events | % |
 
 ## Decision-Maker Questions
 
-### "How many drought events in 2023?"
+### "How many dry events in 2023?"
 
 ```python
 stats_2023 = calculate_period_statistics(spi, start_year=2023, end_year=2023)
-stats_2023.num_events.plot(title='Drought Events in 2023')
+stats_2023.num_events.plot(title='Dry Events in 2023')
 ```
 
-### "Where was the worst drought in last 5 years?"
+### "Where was the worst dry event in last 5 years?"
 
 ```python
 stats = calculate_period_statistics(spi, start_year=2020, end_year=2024)
@@ -335,16 +335,16 @@ print(f"Worst year: {worst_year}")
 
 ## Thresholds
 
-Common drought thresholds:
+Common dry event thresholds (use positive values for wet events):
 
 | Threshold | Category | Use |
 |-----------|----------|-----|
-| -0.5 | Incipient drought | Early warning |
-| -0.8 | Mild drought | Agricultural concern |
-| -1.0 | Moderate drought | Standard threshold |
+| -0.5 | Incipient dry | Early warning |
+| -0.8 | Mild dry | Agricultural concern |
+| -1.0 | Moderate dry | Standard threshold |
 | -1.2 | Moderate-severe | Conservative threshold |
-| -1.5 | Severe drought | Significant impacts |
-| -2.0 | Extreme drought | Crisis level |
+| -1.5 | Severe dry | Significant impacts |
+| -2.0 | Extreme dry | Crisis level |
 
 **Recommendation:** -1.0 or -1.2 for operational monitoring
 
@@ -356,10 +356,10 @@ Filter short-term fluctuations:
 # Include all dry periods
 events_all = identify_events(spi_ts, min_duration=1)
 
-# Only sustained droughts
+# Only sustained events
 events_sustained = identify_events(spi_ts, min_duration=3)
 
-# Long-term droughts
+# Long-term events
 events_longterm = identify_events(spi_ts, min_duration=6)
 ```
 
@@ -414,8 +414,8 @@ comparison = compare_periods(spi,
     period_names=['Historical', 'Recent'])
 
 # 6. Save outputs
-events.to_csv(f'output/csv/drought_events_lat{lat}_lon{lon}.csv')
-stats_2020s.to_netcdf('output/netcdf/drought_stats_2020-2024.nc')
+events.to_csv(f'output/csv/dry_events_lat{lat}_lon{lon}.csv')
+stats_2020s.to_netcdf('output/netcdf/dry_stats_2020-2024.nc')
 
 # 7. Create maps
 stats_2020s.num_events.plot()

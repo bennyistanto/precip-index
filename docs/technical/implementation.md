@@ -114,12 +114,12 @@ precip-index/
 
 **Event-Based:**
 
-- `identify_drought_events()` - Extract complete events
-- `summarize_drought_events()` - Event statistics
+- `identify_events()` - Extract complete events
+- `summarize_events()` - Event statistics
 
 **Time-Series:**
 
-- `calculate_drought_timeseries()` - Month-by-month tracking
+- `calculate_timeseries()` - Month-by-month tracking
 - Real-time monitoring capability
 
 **Gridded Statistics:**
@@ -189,12 +189,12 @@ spi() or spei()
 Output NetCDF (SPI/SPEI)
 ```
 
-### Drought Event Analysis
+### Climate Extreme Event Analysis
 
 ```
 SPI/SPEI time series
     ↓
-identify_drought_events()
+identify_events()
     ├─ Threshold crossing detection
     ├─ Duration calculation
     ├─ Magnitude (cumulative + instantaneous)
@@ -229,7 +229,7 @@ def fit_gamma_numba(precip_2d):
 precip_sum = precip.rolling(time=scale).sum()
 
 # Vectorized threshold operations
-is_drought = (spi < threshold).astype(int)
+is_event = (spi < threshold).astype(int)
 ```
 
 **Benefit:** Leverages NumPy/xarray efficiency
@@ -385,7 +385,7 @@ attrs = {
 **Columns:**
 
 - Event-based: event_id, start_date, end_date, duration, magnitude, etc.
-- Time-series: time, spi, is_drought, duration, magnitude_cumulative, etc.
+- Time-series: time, spi, is_event, duration, magnitude_cumulative, etc.
 
 ### Plots
 
@@ -566,3 +566,13 @@ jupyter>=1.0.0      # Notebook support
 - NumPy vectorization
 - Clear documentation
 - Consistent API
+
+---
+
+## See Also
+
+- [Probability Distributions](distributions.qmd) - Distribution selection and fitting methods
+- [Validation & Test Results](validation.qmd) - Quality verification and test coverage
+- [Methodology](methodology.md) - Scientific background
+- [API Reference](api-reference.md) - Function documentation
+- [User Guides](../user-guide/) - Practical usage

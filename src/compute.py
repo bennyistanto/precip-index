@@ -5,11 +5,13 @@ Includes gamma distribution fitting, scaling, and transformation functions.
 Optimized for global-scale data with memory-efficient chunked processing,
 Dask integration, and Numba JIT compilation for performance.
 
-Modified/adapted from James Adams' climate-indices package
-https://github.com/monocongo/climate_indices
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 """
 
 import gc

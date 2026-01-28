@@ -11,11 +11,13 @@ The indices work for both climate extremes:
 
 Optimized for global-scale gridded data following CF Convention (time, lat, lon).
 
-Modified/adapted from James Adams' climate-indices package
-https://github.com/monocongo/climate_indices
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 
 References:
     McKee, T.B., Doesken, N.J., Kleist, J. (1993). The relationship of drought

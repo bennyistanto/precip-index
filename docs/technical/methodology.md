@@ -723,6 +723,8 @@ spi_new = spi(precip_new, scale=12, fitting_params=params)
 
 ## See Also
 
+- [Probability Distributions](distributions.qmd) - Distribution selection and fitting methods
+- [Validation & Test Results](validation.qmd) - Quality verification and test coverage
 - [Implementation Details](implementation.md) - Code architecture
 - [API Reference](api-reference.md) - Function documentation
 - [User Guides](../user-guide/) - Practical usage

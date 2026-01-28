@@ -1165,6 +1165,8 @@ plt.savefig('output/plots/spatial/comparison.png', dpi=300)
 
 ## See Also
 
+- [Probability Distributions](distributions.qmd) - Distribution selection guide and mathematical details
+- [Validation & Test Results](validation.qmd) - Quality verification and test coverage
 - [Implementation Details](implementation.md) - Architecture and optimization
 - [Methodology](methodology.md) - Scientific background
 - [User Guides](../user-guide/) - Detailed usage instructions

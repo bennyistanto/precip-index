@@ -4,11 +4,13 @@ Configuration module for SPI/SPEI climate indices calculation.
 Central configuration hub: contains all enums, constants, and user-configurable
 settings. All helper/utility functions have been moved to utils.py.
 
-Modified/adapted from James Adams' climate-indices package
-https://github.com/monocongo/climate_indices
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 """
 
 from enum import Enum

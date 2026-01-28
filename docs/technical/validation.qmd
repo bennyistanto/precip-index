@@ -147,24 +147,24 @@ The `plot_index()` function produces a standardized bar chart with the WMO 11-ca
 
 ### 3.3 Event Timeline
 
-The `plot_event_timeline()` function shows drought events as horizontal bars with severity indicated by color intensity.
+The `plot_event_timeline()` function shows dry/wet events as horizontal bars with severity indicated by color intensity.
 
-![Drought event timeline showing identified events along the time axis. Bar height and color indicate event severity and duration.](../images/test_plot_timeline.png){#fig-plot-timeline}
+![Event timeline showing identified dry/wet events along the time axis. Bar height and color indicate event severity and duration.](../images/test_plot_timeline.png){#fig-plot-timeline}
 
 ### 3.4 Distribution Comparison (Run Theory)
 
-Event characteristics (duration, magnitude, intensity) can differ depending on which distribution was used to compute the SPI. This plot compares drought event characteristics across distributions.
+Event characteristics (duration, magnitude, intensity) can differ depending on which distribution was used to compute the SPI. This plot compares event characteristics across distributions.
 
-![Run theory event comparison across distributions, showing how the choice of probability distribution affects drought event identification.](../images/test_runtheory_distribution_comparison.png){#fig-runtheory-comparison}
+![Run theory event comparison across distributions, showing how the choice of probability distribution affects event identification.](../images/test_runtheory_distribution_comparison.png){#fig-runtheory-comparison}
 
 
 ## 4. Spatial Event Statistics {#sec-spatial-stats}
 
-### 4.1 Drought Event Count
+### 4.1 Dry Event Count
 
-The `calculate_period_statistics()` function counts events per grid cell over a defined period. The spatial map below shows drought event counts for 2000--2023.
+The `calculate_period_statistics()` function counts events per grid cell over a defined period. The spatial map below shows dry (drought) event counts for 2000--2023.
 
-![Spatial map of drought event counts (SPI-12 < -1.2, minimum 2-month duration) for the period 2000--2023 across Bali.](../images/test_spatial_drought_events.png){#fig-spatial-drought}
+![Spatial map of dry event counts (SPI-12 < -1.2, minimum 2-month duration) for the period 2000--2023 across Bali.](../images/test_spatial_drought_events.png){#fig-spatial-drought}
 
 **What to look for**:
 
@@ -216,3 +216,13 @@ The `calculate_period_statistics()` function counts events per grid cell over a 
 3. **MLE** is the recommended fitting method for Log-Logistic (100% convergence, best tail accuracy).
 4. **Land-aware data reporting** correctly identifies 319 land cells (38%) with 100% temporal completeness, avoiding the misleading "62% NaN" metric that includes ocean cells.
 5. **Spatial patterns are physically consistent** --- drought and wet events align with known climate variability for Bali.
+
+---
+
+## See Also
+
+- [Probability Distributions](distributions.qmd) - Distribution selection and fitting methods
+- [Methodology](methodology.qmd) - Scientific background
+- [Implementation Details](implementation.qmd) - Code architecture
+- [API Reference](api-reference.qmd) - Function documentation
+- [User Guides](../user-guide/) - Practical usage

@@ -66,7 +66,7 @@ Mag:    0.3   0.8   1.4   1.7   1.9   2.1   0.0  ← Always increasing!
 
 ### Definition
 
-Current month's deviation from the drought threshold. Equal to the monthly deficit.
+Current month's deviation from the event threshold. Equal to the monthly deficit.
 
 ### Formula
 
@@ -77,8 +77,8 @@ magnitude_instantaneous[t] = threshold - SPI[t]  (if SPI < threshold)
 
 ### Behavior
 
-- **Varies with SPI** (rises when drought worsens, falls when drought eases)
-- Shows drought evolution: intensification → peak → recovery
+- **Varies with SPI** (rises when event worsens, falls when event eases)
+- Shows event evolution: intensification → peak → recovery
 - Represents **current severity** at this moment
 
 ### Analogy: Crop NDVI Phenology
@@ -90,25 +90,25 @@ Think of it like crop greenness (NDVI) over a growing season:
 - Late season: NDVI falls (approaching harvest)
 - Pattern: **rise → peak → fall**
 
-For drought severity (instantaneous magnitude):
+For event severity (instantaneous magnitude):
 
-- Early drought: severity rises (worsening conditions)
-- Peak drought: severity at maximum
-- Late drought: severity falls (easing conditions)
+- Early event: severity rises (worsening conditions)
+- Peak event: severity at maximum
+- Late event: severity falls (easing conditions)
 - Pattern: **rise → peak → fall**
 
 ### Use Cases
 
-✅ **Monitoring drought evolution**: Is it getting worse or better?   
-✅ **Identifying peak severity**: When was the worst moment?   
-✅ **Real-time tracking**: Current stress level right now   
-✅ **Early warning**: Severity increasing = drought intensifying   
-✅ **Recovery monitoring**: Severity decreasing = drought easing
+✅ **Monitoring event evolution**: Is it getting worse or better?
+✅ **Identifying peak severity**: When was the worst moment?
+✅ **Real-time tracking**: Current stress level right now
+✅ **Early warning**: Severity increasing = event intensifying
+✅ **Recovery monitoring**: Severity decreasing = event easing
 
 ### Example Pattern
 
 ```
-Month:  1     2     3     4     5     6     7    (drought ends)
+Month:  1     2     3     4     5     6     7    (event ends)
 SPI:   -1.5  -2.0  -1.8  -1.3  -1.1  -0.8   0.5
 Mag:    0.3   0.8   0.6   0.1   0.0   0.0   0.0  ← Rises, peaks, falls!
 ```
@@ -117,7 +117,7 @@ Mag:    0.3   0.8   0.6   0.1   0.0   0.0   0.0  ← Rises, peaks, falls!
 
 ## Side-by-Side Comparison
 
-### Same Drought Event, Different Perspectives
+### Same Event, Different Perspectives
 
 ```
 Time:           1     2     3     4     5     6     7
@@ -130,8 +130,8 @@ Instantaneous: 0.3   0.8   0.6   0.1   0.0   0.0   0.0  ← Current rate
 
 **Interpretation:**
 
-- **Month 2**: Drought worsening (instantaneous peaks at 0.8)
-- **Month 3**: Drought easing (instantaneous falls to 0.6)
+- **Month 2**: Event worsening (instantaneous peaks at 0.8)
+- **Month 3**: Event easing (instantaneous falls to 0.6)
 - **Month 6**: Near recovery (instantaneous = 0, but cumulative still high)
 - **Total impact**: Cumulative magnitude = 1.9 (total water deficit)
 
@@ -180,8 +180,8 @@ Instantaneous: 0.3   0.8   0.6   0.1   0.0   0.0   0.0  ← Current rate
 
 ### Use Instantaneous Magnitude When:
 
-- Monitoring **current drought conditions**
-- Tracking **drought evolution** (worsening or easing?)
+- Monitoring **current dry/wet conditions**
+- Tracking **event evolution** (worsening or easing?)
 - Identifying **peak severity** timing
 - **Early warning systems** (severity increasing!)
 - **Recovery monitoring** (severity decreasing)
@@ -194,9 +194,9 @@ Instantaneous: 0.3   0.8   0.6   0.1   0.0   0.0   0.0  ← Current rate
 ### DataFrame Columns
 
 ```python
-from runtheory import calculate_drought_timeseries
+from runtheory import calculate_timeseries
 
-ts = calculate_drought_timeseries(spi, threshold=-1.2)
+ts = calculate_timeseries(spi, threshold=-1.2)
 
 # Available columns:
 ts['magnitude_cumulative']      # Total deficit (debt analogy)
@@ -212,7 +212,7 @@ from visualization import plot_event_timeline
 # Default plot shows both magnitude types
 fig = plot_event_timeline(ts)
 # Creates 5 panels:
-#   1. Index with drought periods
+#   1. Index with event periods
 #   2. Duration
 #   3. Magnitude (Cumulative) - blue color
 #   4. Magnitude (Instantaneous) - red color
@@ -247,7 +247,7 @@ plt.show()
 
 ## Mathematical Relationship
 
-### During Active Drought
+### During Active Event
 
 **Cumulative** = Sum of all **Instantaneous** values from event start
 
@@ -301,7 +301,7 @@ We provide **BOTH** to support all use cases:
 
 ### Q2: Why doesn't cumulative decrease during recovery?
 
-Because it's a **total** (like debt). The total debt doesn't decrease just because you're spending less - it only resets when the drought ends (debt paid off).
+Because it's a **total** (like debt). The total debt doesn't decrease just because you're spending less — it only resets when the event ends (debt paid off).
 
 ### Q3: Why does instantaneous look like NDVI?
 
@@ -318,26 +318,26 @@ Depends on your question:
 - "Current conditions?" → Instantaneous
 - "Not sure?" → Use both!
 
-### Q5: Can cumulative be zero while drought continues?
+### Q5: Can cumulative be zero while an event continues?
 
-No! If drought is ongoing, cumulative is always > 0 (and increasing). But instantaneous CAN be zero during drought if SPI is exactly at the threshold.
+No! If an event is ongoing, cumulative is always > 0 (and increasing). But instantaneous CAN be zero during an event if SPI is exactly at the threshold.
 
 ---
 
 ## Example Analysis
 
-### Scenario: Monitoring 2023 Drought
+### Scenario: Monitoring 2023 Dry Event
 
 ```python
 import xarray as xr
-from runtheory import calculate_drought_timeseries
+from runtheory import calculate_timeseries
 from visualization import plot_event_timeline
 
 # Load SPI
 spi = xr.open_dataarray('spi_12.nc').isel(lat=50, lon=100)
 
 # Calculate time series
-ts = calculate_drought_timeseries(spi, threshold=-1.2)
+ts = calculate_timeseries(spi, threshold=-1.2)
 
 # Extract 2023
 ts_2023 = ts.loc['2023']
@@ -346,24 +346,24 @@ ts_2023 = ts.loc['2023']
 total_deficit = ts_2023['magnitude_cumulative'].max()
 print(f"Total cumulative deficit: {total_deficit:.2f}")
 
-# Question 2: When was the drought most severe?
+# Question 2: When was the event most severe?
 worst_month = ts_2023['magnitude_instantaneous'].idxmax()
 worst_severity = ts_2023['magnitude_instantaneous'].max()
 print(f"Worst month: {worst_month}")
 print(f"Peak severity: {worst_severity:.2f}")
 
-# Question 3: Is the drought currently worsening or easing?
+# Question 3: Is the event currently worsening or easing?
 recent = ts_2023['magnitude_instantaneous'].tail(3)
 if recent.is_monotonic_decreasing:
-    print("Drought is EASING (severity decreasing)")
+    print("Event is EASING (severity decreasing)")
 elif recent.is_monotonic_increasing:
-    print("Drought is WORSENING (severity increasing)")
+    print("Event is WORSENING (severity increasing)")
 else:
-    print("Drought severity is FLUCTUATING")
+    print("Event severity is FLUCTUATING")
 
 # Visualize both
 fig = plot_event_timeline(ts_2023)
-plt.savefig('drought_2023_analysis.png')
+plt.savefig('event_2023_analysis.png')
 ```
 
 ---
@@ -377,10 +377,17 @@ plt.savefig('drought_2023_analysis.png')
 | **Pattern** | Staircase up | Rise-peak-fall |
 | **Analogy** | Debt accumulation | Crop NDVI phenology |
 | **Units** | Index units (cumulative) | Index units/month |
-| **Resets** | When drought ends | When drought ends |
+| **Resets** | When event ends | When event ends |
 | **Use for** | Total impact, event comparison | Current monitoring, peak detection |
 | **Answers** | "How much total deficit?" | "How severe now?" |
 
 ---
 
-**Both are valuable tools in your drought analysis toolkit. Use them together for comprehensive understanding!**
+**Both are valuable tools in your climate extremes analysis toolkit. Use them together for comprehensive understanding!**
+
+## See Also
+
+- [Run Theory Guide](runtheory.md) - Dry/wet event identification and analysis
+- [Visualization Guide](visualization.md) - Plotting options
+- [SPI Guide](spi.md) - Precipitation-only index
+- [SPEI Guide](spei.md) - Temperature-inclusive index

@@ -14,13 +14,13 @@ This user guide provides comprehensive documentation for using the **precip-inde
 Learn how to calculate and interpret standardized indices:
 
 - **[SPI - Standardized Precipitation Index](spi.qmd)**
-  - Precipitation-based drought monitoring
+  - Precipitation-based dry/wet monitoring
   - Multiple time scales (1, 3, 6, 12, 24 months)
   - Distribution fitting and calibration
 
 - **[SPEI - Standardized Precipitation Evapotranspiration Index](spei.qmd)**
   - Water balance approach (precipitation - PET)
-  - Temperature-inclusive drought assessment
+  - Temperature-inclusive dry/wet assessment
   - PET calculation methods
 
 ### Analysis Methods
@@ -103,7 +103,7 @@ This package treats dry and wet extremes equally:
 
 ### Time Scales
 
-Different time scales capture different drought types:
+Different time scales capture different aspects of dry/wet conditions:
 
 - **1-3 months:** Meteorological/agricultural
 - **6-9 months:** Agricultural/hydrological

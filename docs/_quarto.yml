@@ -28,6 +28,8 @@ website:
             href: get-started/quick-start.qmd
           - text: "Configuration"
             href: get-started/configuration.qmd
+          - text: "Data Model & Outputs"
+            href: get-started/data-model.qmd
           - text: "Examples"
             href: get-started/examples.qmd
       - text: "Tutorials"
@@ -62,6 +64,7 @@ website:
         - get-started/installation.qmd
         - get-started/quick-start.qmd
         - get-started/configuration.qmd
+        - get-started/data-model.qmd
         - get-started/examples.qmd
 
     - title: "Tutorials"
@@ -90,6 +93,7 @@ website:
         - technical/index.qmd
         - text: "---"
         - technical/methodology.qmd
+        - technical/distributions.qmd
         - technical/implementation.qmd
         - technical/api-reference.qmd
         - text: "---"

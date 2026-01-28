@@ -63,8 +63,8 @@ spi_12.to_netcdf('output/netcdf/spi_12.nc')
 
 - **`distribution`** (str): Statistical distribution
   - Default: 'gamma'
-  - Options: 'gamma', 'pearson'
-  - Recommendation: Use 'gamma' for precipitation
+  - Options: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic'
+  - Recommendation: Use 'gamma' for SPI (default)
 
 - **`data_start_year`** (int): Calibration start year
   - Default: 1991
@@ -207,32 +207,16 @@ params_loaded = load_fitting_params('spi_12_params.nc')
 
 ## Best Practices
 
-### 1. Calibration Period
+### 1. Data Preparation
 
-- Use WMO-recommended 30-year normals (e.g., 1991-2020)
-- Ensure calibration period has complete data
-- Update calibration periodically
-
-### 2. Quality Control
+Ensure your input meets the requirements in [Data Model & Outputs](../get-started/data-model.qmd): NetCDF with `(time, lat, lon)` dimensions, mm/month units, and ≥30 years for calibration (default 1991–2020).
 
 ```python
-# Check for missing data
+# Quick sanity check
+print(f"Dims: {precip.dims}")       # Should include time, lat, lon
+print(f"Range: [{precip.min().values:.1f}, {precip.max().values:.1f}] mm")
 missing_pct = (precip.isnull().sum() / precip.size * 100).values
-print(f"Missing data: {missing_pct:.2f}%")
-
-# Check data range
-print(f"Precip range: [{precip.min().values:.1f}, {precip.max().values:.1f}] mm")
-```
-
-### 3. Dimension Order
-
-Data must follow CF convention: `(time, lat, lon)`
-
-```python
-from utils import ensure_cf_compliant
-
-# Auto-fix dimension order
-precip = ensure_cf_compliant(precip)
+print(f"Missing: {missing_pct:.2f}%")
 ```
 
 ## Common Issues
@@ -253,22 +237,8 @@ if precip.dims != ('time', 'lat', 'lon'):
 
 ### Issue 2: All NaN Output
 
-**Problem:** SPI values are all NaN    
-**Causes:**
-
-- Insufficient calibration data
-- All-zero precipitation (arid regions)
-- Wrong units (need mm/month, not mm/day)
-
-**Solution:**
-
-```python
-# Check precipitation values
-print(precip.sel(time='2020').mean(['lat', 'lon']).values)
-
-# Should be 30-300 mm/month for most regions
-# If values are 1-10, likely mm/day - convert to monthly
-```
+**Problem:** SPI values are all NaN
+**Common causes:** Insufficient calibration data, all-zero precipitation, or wrong units (mm/day instead of mm/month). See [Data Model & Outputs](../get-started/data-model.qmd) for input requirements and quality checks.
 
 ### Issue 3: Memory Error
 
@@ -302,7 +272,7 @@ plt.show()
 # Single location
 location_spi = spi_12.isel(lat=50, lon=100)
 location_spi.plot()
-plt.axhline(y=-1.2, color='red', linestyle='--', label='Drought threshold')
+plt.axhline(y=-1.2, color='red', linestyle='--', label='Dry event threshold')
 plt.title('SPI-12 Time Series')
 plt.legend()
 plt.show()
@@ -368,6 +338,7 @@ spi_12 = spi(precip_morocco, scale=12)
 
 ## See Also
 
-- [SPEI Guide](spei.qmd) - For temperature-influenced drought
-- [Drought Characteristics](runtheory.qmd) - Event analysis
+- [SPEI Guide](spei.qmd) - Temperature-influenced dry/wet index
+- [Run Theory](runtheory.qmd) - Dry/wet event analysis
+- [Magnitude Explained](magnitude.qmd) - Cumulative vs instantaneous severity
 - [Visualization Guide](visualization.qmd) - Plotting options

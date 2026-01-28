@@ -489,15 +489,13 @@ print(f"Fits in memory: {mem.fits_in_memory}")
 
 ### calculate_pet()
 
-Calculate potential evapotranspiration.
+Calculate potential evapotranspiration using the Thornthwaite method.
 
 ```python
 def calculate_pet(
-    temp,
-    method='thornthwaite',
-    latitude=None,
-    tmin=None,
-    tmax=None
+    temperature,
+    latitude,
+    data_start_year
 ) -> xarray.DataArray
 ```
 
@@ -505,32 +503,20 @@ def calculate_pet(
 
 | Parameter | Type | Required | Default | Description |
 | ----------- | ------ | ---------- | --------- | ------------- |
-| `temp` | xarray.DataArray | Yes | - | Temperature data (°C) |
-| `method` | str | No | 'thornthwaite' | Method: 'thornthwaite' or 'hargreaves' |
-| `latitude` | xarray.DataArray | Conditional | None | Required for both methods |
-| `tmin` | xarray.DataArray | Conditional | None | Required for 'hargreaves' |
-| `tmax` | xarray.DataArray | Conditional | None | Required for 'hargreaves' |
+| `temperature` | xarray.DataArray or numpy.ndarray | Yes | - | Monthly temperature data (°C) |
+| `latitude` | float or array | Yes | - | Latitude in degrees |
+| `data_start_year` | int | Yes | - | First year of the temperature data |
 
 **Returns:**
 
 - `xarray.DataArray`: PET values (mm/month)
-
-**Methods:**
-
-- **thornthwaite**: Temperature-based, simpler
-- **hargreaves**: Temperature + solar radiation, more accurate
 
 **Example:**
 
 ```python
 from utils import calculate_pet
 
-# Thornthwaite
-pet = calculate_pet(temp, method='thornthwaite', latitude=lat)
-
-# Hargreaves
-pet = calculate_pet(temp, method='hargreaves',
-                   tmin=tmin, tmax=tmax, latitude=lat)
+pet = calculate_pet(temp, latitude=lat, data_start_year=1958)
 ```
 
 ---
@@ -722,7 +708,7 @@ def calculate_timeseries(
   - `index_value`: SPI/SPEI value
   - `is_event`: Boolean
   - `event_id`: Current event number (or 0)
-  - `duration`: Current drought duration
+  - `duration`: Current event duration
   - `magnitude_cumulative`: Accumulated deficit
   - `magnitude_instantaneous`: Current month's severity
   - `intensity`: magnitude_cumulative / duration
@@ -737,7 +723,7 @@ ts = calculate_timeseries(spi_loc, threshold=-1.2)
 # Check current status
 current = ts.iloc[-1]
 if current['is_event']:
-    print(f"IN DROUGHT: {current['duration']} months")
+    print(f"IN EVENT: {current['duration']} months")
     print(f"Cumulative magnitude: {current['magnitude_cumulative']:.2f}")
 ```
 
@@ -762,7 +748,7 @@ def calculate_period_statistics(
 | Parameter | Type | Required | Default | Description |
 | --------- | ---- | -------- | ------- | ----------- |
 | `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI (time, lat, lon) |
-| `threshold` | float | No | -1.0 | Drought threshold |
+| `threshold` | float | No | -1.0 | Event threshold (negative=dry, positive=wet) |
 | `start_year` | int | No | None | Period start (uses all if None) |
 | `end_year` | int | No | None | Period end (uses all if None) |
 | `min_duration` | int | No | 1 | Minimum event duration |
@@ -771,14 +757,14 @@ def calculate_period_statistics(
 
 - `xarray.Dataset` with variables (lat, lon):
   - `num_events`: Event count
-  - `total_event_months`: Total months in drought
+  - `total_event_months`: Total months in events
   - `total_magnitude`: Sum of all magnitudes
   - `mean_magnitude`: Average per event
   - `max_magnitude`: Largest event
   - `worst_peak`: Most severe value
   - `mean_intensity`: Average intensity
   - `max_intensity`: Maximum intensity
-  - `pct_time_in_event`: Percentage in drought
+  - `pct_time_in_event`: Percentage of time in events
 
 **Example:**
 
@@ -794,7 +780,7 @@ stats_2023 = calculate_period_statistics(
 )
 
 # Plot
-stats_2023.num_events.plot(title='Drought Events in 2023')
+stats_2023.num_events.plot(title='Dry/Wet Events in 2023')
 stats_2023.to_netcdf('output/netcdf/stats_2023.nc')
 ```
 
@@ -839,7 +825,7 @@ regional_avg.plot()
 
 ### compare_periods()
 
-Compare drought statistics across multiple time periods.
+Compare event statistics across multiple time periods. Works for both dry (drought) and wet events.
 
 ```python
 def compare_periods(
@@ -858,7 +844,7 @@ def compare_periods(
 | `index_data` | xarray.DataArray | Yes | - | Gridded SPI/SPEI |
 | `periods` | list of tuples | Yes | - | [(start1, end1), (start2, end2), ...] |
 | `period_names` | list of str | No | None | Names for each period |
-| `threshold` | float | No | -1.0 | Drought threshold |
+| `threshold` | float | No | -1.0 | Event threshold (negative=dry, positive=wet) |
 | `min_duration` | int | No | 1 | Minimum event duration |
 
 **Returns:**
@@ -928,7 +914,7 @@ print(f"Mean duration: {summary['mean_duration']:.1f} months")
 
 ### plot_index()
 
-Plot drought index time series with color-coded severity.
+Plot climate index time series with color-coded severity. Works for both dry (drought) and wet (flood) conditions.
 
 ```python
 def plot_index(
@@ -945,7 +931,7 @@ def plot_index(
 | Parameter | Type | Required | Default | Description |
 | --------- | ---- | -------- | ------- | ----------- |
 | `index_timeseries` | xarray.DataArray or pandas.Series | Yes | - | SPI/SPEI data |
-| `threshold` | float | No | -1.0 | Drought threshold line |
+| `threshold` | float | No | -1.0 | Event threshold (negative=dry, positive=wet) line |
 | `title` | str | No | None | Plot title |
 | `ax` | matplotlib.axes.Axes | No | None | Existing axes |
 | `figsize` | tuple | No | (14, 6) | Figure size |
@@ -1010,7 +996,7 @@ plt.savefig(f'output/plots/single/events_lat{lat}_lon{lon}.png')
 
 ### plot_event_timeline()
 
-Create 5-panel plot showing drought evolution.
+Create 5-panel plot showing event evolution. Works for both dry (drought) and wet conditions.
 
 ```python
 def plot_event_timeline(
@@ -1043,7 +1029,7 @@ def plot_event_timeline(
 from visualization import plot_event_timeline
 
 ts = calculate_timeseries(spi_loc, threshold=-1.2)
-plot_event_timeline(ts, title='Drought Evolution')
+plot_event_timeline(ts, title='Event Evolution')
 plt.savefig('output/plots/single/timeline.png', dpi=300)
 ```
 
@@ -1051,7 +1037,7 @@ plt.savefig('output/plots/single/timeline.png', dpi=300)
 
 ### plot_spatial_stats()
 
-Plot spatial map of drought statistics.
+Plot spatial map of event statistics. Works for both dry (drought) and wet events.
 
 ```python
 def plot_spatial_stats(
@@ -1121,8 +1107,8 @@ def generate_location_filename(
 ```python
 from visualization import generate_location_filename
 
-filename = generate_location_filename('drought_events', 31.82, -7.07, 'png')
-# Returns: 'drought_events_lat31.82_lon-7.07.png'
+filename = generate_location_filename('dry_events', 31.82, -7.07, 'png')
+# Returns: 'dry_events_lat31.82_lon-7.07.png'
 
 full_path = f'output/plots/single/{filename}'
 plt.savefig(full_path, dpi=300)
@@ -1161,7 +1147,7 @@ lon_val = spi_12.lon.values[lon_idx]
 spi_loc = spi_12.isel(lat=lat_idx, lon=lon_idx)
 
 events = identify_events(spi_loc, threshold=-1.2, min_duration=3)
-filename = generate_location_filename('drought_events', lat_val, lon_val, 'csv')
+filename = generate_location_filename('dry_events', lat_val, lon_val, 'csv')
 events.to_csv(f'output/csv/{filename}')
 
 # 4. Visualize
@@ -1172,10 +1158,10 @@ plt.savefig(f'output/plots/single/{filename}', dpi=300)
 # 5. Gridded statistics
 stats_2023 = calculate_period_statistics(spi_12, threshold=-1.2,
                                          start_year=2023, end_year=2023)
-stats_2023.to_netcdf('output/netcdf/drought_stats_2023.nc')
+stats_2023.to_netcdf('output/netcdf/event_stats_2023.nc')
 
 plot_spatial_stats(stats_2023, variable='num_events',
-                           title='Drought Events in 2023')
+                           title='Dry/Wet Events in 2023')
 plt.savefig('output/plots/spatial/stats_2023.png', dpi=300)
 
 # 6. Compare periods
@@ -1186,7 +1172,7 @@ comparison = compare_periods(
 )
 
 diff = comparison.sel(period='Recent') - comparison.sel(period='Historical')
-diff.num_events.plot(title='Change in Drought Events', cmap='RdBu_r')
+diff.num_events.plot(title='Change in Dry/Wet Events', cmap='RdBu_r')
 plt.savefig('output/plots/spatial/comparison.png', dpi=300)
 ```
 
@@ -1195,6 +1181,7 @@ plt.savefig('output/plots/spatial/comparison.png', dpi=300)
 ## See Also
 
 - [Probability Distributions](distributions.qmd) - Distribution selection guide and mathematical details
+- [Validation & Test Results](validation.qmd) - Quality verification and test coverage
 - [Implementation Details](implementation.qmd) - Architecture and optimization
 - [Methodology](methodology.qmd) - Scientific background
 - [User Guides](../user-guide/) - Detailed usage instructions

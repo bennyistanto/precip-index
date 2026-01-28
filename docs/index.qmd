@@ -24,6 +24,7 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 :::
 :::
 
+---
 
 ## Key Features
 
@@ -31,8 +32,8 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 ::: {.feature-card}
 ### Climate Indices
 
-- **SPI** - Standardized Precipitation Index
-- **SPEI** - Precipitation Evapotranspiration Index
+- **SPI** — Standardized Precipitation Index
+- **SPEI** — Precipitation Evapotranspiration Index
 - Multiple time scales (1, 3, 6, 12, 24 months)
 - CF-compliant NetCDF output
 :::
@@ -49,14 +50,14 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 ::: {.feature-card}
 ### Multi-Distribution Support
 
-- **Gamma** - Standard for SPI (McKee et al. 1993)
-- **Pearson Type III** - Recommended for SPEI
-- **Log-Logistic** - Better tail behavior
-- Automatic method selection per distribution
+- **Gamma** — Standard for SPI
+- **Pearson III** — Recommended for SPEI
+- **Log-Logistic** — Better tail behavior
+- Automatic fitting method selection
 :::
 
 ::: {.feature-card}
-### Run Theory Implementation
+### Run Theory Framework
 
 - Event identification & characterization
 - Duration, magnitude, intensity, peak
@@ -65,67 +66,64 @@ A minimal, efficient Python implementation of **Standardized Precipitation Index
 :::
 
 ::: {.feature-card}
-### Chunked Processing
+### Scalable Processing
 
 - Memory-efficient spatial tiling
 - Process global-scale data (CHIRPS, ERA5)
 - Automatic memory estimation
-- Streaming I/O for datasets exceeding RAM
+- Streaming I/O for large datasets
 :::
 
 ::: {.feature-card}
 ### Visualization Suite
 
-- Time series plots with event highlighting
-- 11-category WMO SPI/SPEI classification
+- Time series with event highlighting
+- 11-category WMO classification
 - Spatial maps of event characteristics
-- Cross-distribution comparison charts
+- Distribution comparison charts
 :::
 :::
+
+---
 
 ## Quick Example
 
-Calculate SPI with multiple distributions and identify climate extreme events:
-
 ```python
 import xarray as xr
-from indices import spi, spi_multi_scale
+from indices import spi
 from runtheory import identify_events
 from visualization import plot_index
 
 # Load precipitation data
-ds = xr.open_dataset('precipitation.nc')
-precip = ds['precip']
+precip = xr.open_dataset('precipitation.nc')['precip']
 
-# Calculate SPI-12 with Gamma (default)
-spi_12 = spi(precip, scale=12, periodicity='monthly')
+# Calculate SPI-12
+spi_12 = spi(precip, scale=12)
 
-# Or use Pearson III / Log-Logistic
+# Or use different distributions
 spi_12_p3 = spi(precip, scale=12, distribution='pearson3')
-spi_12_ll = spi(precip, scale=12, distribution='log_logistic')
 
-# Multi-scale SPI in one call
-spi_multi = spi_multi_scale(precip, scales=[3, 6, 9, 12])
-
-# Identify drought events (threshold -1.2)
+# Identify drought events
 events = identify_events(spi_12.isel(lat=0, lon=0), threshold=-1.2)
 
 # Visualize
 plot_index(spi_12.isel(lat=0, lon=0), threshold=-1.2)
 ```
 
+---
+
 ## What Makes This Package Different?
 
 ::: {.callout-note}
 ## Bidirectional by Design
 
-Unlike traditional drought-only tools, **precip-index** treats dry and wet extremes equally. Use negative thresholds for droughts, positive thresholds for floods --- same functions, same methodology.
+Unlike traditional drought-only tools, **precip-index** treats dry and wet extremes equally. Use negative thresholds for droughts, positive thresholds for floods — same functions, same methodology.
 :::
 
 ::: {.callout-tip}
 ## Multi-Distribution Fitting
 
-Choose the probability distribution that best fits your data. Gamma, Pearson III, and Log-Logistic each use their optimal fitting method (Method of Moments, MLE) --- validated to produce correct SPI/SPEI across all grid cells. See the [validation results](technical/validation.qmd).
+Choose the probability distribution that best fits your data. Gamma, Pearson III, and Log-Logistic each use their optimal fitting method — validated to produce correct SPI/SPEI across all grid cells.
 :::
 
 ::: {.callout-important}
@@ -137,7 +135,7 @@ Goes beyond simple threshold exceedance. Implements full run theory to character
 ::: {.callout-note}
 ## Scalable Architecture
 
-Built for datasets of any size. Small regional grids run in-memory; global datasets (CHIRPS, ERA5, TerraClimate) use the chunked processing module with automatic spatial tiling and streaming I/O.
+Built for datasets of any size. Small regional grids run in-memory; global datasets (CHIRPS, ERA5, TerraClimate) use chunked processing with automatic spatial tiling and streaming I/O.
 :::
 
 ::: {.callout-tip}
@@ -145,60 +143,54 @@ Built for datasets of any size. Small regional grids run in-memory; global datas
 
 Benchmarked on **CHIRPS v3 global** (0.05° resolution):
 
-**Dataset:** 2400 x 7200 grid (17.3M cells), 539 months, ~69 GB input\
-**Index:** SPI-12, Gamma distribution\
-**Processing:** 12 spatial chunks (1200 x 1200 each)\
-**Total time:** ~2 hours 47 minutes (including parameter saving)\
-**System:** Workstation with 343 GB RAM
+- **Dataset:** 2400 × 7200 grid (17.3M cells), 539 months, ~69 GB
+- **Processing:** 12 spatial chunks, SPI-12 with Gamma distribution
+- **Total time:** ~2 hours 47 minutes on a workstation with 343 GB RAM
 
-Regional subsets (e.g., country-level) complete in seconds to minutes.
+Regional subsets (country-level) complete in seconds to minutes.
 :::
 
-## Example Applications
-
-- **Operational Drought Monitoring** - Track ongoing droughts with real-time updates
-- **Flood Risk Assessment** - Identify wet extremes and excess precipitation
-- **Climate Impact Studies** - Analyze historical trends in extremes
-- **Early Warning Systems** - Generate alerts based on evolving event characteristics
-- **Decision Support** - Gridded statistics for regional planning
+---
 
 ## Validation Results
 
-All distributions are tested against TerraClimate Bali data (1958--2024). Cross-distribution correlation exceeds 0.98 for both SPI and SPEI.
+All distributions tested against TerraClimate Bali data (1958–2024). Cross-distribution correlation exceeds 0.98.
 
 ::: {.panel-tabset}
-### SPI-3 Distribution Comparison
+### Distribution Comparison
 
 ![](images/spi3_distribution_comparison.png)
 
-Three distributions (Gamma, Pearson III, Log-Logistic) produce consistent SPI-3 time series at a single land cell. The same drought and wet events are identified regardless of distribution choice.
+Three distributions produce consistent SPI-3 time series. The same events are identified regardless of distribution choice.
 
 ### Multi-Scale SPI
 
 ![](images/spi_multiscale_gamma.png)
 
-SPI at 3-, 6-, 9-, and 12-month scales. Shorter scales capture recent anomalies; longer scales reveal persistent hydrological drought.
+SPI at 3-, 6-, 9-, and 12-month scales. Shorter scales capture recent anomalies; longer scales reveal persistent conditions.
 
-### Spatial Comparison
+### Spatial Patterns
 
 ![](images/spi3_spatial_distribution_comparison.png)
 
-Spatial SPI-3 maps across all three distributions at the same timestep. Spatial patterns remain consistent.
+Spatial SPI-3 maps across all three distributions. Patterns remain consistent.
 
-### SPEI PET Comparison
+### SPEI Comparison
 
 ![](images/spei6_pet_vs_temp_comparison.png)
 
-SPEI-6 computed with pre-computed PET vs temperature-derived PET (Thornthwaite). Both approaches yield consistent results (r > 0.98).
+SPEI-6 with pre-computed PET vs temperature-derived PET. Both approaches yield consistent results (r > 0.98).
 
-### Drought Events
+### Event Analysis
 
 ![](images/test_spatial_drought_events.png)
 
-Spatial drought event counts (2000--2023) from run theory analysis, showing drought-prone areas across Bali.
+Spatial drought event counts (2000–2023) from run theory analysis.
 :::
 
-See the full [Validation & Test Results](technical/validation.qmd) page for detailed analysis of each output.
+See [Validation & Test Results](technical/validation.qmd) for detailed analysis.
+
+---
 
 ## Getting Started
 
@@ -206,7 +198,7 @@ See the full [Validation & Test Results](technical/validation.qmd) page for deta
 ::: {.feature-card}
 ### Installation
 
-Install dependencies and clone the repository in minutes.
+Install dependencies and clone the repository.
 
 [Install Now](get-started/installation.qmd){.btn .btn-primary}
 :::
@@ -214,7 +206,7 @@ Install dependencies and clone the repository in minutes.
 ::: {.feature-card}
 ### Quick Start
 
-Follow the step-by-step guide to calculate your first SPI/SPEI.
+Calculate your first SPI/SPEI in minutes.
 
 [Quick Start](get-started/quick-start.qmd){.btn .btn-primary}
 :::
@@ -222,58 +214,62 @@ Follow the step-by-step guide to calculate your first SPI/SPEI.
 ::: {.feature-card}
 ### Tutorials
 
-Learn through interactive tutorials with real TerraClimate data.
+Learn through interactive examples with real data.
 
 [View Tutorials](tutorials/01-calculate-spi.qmd){.btn .btn-primary}
 :::
 :::
 
+---
+
 ## Documentation
 
-- **[User Guide](user-guide/index.qmd)** - Detailed explanations of SPI, SPEI, run theory, and visualization
-- **[Technical Docs](technical/index.qmd)** - Methodology, implementation details, and API reference
-- **[Validation](technical/validation.qmd)** - Test results with distribution comparison plots and spatial maps
-- **[Changelog](changelog.qmd)** - Version history and updates
+- **[User Guide](user-guide/index.qmd)** — SPI, SPEI, run theory, and visualization
+- **[Technical Docs](technical/index.qmd)** — Methodology, implementation, API reference
+- **[Validation](technical/validation.qmd)** — Test results and comparison plots
+- **[Changelog](changelog.qmd)** — Version history
+
+---
 
 ## Credits
 
-**Modified/adapted from:** [climate-indices](https://github.com/monocongo/climate_indices) by James Adams ([monocongo](https://github.com/monocongo/))
+::: {.credits-section}
+**Benny Istanto**
+GOST/DEC Data Group, The World Bank
 
-**Author:** Benny Istanto</br>
-**Organization:** GOST/DEC Data Group, The World Bank</br>
-**Email:** [bistanto@worldbank.org](mailto:bistanto@worldbank.org)</br>
+Developed to support operational hydrometeorological monitoring — enabling the World Bank to regularly assess extreme dry and wet periods across regions.
+
+Built upon the foundation of [climate-indices](https://github.com/monocongo/climate_indices) by James Adams, with substantial modifications for multi-distribution support, bidirectional event analysis, and scalable processing.
+:::
+
+---
 
 ## Citation
-
-If you use this package in your research, please cite:
 
 ```bibtex
 @software{precip_index_2026,
   author = {Istanto, Benny},
-  title = {Precipitation Index: SPI \& SPEI for Climate Extremes Monitoring},
+  title = {Precipitation Index: SPI & SPEI for Climate Extremes Monitoring},
   year = {2026},
   url = {https://github.com/bennyistanto/precip-index},
   version = {2026.1}
 }
 ```
 
+---
+
 ## Contributing
 
-We welcome contributions! Please see our [GitHub repository](https://github.com/bennyistanto/precip-index) for:
+We welcome contributions! See our [GitHub repository](https://github.com/bennyistanto/precip-index) for bug reports, feature requests, and pull requests.
 
-- **Bug reports** - Help us improve
-- **Feature requests** - Suggest enhancements
-- **Pull requests** - Contribute code
-- **Documentation** - Improve our docs
+---
 
 ## License
 
-This project is licensed under the BSD-3-Clause License. See [LICENSE](LICENSE) for details.
-
----
+BSD-3-Clause License. See [LICENSE](https://github.com/bennyistanto/precip-index/blob/main/LICENSE) for details.
 
 ::: {.callout-warning}
 ## Active Development
 
-This package is under active development. Some features may not work as expected and bugs may be present. Please report issues on [GitHub](https://github.com/bennyistanto/precip-index/issues).
+This package is under active development. Please report issues on [GitHub](https://github.com/bennyistanto/precip-index/issues).
 :::

@@ -23,19 +23,16 @@ The Standardized Precipitation Evapotranspiration Index (SPEI) extends SPI by in
 ```python
 import xarray as xr
 from indices import spei
-from utils import calculate_pet
 
 # Load data
 precip = xr.open_dataset('input/precipitation.nc')['precip']
 temp = xr.open_dataset('input/temperature.nc')['temp']
+lat = xr.open_dataset('input/temperature.nc')['lat']
 
-# Calculate PET (Thornthwaite method)
-pet = calculate_pet(temp, method='thornthwaite')
+# Calculate SPEI-12 (auto-calculates PET from temperature via Thornthwaite)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
 
-# Calculate SPEI-12 (monitors both dry and wet conditions)
-spei_12 = spei(precip, pet=pet, scale=12)
-
-# Negative values = drought (dry)
+# Negative values = dry conditions (drought)
 # Positive values = wet conditions (flooding/excess)
 
 # Save
@@ -44,33 +41,21 @@ spei_12.to_netcdf('output/netcdf/spei_12.nc')
 
 ## PET Methods
 
-### Option 1: Thornthwaite (Temperature-based)
+### Option 1: Auto-PET from Temperature (Thornthwaite)
 
-**Use when:** Only temperature data available
-
-```python
-from utils import calculate_pet
-
-# Requires monthly mean temperature (°C) and latitude
-pet = calculate_pet(temp, method='thornthwaite', latitude=lat_array)
-```
-
-**Pros:** Simple, only needs temperature
-**Cons:** Less accurate in arid regions
-
-### Option 2: Hargreaves (Temperature + Solar)
-
-**Use when:** Temperature and solar radiation available
+**Use when:** Only temperature data available — `spei()` calculates PET internally
 
 ```python
-pet = calculate_pet(temp, method='hargreaves',
-                   tmin=tmin, tmax=tmax, latitude=lat_array)
+from indices import spei
+
+# Pass temperature and latitude — PET is computed automatically
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
 ```
 
-**Pros:** More accurate than Thornthwaite
-**Cons:** Needs min/max temperature
+**Pros:** Simple, only needs temperature and latitude
+**Cons:** Thornthwaite method less accurate in arid regions
 
-### Option 3: Pre-computed PET
+### Option 2: Pre-computed PET
 
 **Use when:** You have PET from other sources (FAO-56, Penman-Monteith, etc.)
 
@@ -97,23 +82,20 @@ Same as SPI, plus:
 
 ## Examples
 
-### Example 1: With Thornthwaite PET
+### Example 1: With Temperature (auto-PET)
 
 ```python
 import xarray as xr
 from indices import spei
-from utils import calculate_pet
 
 # Load data
 precip = xr.open_dataset('input/chirps.nc')['precip']
 temp = xr.open_dataset('input/temperature.nc')['temp']
+lat = xr.open_dataset('input/temperature.nc')['lat']
 
-# Calculate PET
-pet = calculate_pet(temp, method='thornthwaite')
-
-# Calculate SPEI-12
-spei_12 = spei(precip, pet=pet, scale=12,
-              data_start_year=1991, data_end_year=2020)
+# Calculate SPEI-12 (PET computed internally from temperature)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12,
+               calibration_start_year=1991, calibration_end_year=2020)
 
 # Save
 spei_12.to_netcdf('output/netcdf/spei_12.nc')
@@ -141,13 +123,10 @@ spei_6 = spei(precip, pet=pet, scale=6)
 
 ```python
 from indices import spei_multi_scale
-from utils import calculate_pet
 
-pet = calculate_pet(temp, method='thornthwaite')
-
-# Calculate multiple scales
+# Calculate multiple scales (with temperature-based PET)
 scales = [3, 6, 12]
-spei_multi = spei_multi_scale(precip, pet=pet, scales=scales)
+spei_multi = spei_multi_scale(precip, temperature=temp, latitude=lat, scales=scales)
 
 # Access different scales
 spei_3 = spei_multi['spei_gamma_3_month']
@@ -161,20 +140,20 @@ spei_12 = spei_multi['spei_gamma_12_month']
 | **Input** | Precipitation only | Precipitation + PET |
 | **Temperature** | Not considered | Included via PET |
 | **Climate change** | Less sensitive | More sensitive |
-| **Best for** | Meteorological drought | Agricultural drought |
+| **Best for** | Meteorological dry/wet monitoring | Agricultural dry/wet monitoring |
 | **Data needs** | Minimal | More data needed |
 | **Computation** | Faster | Slower (PET calculation) |
 
 **When to use SPEI:**
 
-- Agricultural drought monitoring
+- Agricultural dry/wet monitoring
 - Climate change analysis
 - Temperature effects important
 - Have temperature data
 
 **When to use SPI:**
 
-- Purely meteorological drought
+- Purely meteorological dry/wet monitoring
 - Only precipitation available
 - Simple, fast analysis
 - Standardized comparisons
@@ -212,7 +191,7 @@ print(f"Mean P-PET: {water_balance.mean().values:.1f} mm/month")
 ### Issue 3: PET > Precipitation Always
 
 **Problem:** In deserts, PET always exceeds precipitation    
-**Solution:** SPEI is designed for this - shows persistent drought    
+**Solution:** SPEI is designed for this — shows persistent dry conditions    
 
 ## Visualization
 
@@ -238,16 +217,15 @@ plot_index(location_spei, threshold=-1.2,
 PET calculation is the bottleneck:
 
 ```python
-# Fastest: Thornthwaite (temp only)
-pet = calculate_pet(temp, method='thornthwaite')  # ~30 sec
+# Auto-PET from temperature (Thornthwaite)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)  # ~30 sec
 
-# Slower: Hargreaves (temp + solar)
-pet = calculate_pet(temp, method='hargreaves',
-                   tmin=tmin, tmax=tmax)  # ~60 sec
+# Pre-computed PET (faster — PET already available)
+spei_12 = spei(precip, pet=pet, scale=12)  # ~10 sec
 
 # Use Dask for large datasets
-temp = xr.open_dataset('temp.nc', chunks={'time': 100})['temp']
-pet = calculate_pet(temp, method='thornthwaite')  # Parallel
+precip_chunked = xr.open_dataset('precip.nc', chunks={'time': 100})['precip']
+spei_12 = spei(precip_chunked, pet=pet, scale=12)  # Parallel
 ```
 
 ## References
@@ -258,6 +236,7 @@ pet = calculate_pet(temp, method='thornthwaite')  # Parallel
 
 ## See Also
 
-- [SPI Guide](spi.md) - For precipitation-only drought
-- [Drought Characteristics](runtheory.md) - Event analysis
-- [Visualization](visualization.md) - Plotting options
+- [SPI Guide](spi.md) - Precipitation-only dry/wet index
+- [Run Theory](runtheory.md) - Dry/wet event analysis
+- [Magnitude Explained](magnitude.md) - Cumulative vs instantaneous severity
+- [Visualization Guide](visualization.md) - Plotting options

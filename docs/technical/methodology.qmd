@@ -240,6 +240,7 @@ A **run** is a continuous sequence where the variable remains below (or above) a
 **Truncation level** (threshold): $x_0$
 
 **Drought run (dry events):** Continuous period where $SPI < x_0$ (negative threshold)
+
 **Wet run (wet events):** Continuous period where $SPI > x_0$ (positive threshold)
 
 #### Event Identification
@@ -298,9 +299,9 @@ Current severity at specific time.
 
 **Interpretation:**
 
-- Varies during drought (rises-peaks-falls)
+- Varies during event (rises-peaks-falls)
 - Like NDVI crop phenology
-- Shows drought evolution pattern
+- Shows event evolution pattern
 
 **Relationship:**
 
@@ -335,7 +336,7 @@ Most severe SPI value during event.
 
 **Interpretation:**
 
-- Worst moment of drought
+- Worst moment of event (most severe dry or wet condition)
 - Related to maximum instantaneous magnitude
 - $P = M_{inst}(t_{peak})$
 
@@ -353,13 +354,13 @@ $$
 T_n = t_{start}(n+1) - t_{start}(n)
 $$
 
-Time between consecutive drought onsets.
+Time between consecutive event onsets.
 
 **Units:** months
 
 **Interpretation:**
 
-- Drought frequency
+- Event frequency (dry or wet)
 - Return period approximation
 
 ### 2.3 Period Aggregation
@@ -376,7 +377,7 @@ $$
 N(x,y) = \text{count of events at location } (x,y) \text{ during period}
 $$
 
-#### Total Drought Months
+#### Total Event Months
 
 $$
 D_{total}(x,y) = \sum D_i \quad \text{for all events } i \text{ at } (x,y)
@@ -406,7 +407,7 @@ $$
 P_{worst}(x,y) = \min(P_i) \quad \text{for all events } i \text{ at } (x,y)
 $$
 
-#### Percent Time in Drought
+#### Percent Time in Events
 
 $$
 Pct(x,y) = \frac{D_{total}(x,y)}{n_{months}} \times 100
@@ -424,27 +425,32 @@ Where $n_{months} = (t_{end} - t_{start} + 1)$ in months
 
 ## Part 3: Statistical Considerations
 
-### 3.1 Why Gamma Distribution?
+### 3.1 Probability Distributions
 
 **Original SPI (McKee et al., 1993):** Used gamma distribution
 
-**Advantages:**
+**This Package Supports:**
+
+- **Gamma** (default): Bounded at zero, robust globally, well-established
+- **Pearson Type III**: More flexible (3 parameters), recommended for SPEI
+- **Log-Logistic**: Often used for SPEI, handles negative water balance
+- **Generalized Extreme Value (GEV)**: For extreme value analysis
+- **Generalized Logistic**: Alternative for heavy-tailed distributions
+
+**Gamma Advantages:**
 
 - Bounded at zero (like precipitation)
 - Flexible shape (α parameter)
 - Robust globally
 - Well-established theory
 
-**Alternative (Pearson Type III):**
+**Pearson III Considerations:**
 
 - Sometimes used for SPI
 - More flexible (3 parameters)
-- **Problem:** Fails in arid regions
-  - L-moments estimation unstable
-  - Division by zero with low variability
-  - Not recommended for global datasets
+- **Caution:** May fail in arid regions with very low variability
 
-**This Package:** Gamma only (reliable, robust)
+**Recommendation:** Gamma for SPI (default), Pearson III or Log-Logistic for SPEI
 
 ### 3.2 Zero Precipitation Handling
 
@@ -469,16 +475,10 @@ $$
 
 ### 3.3 Minimum Data Requirements
 
-**For reliable SPI:**
+- **SPI/SPEI:** Minimum 30 years monthly data (50+ recommended)
+- **Dry/wet event analysis:** Minimum 20 years (30+ for return periods)
 
-- Minimum: 30 years of monthly data (360 months)
-- Recommended: 50+ years for robust statistics
-- **Critical:** Data must be quality-controlled
-
-**For drought event analysis:**
-
-- Minimum: 20 years (to identify events)
-- Recommended: 30+ years (for return periods)
+For practical input specifications (formats, dimensions, units, quality checks), see [Data Model & Outputs](../get-started/data-model.qmd).
 
 ### 3.4 Spatial Consistency
 
@@ -564,19 +564,7 @@ spi_new = spi(precip_new, scale=12, fitting_params=params)
 
 ### 5.1 Input Data Quality
 
-**Requirements:**
-
-- CF-compliant NetCDF
-- Monthly temporal resolution
-- Regular spatial grid
-- Minimal missing data (<5%)
-
-**Checks:**
-
-- No negative precipitation
-- Reasonable value ranges (0-1000 mm/month)
-- Temporal continuity
-- Spatial consistency
+Input data should be CF-compliant NetCDF, monthly resolution, with minimal missing data (<5%). See [Data Model & Outputs](../get-started/data-model.qmd) for the full input contract and recommended quality checks.
 
 ### 5.2 Distribution Fitting Quality
 
@@ -669,17 +657,7 @@ spi_new = spi(precip_new, scale=12, fitting_params=params)
 
 ### 7.3 Calibration Period
 
-**Best Practice:**
-
-- Use most recent 30-year WMO normal period (currently 1991-2020)
-- Ensure data quality in calibration period
-- Document clearly in metadata
-
-**When to Update:**
-
-- Every 10 years (WMO updates)
-- After significant station changes
-- For climate change studies (use fixed historical baseline)
+Use the most recent 30-year WMO normal period (currently 1991–2020). Update every 10 years. For climate change studies, use a fixed historical baseline. See [Data Model & Outputs](../get-started/data-model.qmd) for calibration conventions and parameter reuse workflow.
 
 ### 7.4 Threshold and Duration
 
@@ -728,6 +706,9 @@ spi_new = spi(precip_new, scale=12, fitting_params=params)
 
 ## See Also
 
+- [Data Model & Outputs](../get-started/data-model.qmd) - Input contract, calibration conventions, output schemas
+- [Probability Distributions](distributions.qmd) - Distribution selection and fitting methods
+- [Validation & Test Results](validation.qmd) - Quality verification and test coverage
 - [Implementation Details](implementation.qmd) - Code architecture
 - [API Reference](api-reference.qmd) - Function documentation
 - [User Guides](../user-guide/) - Practical usage

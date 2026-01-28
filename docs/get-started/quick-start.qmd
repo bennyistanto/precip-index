@@ -94,7 +94,7 @@ By default, all functions use the **Gamma** distribution. You can choose from fi
 - `'pearson3'` — Recommended for SPEI (Vicente-Serrano et al. 2010)
 - `'log_logistic'` — Alternative for SPEI (original R SPEI package)
 - `'gev'` — For extreme value analysis
-- `'gen_logistic'` — European drought indices
+- `'gen_logistic'` — European dry/wet indices
 
 See the [Probability Distributions](../technical/distributions.qmd) page for detailed guidance.
 :::
@@ -213,15 +213,15 @@ Identify and analyze complete extreme events using run theory:
 from runtheory import identify_events
 from visualization import plot_events
 
-# Identify drought events (negative threshold)
+# Identify dry (drought) events (negative threshold)
 spi_location = spi_12.isel(lat=50, lon=100)
-drought_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
+dry_events = identify_events(spi_location, threshold=-1.2, min_duration=3)
 
-print(f"Found {len(drought_events)} drought events")
-print(drought_events[['start_date', 'end_date', 'duration', 'magnitude', 'peak']])
+print(f"Found {len(dry_events)} dry events")
+print(dry_events[['start_date', 'end_date', 'duration', 'magnitude', 'peak']])
 
 # Visualize events
-plot_events(spi_location, drought_events, threshold=-1.2)
+plot_events(spi_location, dry_events, threshold=-1.2)
 ```
 
 ### Wet Events
@@ -248,7 +248,7 @@ stats = calculate_period_statistics(
 )
 
 # Plot number of events per grid cell
-stats.num_events.plot(title='Number of Drought Events 2020-2024')
+stats.num_events.plot(title='Number of Dry/Wet Events 2020-2024')
 ```
 :::
 
@@ -260,31 +260,12 @@ The same functions work for both drought (negative threshold) and wet events (po
 
 ## Data Requirements
 
-### Format
+Your input data must be **NetCDF** with `(time, lat, lon)` dimensions (any order — auto-transposed). SPI needs precipitation; SPEI also needs temperature or pre-computed PET. A 30-year calibration period (default 1991–2020) is recommended.
 
-- **File Type:** NetCDF files (.nc)
-- **Dimensions:** Any order is supported (auto-transposes to CF Convention)
-  - Preferred: `(time, lat, lon)`
-  - Also works: `(lat, lon, time)` ← Auto-detected and transposed!
-- **Temporal Resolution:** Monthly or daily
-
-### Variables
-
-**For SPI:**
-
-- Precipitation in mm/month or mm/day
-
-**For SPEI:**
-
-- Precipitation in mm/month or mm/day
-- Temperature in °C (for PET calculation)
-- OR pre-computed PET in mm/month or mm/day
-
-### Calibration Period
-
-- **Default:** 1991-2020 (WMO recommendation)
-- **Minimum:** 30 years for robust statistics
-- **Requirement:** Should overlap with your data period
+::: {.callout-tip}
+## Full specification
+See [Data Model & Outputs](data-model.qmd) for the complete input contract, output schemas, calibration conventions, and zero/NaN handling details.
+:::
 
 ## Understanding the Output
 
@@ -411,5 +392,12 @@ Need help?
 4. Open an issue on [GitHub](https://github.com/bennyistanto/precip-index/issues)
 
 ---
+
+## See Also
+
+- [Installation](installation.qmd) - Setup and dependencies
+- [Configuration](configuration.qmd) - Customize settings
+- [Data Model & Outputs](data-model.qmd) - Input/output contracts
+- [Examples](examples.qmd) - Common use cases and code snippets
 
 **Ready to dive deeper? Try the [SPI Tutorial](../tutorials/01-calculate-spi.qmd) next!**

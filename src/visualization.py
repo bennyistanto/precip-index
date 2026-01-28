@@ -3,11 +3,13 @@ Visualization functions for climate indices and extreme event characteristics.
 
 Provides plotting utilities for SPI/SPEI time series and climate extreme events (both dry and wet).
 
-Modified/adapted from James Adams' climate-indices package
-https://github.com/monocongo/climate_indices
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 """
 
 from typing import Optional, Tuple, Union

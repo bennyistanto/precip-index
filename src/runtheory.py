@@ -9,8 +9,13 @@ Works with threshold direction:
 - Negative thresholds (e.g., -1.2): Identify dry events (drought)
 - Positive thresholds (e.g., +1.2): Identify wet events (flooding/excess)
 
-Author: Benny Istanto
-Organization: GOST/DEC Data Group, The World Bank
+---
+Author: Benny Istanto, GOST/DEC Data Group/The World Bank
+
+Built upon the foundation of climate-indices by James Adams, 
+with substantial modifications for multi-distribution support, 
+bidirectional event analysis, and scalable processing.
+---
 
 References:
     - Yevjevich, V. (1967). An objective approach to definitions and investigations
