@@ -80,7 +80,19 @@ save_index_to_netcdf(spei_12_p3, 'spei_pearson3_12_output.nc')
 ::: {.callout-tip}
 ## Temperature-based PET
 
-The `spei()` function automatically calculates PET using the Thornthwaite method when you provide temperature data. This is convenient for most applications.
+The `spei()` function can automatically calculate PET when you provide temperature data:
+
+- **Thornthwaite (default):** Requires only mean temperature. Simple and widely used.
+- **Hargreaves:** Requires Tmin/Tmax data. Better for arid/semi-arid regions.
+
+```python
+# Thornthwaite (default)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
+
+# Hargreaves (requires Tmin/Tmax)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12,
+               pet_method='hargreaves', temp_min=tmin, temp_max=tmax)
+```
 
 If you have pre-computed PET values, use `pet=your_pet_data` instead of `temperature=`.
 :::

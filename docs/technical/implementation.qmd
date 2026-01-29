@@ -143,9 +143,13 @@ precip-index/
 
 **Key Functions:**
 
-- `calculate_pet()` - Potential evapotranspiration
-  - Thornthwaite method (temperature)
-  - Hargreaves method (temp + solar)
+- `calculate_pet()` - Potential evapotranspiration (dispatcher)
+  - `method='thornthwaite'` - Uses only mean temperature (default)
+  - `method='hargreaves'` - Uses Tmin, Tmax, and extraterrestrial radiation
+- `eto_thornthwaite()` - Thornthwaite PET (low-level)
+- `eto_hargreaves()` - Hargreaves-Samani PET (low-level)
+- `_extraterrestrial_radiation()` - Daily Ra calculation (FAO-56)
+- `_monthly_mean_extraterrestrial_radiation()` - Monthly Ra averages
 - `validate_data()` - Input checking
 - `load_parameters()` - Pre-fitted parameter loading
 - `save_parameters()` - Parameter persistence
@@ -178,11 +182,14 @@ precip-index/
 ### SPI/SPEI Calculation
 
 ```
-Input NetCDF (precip, temp)
+Input NetCDF (precip, temp, [tmin, tmax])
     ↓
 validate_data()
     ↓
 [calculate_pet() if SPEI]
+    ├─ pet_method='thornthwaite' → eto_thornthwaite(temp, lat)
+    └─ pet_method='hargreaves'  → eto_hargreaves(temp, tmin, tmax, lat)
+                                   └─ _extraterrestrial_radiation(lat, doy)
     ↓
 spi() or spei()
     ├─ Temporal aggregation (rolling sum)

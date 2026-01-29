@@ -22,7 +22,9 @@ First public release of the precip-index package — a streamlined Python implem
 - SPI (Standardized Precipitation Index) and SPEI (Standardized Precipitation Evapotranspiration Index)
 - Multi-scale support: 1, 3, 6, 12, 24 months
 - Five probability distributions: Gamma, Pearson III, Log-Logistic, GEV, Generalized Logistic
-- Automatic PET calculation from temperature (Thornthwaite method)
+- Automatic PET calculation from temperature:
+  - **Thornthwaite method** (default) — requires only mean temperature
+  - **Hargreaves-Samani method** — requires Tmin/Tmax, better for arid regions
 - Parameter save/load for operational workflows
 - CF-compliant NetCDF output with customizable metadata
 

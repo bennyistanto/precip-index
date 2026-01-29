@@ -43,21 +43,36 @@ spei_12.to_netcdf('output/netcdf/spei_12.nc')
 
 ## PET Methods
 
-### Option 1: Auto-PET from Temperature (Thornthwaite)
+### Option 1: Thornthwaite (Default)
 
-**Use when:** Only temperature data available — `spei()` calculates PET internally
+**Use when:** Only mean temperature data available
 
 ```python
 from indices import spei
 
-# Pass temperature and latitude — PET is computed automatically
+# Pass temperature and latitude — PET computed automatically using Thornthwaite
 spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
 ```
 
-**Pros:** Simple, only needs temperature and latitude
-**Cons:** Thornthwaite method less accurate in arid regions
+**Pros:** Simple, only needs mean temperature and latitude
+**Cons:** Less accurate in arid/semi-arid regions
 
-### Option 2: Pre-computed PET
+### Option 2: Hargreaves-Samani (Recommended for Arid Regions)
+
+**Use when:** You have min/max temperature data and need better accuracy in dry climates
+
+```python
+from indices import spei
+
+# Hargreaves method — requires mean, min, max temperature
+spei_12 = spei(precip, temperature=temp_mean, latitude=lat, scale=12,
+               pet_method='hargreaves', temp_min=tmin, temp_max=tmax)
+```
+
+**Pros:** Better accuracy in arid regions, based on radiation balance
+**Cons:** Requires min/max temperature data
+
+### Option 3: Pre-computed PET
 
 **Use when:** You have PET from other sources (FAO-56, Penman-Monteith, etc.)
 
@@ -70,6 +85,14 @@ spei_12 = spei(precip, pet=pet, scale=12)
 ```
 
 **Best option:** Most accurate if PET quality is good
+
+### PET Method Comparison
+
+| Method | Inputs Required | Best For |
+|--------|-----------------|----------|
+| **Thornthwaite** | T_mean, latitude | Humid regions, quick estimates |
+| **Hargreaves** | T_mean, T_min, T_max, latitude | Arid/semi-arid regions |
+| **Pre-computed** | External PET dataset | Highest accuracy when available |
 
 ## Parameters
 
@@ -107,7 +130,25 @@ print(spei_12)
 spei_12.isel(time=-1).plot(cmap='RdBu', vmin=-3, vmax=3)
 ```
 
-### Example 2: With Pre-computed PET
+### Example 2: With Hargreaves PET (Better for Arid Regions)
+
+```python
+import xarray as xr
+from indices import spei
+
+# Load temperature data (mean, min, max)
+temp_mean = xr.open_dataset('input/tmean.nc')['tmean']
+temp_min = xr.open_dataset('input/tmin.nc')['tmin']
+temp_max = xr.open_dataset('input/tmax.nc')['tmax']
+precip = xr.open_dataset('input/precip.nc')['precip']
+lat = temp_mean.lat
+
+# Calculate SPEI-12 using Hargreaves method
+spei_12 = spei(precip, temperature=temp_mean, latitude=lat, scale=12,
+               pet_method='hargreaves', temp_min=temp_min, temp_max=temp_max)
+```
+
+### Example 3: With Pre-computed PET
 
 ```python
 # Your high-quality PET from another source
@@ -121,7 +162,7 @@ assert precip.shape == pet.shape
 spei_6 = spei(precip, pet=pet, scale=6)
 ```
 
-### Example 3: Multiple Scales
+### Example 4: Multiple Scales
 
 ```python
 from indices import spei_multi_scale

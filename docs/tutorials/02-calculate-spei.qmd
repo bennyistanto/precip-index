@@ -104,10 +104,11 @@ print(f"Repository root: {repo_root}")
 
 Choose your PET input method and set calculation parameters.
 
-**You have TWO options for SPEI calculation:**
+**You have THREE options for SPEI calculation:**
 
 - **Option A**: Use pre-computed PET (recommended if available) --- faster, uses existing PET from TerraClimate
-- **Option B**: Calculate PET from temperature --- uses Thornthwaite method, requires temperature data
+- **Option B**: Calculate PET from temperature (Thornthwaite) --- requires only mean temperature data
+- **Option C**: Calculate PET using Hargreaves --- requires Tmin/Tmax data, better for arid regions
 
 ```{python}
 # ========================================
@@ -141,12 +142,13 @@ print(f"  Output directory: {output_netcdf}")
 ::: {.callout-note}
 ### PET Calculation Methods
 
-The `spei()` function accepts either:
+The `spei()` function accepts:
 
 - `pet=` parameter for pre-computed PET values (e.g., from TerraClimate)
-- `temperature=` parameter to auto-calculate PET using Thornthwaite method
+- `temperature=` + `latitude=` to auto-calculate PET using Thornthwaite method (default)
+- `temperature=` + `temp_min=` + `temp_max=` + `latitude=` + `pet_method='hargreaves'` for Hargreaves-Samani method
 
-Both produce similar results. Use pre-computed PET when available for best accuracy, or temperature if PET is not available in your dataset.
+**Thornthwaite** is simpler (requires only mean temperature), while **Hargreaves** performs better in arid/semi-arid regions and correlates better with physically-based PET like Penman-Monteith.
 :::
 
 ## 3. Load Climate Data
@@ -820,4 +822,5 @@ print("\nAll results saved successfully!")
 
 - McKee et al. (1993): SPI methodology
 - Vicente-Serrano et al. (2010): SPEI methodology
-- Thornthwaite (1948): PET calculation
+- Thornthwaite (1948): PET calculation (Thornthwaite method)
+- Hargreaves & Samani (1985): PET calculation (Hargreaves method)

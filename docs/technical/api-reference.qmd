@@ -132,7 +132,10 @@ def spei(
     calibration_end_year=2020,
     fitting_params=None,
     return_params=False,
-    distribution='gamma'
+    distribution='gamma',
+    pet_method='thornthwaite',
+    temp_min=None,
+    temp_max=None
 ) -> xarray.DataArray
 ```
 
@@ -142,10 +145,13 @@ def spei(
 | ----------- | ------ | ---------- | --------- | ------------- |
 | `precip` | xarray.DataArray | Yes | - | Precipitation data (mm/month) |
 | `pet` | xarray.DataArray | No | None | Potential evapotranspiration (mm/month) |
-| `temperature` | xarray.DataArray | No | None | Temperature for PET calculation (if pet not provided) |
+| `temperature` | xarray.DataArray | No | None | Mean temperature for PET calculation (if pet not provided) |
 | `latitude` | xarray.DataArray | No | None | Latitude for PET calculation |
 | `scale` | int | No | 12 | Time scale in months |
 | `distribution` | str | No | 'gamma' | Distribution type: 'gamma', 'pearson3', 'log_logistic', 'gev', 'gen_logistic'. Pearson III recommended for SPEI. |
+| `pet_method` | str | No | 'thornthwaite' | PET method: 'thornthwaite' or 'hargreaves' |
+| `temp_min` | xarray.DataArray | No | None | Minimum temperature (required for Hargreaves) |
+| `temp_max` | xarray.DataArray | No | None | Maximum temperature (required for Hargreaves) |
 | All others | - | - | - | Same as `spi()` |
 
 **Returns:**
@@ -158,14 +164,18 @@ def spei(
 ```python
 from indices import spei
 
-# Default (Gamma)
+# Default (Gamma with Thornthwaite PET)
 spei_12 = spei(precip, pet=pet, scale=12)
 
 # Pearson III (recommended for SPEI)
 spei_12 = spei(precip, pet=pet, scale=12, distribution='pearson3')
 
-# Auto-compute PET from temperature
+# Auto-compute PET from temperature (Thornthwaite)
 spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
+
+# Hargreaves PET method (better for arid regions)
+spei_12 = spei(precip, temperature=temp_mean, latitude=lat, scale=12,
+               pet_method='hargreaves', temp_min=tmin, temp_max=tmax)
 ```
 
 ---
@@ -489,13 +499,16 @@ print(f"Fits in memory: {mem.fits_in_memory}")
 
 ### calculate_pet()
 
-Calculate potential evapotranspiration using the Thornthwaite method.
+Calculate potential evapotranspiration using Thornthwaite or Hargreaves-Samani method.
 
 ```python
 def calculate_pet(
     temperature,
     latitude,
-    data_start_year
+    data_start_year,
+    method='thornthwaite',
+    temp_min=None,
+    temp_max=None
 ) -> xarray.DataArray
 ```
 
@@ -503,21 +516,103 @@ def calculate_pet(
 
 | Parameter | Type | Required | Default | Description |
 | ----------- | ------ | ---------- | --------- | ------------- |
-| `temperature` | xarray.DataArray or numpy.ndarray | Yes | - | Monthly temperature data (°C) |
+| `temperature` | xarray.DataArray or numpy.ndarray | Yes | - | Monthly mean temperature data (C) |
 | `latitude` | float or array | Yes | - | Latitude in degrees |
 | `data_start_year` | int | Yes | - | First year of the temperature data |
+| `method` | str | No | 'thornthwaite' | PET method: 'thornthwaite' or 'hargreaves' |
+| `temp_min` | xarray.DataArray or numpy.ndarray | No | None | Monthly minimum temperature (required for Hargreaves) |
+| `temp_max` | xarray.DataArray or numpy.ndarray | No | None | Monthly maximum temperature (required for Hargreaves) |
 
 **Returns:**
 
 - `xarray.DataArray`: PET values (mm/month)
+  - Attributes include method name and reference
+
+**Method Comparison:**
+
+| Method | Inputs | Best For | Reference |
+|--------|--------|----------|-----------|
+| Thornthwaite | T_mean, latitude | Humid regions, quick estimates | Thornthwaite (1948) |
+| Hargreaves | T_mean, T_min, T_max, latitude | Arid/semi-arid regions | Hargreaves & Samani (1985) |
 
 **Example:**
 
 ```python
 from utils import calculate_pet
 
-pet = calculate_pet(temp, latitude=lat, data_start_year=1958)
+# Thornthwaite method (default)
+pet = calculate_pet(temp_mean, latitude=lat, data_start_year=1958)
+
+# Hargreaves method (better for arid regions)
+pet = calculate_pet(
+    temp_mean, latitude=lat, data_start_year=1958,
+    method='hargreaves',
+    temp_min=tmin,
+    temp_max=tmax
+)
 ```
+
+---
+
+### eto_thornthwaite()
+
+Low-level function to calculate PET using the Thornthwaite equation.
+
+```python
+def eto_thornthwaite(
+    temperature_celsius,
+    latitude_degrees,
+    data_start_year
+) -> numpy.ndarray
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+| ----------- | ------ | ---------- | ------------- |
+| `temperature_celsius` | numpy array | Yes | Monthly mean temperatures (C) |
+| `latitude_degrees` | float | Yes | Latitude in degrees (-90 to 90) |
+| `data_start_year` | int | Yes | First year of data |
+
+**Returns:**
+
+- `numpy.ndarray`: PET values (mm/month)
+
+---
+
+### eto_hargreaves()
+
+Low-level function to calculate PET using the Hargreaves-Samani equation.
+
+```python
+def eto_hargreaves(
+    temp_mean_celsius,
+    temp_min_celsius,
+    temp_max_celsius,
+    latitude_degrees,
+    data_start_year
+) -> numpy.ndarray
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+| ----------- | ------ | ---------- | ------------- |
+| `temp_mean_celsius` | numpy array | Yes | Monthly mean temperatures (C) |
+| `temp_min_celsius` | numpy array | Yes | Monthly minimum temperatures (C) |
+| `temp_max_celsius` | numpy array | Yes | Monthly maximum temperatures (C) |
+| `latitude_degrees` | float | Yes | Latitude in degrees (-90 to 90) |
+| `data_start_year` | int | Yes | First year of data |
+
+**Returns:**
+
+- `numpy.ndarray`: PET values (mm/month)
+
+**Note:** The Hargreaves equation:
+
+$$PET = 0.0023 \times R_a \times (T_{mean} + 17.8) \times \sqrt{T_{max} - T_{min}}$$
+
+where $R_a$ is extraterrestrial radiation calculated from latitude and day of year.
 
 ---
 

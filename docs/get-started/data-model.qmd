@@ -45,20 +45,37 @@ Dimension order can vary. Preferred is `(time, lat, lon)`.
 | SPI | precipitation | mm/month or mm/day |
 | SPEI | precipitation + PET **or** precipitation + temperature + latitude | precip: mm/\*, PET: mm/\*, temp: °C |
 
-#### SPEI: Two input paths
+#### SPEI: Three input paths
 
-SPEI supports two ways to provide evapotranspiration data:
+SPEI supports three ways to provide evapotranspiration data:
 
 1. **Pre-computed PET** — pass `pet=your_pet_data` directly (any PET method)
-2. **Temperature + latitude** — pass `temperature=` and `latitude=`; PET is computed internally using the **Thornthwaite method**
+2. **Temperature + latitude (Thornthwaite)** — pass `temperature=` and `latitude=`; PET is computed internally using the **Thornthwaite method** (requires only mean temperature)
+3. **Temperature + Tmin/Tmax + latitude (Hargreaves)** — pass `temperature=`, `temp_min=`, `temp_max=`, and `latitude=`; PET is computed using the **Hargreaves-Samani method** (better for arid/semi-arid regions)
 
 ```python
 # Path 1: Pre-computed PET
 spei_12 = spei(precip, pet=pet, scale=12)
 
-# Path 2: Auto-PET from temperature (Thornthwaite)
+# Path 2: Auto-PET from temperature (Thornthwaite - default)
 spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)
+
+# Path 3: Auto-PET using Hargreaves (requires Tmin/Tmax)
+spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12,
+               pet_method='hargreaves', temp_min=tmin, temp_max=tmax)
 ```
+
+#### PET Method Selection
+
+| Method | Data Requirements | Best For | Reference |
+|--------|------------------|----------|-----------|
+| **Thornthwaite** (default) | Tmean, latitude | Humid/temperate climates | Thornthwaite (1948) |
+| **Hargreaves-Samani** | Tmean, Tmin, Tmax, latitude | Arid/semi-arid regions | Hargreaves & Samani (1985) |
+
+::: {.callout-tip}
+## When to use Hargreaves
+If you have TerraClimate or ERA5-Land data with Tmin/Tmax available, Hargreaves often correlates better with physically-based PET (like Penman-Monteith). Testing on Bali showed Hargreaves correlation r=0.80 vs Thornthwaite r=0.75 when compared to TerraClimate PET.
+:::
 
 ### Variable auto-detection
 
@@ -68,7 +85,9 @@ When you pass an `xarray.Dataset` (rather than a `DataArray`), the code searches
 |--------------|---------------------|
 | Precipitation | `precip`, `prcp`, `precipitation`, `pr`, `ppt`, `rainfall` |
 | PET | `pet`, `eto`, `et`, `evap` |
-| Temperature | `temp`, `tas`, `tasmin`, `tasmax`, `t2m`, `tmean`, `tmin`, `tmax` |
+| Temperature (mean) | `temp`, `tas`, `t2m`, `tmean` |
+| Temperature (min) | `tmin`, `tasmin` |
+| Temperature (max) | `tmax`, `tasmax` |
 
 You can always override auto-detection with explicit parameters: `precip_var_name=`, `pet_var_name=`, `temp_var_name=`.
 
