@@ -555,35 +555,236 @@ def eto_thornthwaite(
     return pet.reshape(-1)[:original_length]
 
 
+def _extraterrestrial_radiation(
+    latitude_rad: float,
+    day_of_year: int
+) -> float:
+    """
+    Calculate daily extraterrestrial radiation (Ra) for a given latitude and day.
+
+    Based on FAO-56 equations 21, 23, 24, 25 in Allen et al. (1998).
+
+    :param latitude_rad: latitude in radians
+    :param day_of_year: day of year (1-366)
+    :return: extraterrestrial radiation in MJ/m2/day
+    """
+    # Inverse relative distance Earth-Sun (FAO eq. 23)
+    dr = 1 + 0.033 * math.cos(2 * math.pi * day_of_year / 365)
+
+    # Solar declination (FAO eq. 24)
+    solar_dec = 0.409 * math.sin(2 * math.pi * day_of_year / 365 - 1.39)
+
+    # Sunset hour angle (FAO eq. 25)
+    cos_sha = -math.tan(latitude_rad) * math.tan(solar_dec)
+    cos_sha = max(-1.0, min(1.0, cos_sha))  # Clamp to valid range
+    sunset_angle = math.acos(cos_sha)
+
+    # Extraterrestrial radiation (FAO eq. 21)
+    ra = (
+        (24 * 60 / math.pi) * _SOLAR_CONSTANT * dr *
+        (sunset_angle * math.sin(latitude_rad) * math.sin(solar_dec) +
+         math.cos(latitude_rad) * math.cos(solar_dec) * math.sin(sunset_angle))
+    )
+
+    return max(0.0, ra)
+
+
+def _monthly_mean_extraterrestrial_radiation(
+    latitude_rad: float,
+    leap: bool = False
+) -> np.ndarray:
+    """
+    Calculate mean extraterrestrial radiation for each month at given latitude.
+
+    :param latitude_rad: latitude in radians
+    :param leap: whether to calculate for leap year
+    :return: array of 12 monthly mean Ra values in MJ/m2/day
+    """
+    month_days = _MONTH_DAYS_LEAP if leap else _MONTH_DAYS_NONLEAP
+    monthly_ra = np.zeros(12)
+
+    day_of_year = 1
+    for month_idx, days_in_month in enumerate(month_days):
+        cumulative_ra = 0.0
+        for _ in range(days_in_month):
+            cumulative_ra += _extraterrestrial_radiation(latitude_rad, day_of_year)
+            day_of_year += 1
+
+        monthly_ra[month_idx] = cumulative_ra / days_in_month
+
+    return monthly_ra
+
+
+def eto_hargreaves(
+    temp_mean_celsius: np.ndarray,
+    temp_min_celsius: np.ndarray,
+    temp_max_celsius: np.ndarray,
+    latitude_degrees: float,
+    data_start_year: int
+) -> np.ndarray:
+    """
+    Calculate monthly potential evapotranspiration (PET) using Hargreaves-Samani method.
+
+    Reference:
+        Hargreaves, G.H. and Samani, Z.A. (1985) Reference crop evapotranspiration
+        from temperature. Applied Engineering in Agriculture, 1(2), 96-99.
+
+    Hargreaves equation:
+        PET = 0.0023 * Ra * (Tmean + 17.8) * (Tmax - Tmin)^0.5
+
+    where:
+        - Ra: extraterrestrial radiation (MJ/m2/day)
+        - Tmean: mean temperature (C)
+        - Tmax: maximum temperature (C)
+        - Tmin: minimum temperature (C)
+
+    Advantages over Thornthwaite:
+        - Better performance in arid/semi-arid regions
+        - Based on physical radiation balance
+        - More accurate for monthly calculations
+
+    :param temp_mean_celsius: array of monthly mean temperatures in C
+    :param temp_min_celsius: array of monthly minimum temperatures in C
+    :param temp_max_celsius: array of monthly maximum temperatures in C
+    :param latitude_degrees: latitude in degrees north (-90 to 90)
+    :param data_start_year: starting year of the data
+    :return: array of monthly PET values in mm/month
+
+    Note:
+        The result is converted from MJ/m2/day to mm/day using the latent heat
+        of vaporization (lambda = 2.45 MJ/kg), then multiplied by days in month.
+        1 MJ/m2/day = 0.408 mm/day
+    """
+    original_length = temp_mean_celsius.size
+
+    # Reshape all temperature arrays to (years, 12)
+    t_mean = reshape_to_2d(temp_mean_celsius.copy(), 12)
+    t_min = reshape_to_2d(temp_min_celsius.copy(), 12)
+    t_max = reshape_to_2d(temp_max_celsius.copy(), 12)
+
+    # Convert latitude to radians
+    latitude_rad = math.radians(float(latitude_degrees))
+
+    # Conversion factor: MJ/m2/day to mm/day (using lambda = 2.45 MJ/kg)
+    MJ_TO_MM = 0.408
+
+    # Hargreaves coefficient
+    HARGREAVES_COEF = 0.0023
+
+    # Get mean extraterrestrial radiation for leap and non-leap years
+    ra_nonleap = _monthly_mean_extraterrestrial_radiation(latitude_rad, leap=False)
+    ra_leap = _monthly_mean_extraterrestrial_radiation(latitude_rad, leap=True)
+
+    # Calculate PET for each year
+    pet = np.full(t_mean.shape, np.nan)
+
+    for year_idx in range(t_mean.shape[0]):
+        year = data_start_year + year_idx
+
+        if calendar.isleap(year):
+            month_days = _MONTH_DAYS_LEAP
+            ra = ra_leap
+        else:
+            month_days = _MONTH_DAYS_NONLEAP
+            ra = ra_nonleap
+
+        # Temperature range (ensure non-negative)
+        temp_range = np.maximum(t_max[year_idx, :] - t_min[year_idx, :], 0.0)
+
+        # Hargreaves equation (daily PET in mm/day)
+        # PET = 0.0023 * Ra * (Tmean + 17.8) * sqrt(Tmax - Tmin)
+        pet_daily = (
+            HARGREAVES_COEF *
+            ra * MJ_TO_MM *  # Convert Ra to equivalent evaporation
+            (t_mean[year_idx, :] + 17.8) *
+            np.sqrt(temp_range)
+        )
+
+        # Convert to mm/month and ensure non-negative
+        pet[year_idx, :] = np.maximum(pet_daily * month_days, 0.0)
+
+    # Reshape back to 1-D and truncate to original length
+    return pet.reshape(-1)[:original_length]
+
+
 def calculate_pet(
     temperature: Union[np.ndarray, xr.DataArray],
     latitude: Union[float, np.ndarray, xr.DataArray],
-    data_start_year: int
+    data_start_year: int,
+    method: str = 'thornthwaite',
+    temp_min: Optional[Union[np.ndarray, xr.DataArray]] = None,
+    temp_max: Optional[Union[np.ndarray, xr.DataArray]] = None
 ) -> Union[np.ndarray, xr.DataArray]:
     """
-    Calculate PET from temperature data, handling both arrays and DataArrays.
-    
-    Wrapper around eto_thornthwaite that handles xarray inputs.
+    Calculate PET from temperature data using Thornthwaite or Hargreaves method.
 
-    :param temperature: monthly temperature in °C
+    Wrapper that handles xarray inputs and selects the appropriate PET method.
+
+    :param temperature: monthly mean temperature in C
         - numpy array: shape (time,) or (time, lat, lon) following CF Convention
         - xarray DataArray: with 'time' dimension
     :param latitude: latitude in degrees
         - float: single value for all data
         - array: latitude values matching spatial dimensions
     :param data_start_year: starting year of the data
+    :param method: PET calculation method ('thornthwaite' or 'hargreaves')
+        - 'thornthwaite': Requires only mean temperature (default)
+        - 'hargreaves': Requires mean, min, and max temperature (more accurate for arid regions)
+    :param temp_min: monthly minimum temperature in C (required for Hargreaves)
+    :param temp_max: monthly maximum temperature in C (required for Hargreaves)
     :return: PET array in mm/month, same type and shape as input temperature
+
+    Example:
+        >>> # Thornthwaite method (default)
+        >>> pet = calculate_pet(temp_mean, latitude, 1981)
+
+        >>> # Hargreaves method
+        >>> pet = calculate_pet(temp_mean, latitude, 1981,
+        ...                     method='hargreaves',
+        ...                     temp_min=tmin, temp_max=tmax)
     """
+    method = method.lower()
+    valid_methods = ['thornthwaite', 'hargreaves']
+    if method not in valid_methods:
+        raise ValueError(f"Invalid PET method '{method}'. Must be one of: {valid_methods}")
+
+    # Validate Hargreaves requirements
+    if method == 'hargreaves':
+        if temp_min is None or temp_max is None:
+            raise ValueError(
+                "Hargreaves method requires temp_min and temp_max parameters. "
+                "Use method='thornthwaite' if only mean temperature is available."
+            )
+
+    # Method display names for attributes
+    method_attrs = {
+        'thornthwaite': {
+            'long_name': 'Potential Evapotranspiration (Thornthwaite)',
+            'method': 'Thornthwaite (1948)',
+        },
+        'hargreaves': {
+            'long_name': 'Potential Evapotranspiration (Hargreaves-Samani)',
+            'method': 'Hargreaves-Samani (1985)',
+        }
+    }
+
+    _logger.info(f"Calculating PET using {method.capitalize()} method")
+
     # Handle xarray DataArray
     if isinstance(temperature, xr.DataArray):
-        _logger.info("Calculating PET from xarray DataArray")
-
         # Ensure CF Convention dimension order (time, lat, lon)
         if temperature.ndim == 3:
             expected_order = ('time', 'lat', 'lon')
             if temperature.dims != expected_order:
                 _logger.info(f"Transposing temperature dimensions from {temperature.dims} to {expected_order}")
                 temperature = temperature.transpose(*expected_order)
+
+            # Also transpose temp_min and temp_max if provided
+            if method == 'hargreaves':
+                if isinstance(temp_min, xr.DataArray) and temp_min.dims != expected_order:
+                    temp_min = temp_min.transpose(*expected_order)
+                if isinstance(temp_max, xr.DataArray) and temp_max.dims != expected_order:
+                    temp_max = temp_max.transpose(*expected_order)
 
         # Get latitude values
         if isinstance(latitude, xr.DataArray):
@@ -597,57 +798,81 @@ def calculate_pet(
         if 'lat' in temperature.dims and 'lon' in temperature.dims:
             # 3D data: (time, lat, lon) - CF Convention
             pet_data = np.full(temperature.shape, np.nan)
-            
+
             # Get latitude array
             if isinstance(lat_values, (int, float)):
                 lat_array = np.full(temperature.shape[1], lat_values)
             else:
                 lat_array = lat_values
-            
+
+            # Get numpy arrays for temp_min/temp_max if Hargreaves
+            if method == 'hargreaves':
+                tmin_vals = temp_min.values if isinstance(temp_min, xr.DataArray) else temp_min
+                tmax_vals = temp_max.values if isinstance(temp_max, xr.DataArray) else temp_max
+
             # Process each grid point
             for lat_idx in range(temperature.shape[1]):
                 for lon_idx in range(temperature.shape[2]):
                     temp_series = temperature[:, lat_idx, lon_idx].values
                     lat_val = lat_array[lat_idx] if lat_array.ndim >= 1 else lat_array
-                    
+
                     if not np.all(np.isnan(temp_series)) and -90 < lat_val < 90:
-                        pet_data[:, lat_idx, lon_idx] = eto_thornthwaite(
-                            temp_series, lat_val, data_start_year
-                        )
-            
+                        if method == 'thornthwaite':
+                            pet_data[:, lat_idx, lon_idx] = eto_thornthwaite(
+                                temp_series, lat_val, data_start_year
+                            )
+                        else:  # hargreaves
+                            tmin_series = tmin_vals[:, lat_idx, lon_idx]
+                            tmax_series = tmax_vals[:, lat_idx, lon_idx]
+                            pet_data[:, lat_idx, lon_idx] = eto_hargreaves(
+                                temp_series, tmin_series, tmax_series,
+                                lat_val, data_start_year
+                            )
+
             # Return as DataArray with same coordinates
             return xr.DataArray(
                 data=pet_data,
                 dims=temperature.dims,
                 coords=temperature.coords,
                 attrs={
-                    'long_name': 'Potential Evapotranspiration (Thornthwaite)',
+                    'long_name': method_attrs[method]['long_name'],
                     'units': 'mm/month',
-                    'method': 'Thornthwaite (1948)',
+                    'method': method_attrs[method]['method'],
                 }
             )
         else:
             # 1D data: just time series
-            pet_values = eto_thornthwaite(
-                temperature.values,
-                float(lat_values) if np.ndim(lat_values) == 0 else float(lat_values[0]),
-                data_start_year
-            )
+            lat_val = float(lat_values) if np.ndim(lat_values) == 0 else float(lat_values[0])
+
+            if method == 'thornthwaite':
+                pet_values = eto_thornthwaite(
+                    temperature.values, lat_val, data_start_year
+                )
+            else:  # hargreaves
+                tmin_vals = temp_min.values if isinstance(temp_min, xr.DataArray) else temp_min
+                tmax_vals = temp_max.values if isinstance(temp_max, xr.DataArray) else temp_max
+                pet_values = eto_hargreaves(
+                    temperature.values, tmin_vals, tmax_vals, lat_val, data_start_year
+                )
+
             return xr.DataArray(
                 data=pet_values,
                 dims=temperature.dims,
                 coords=temperature.coords,
                 attrs={
-                    'long_name': 'Potential Evapotranspiration (Thornthwaite)',
+                    'long_name': method_attrs[method]['long_name'],
                     'units': 'mm/month',
-                    'method': 'Thornthwaite (1948)',
+                    'method': method_attrs[method]['method'],
                 }
             )
-    
+
     # Handle numpy array
     else:
         if isinstance(latitude, (int, float)):
-            return eto_thornthwaite(temperature, latitude, data_start_year)
+            if method == 'thornthwaite':
+                return eto_thornthwaite(temperature, latitude, data_start_year)
+            else:  # hargreaves
+                return eto_hargreaves(temperature, temp_min, temp_max, latitude, data_start_year)
         else:
             raise ValueError(
                 "For numpy array input with multiple latitudes, "

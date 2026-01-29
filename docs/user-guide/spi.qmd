@@ -242,7 +242,7 @@ if precip.dims != ('time', 'lat', 'lon'):
 
 ### Issue 3: Memory Error
 
-**Problem:** Out of memory for large datasets    
+**Problem:** Out of memory for large datasets
 **Solution:** Use Dask-enabled version
 
 ```python
@@ -252,6 +252,29 @@ precip = xr.open_dataset('precip.nc', chunks={'time': 100})['precip']
 # Calculate with Dask
 spi_12 = spi(precip, scale=12)  # Automatically uses Dask if input is chunked
 ```
+
+### Issue 4: NaN in Arid Regions
+
+**Problem:** Desert/semi-arid grid cells return NaN even with valid data
+**Cause:** Too many zero-precipitation months (>95% zeros triggers fitting failure)
+
+**Diagnosis:**
+```python
+from distributions import diagnose_data
+
+# Check zero proportion at a location
+ts = precip.isel(lat=50, lon=100).values
+diag = diagnose_data(ts)
+print(f"Zero proportion: {diag.zero_proportion:.1%}")
+```
+
+**Solutions:**
+
+- Use longer time scales (SPI-12, SPI-24) to reduce zero proportion
+- Mask hyper-arid pixels (mean annual precip < 50 mm)
+- Accept that SPI may not be meaningful for true deserts
+
+See [Data Model — Arid Regions](../get-started/data-model.qmd#arid-regions-and-zero-precipitation) for detailed guidance.
 
 ## Visualization
 

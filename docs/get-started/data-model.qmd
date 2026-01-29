@@ -66,9 +66,9 @@ When you pass an `xarray.Dataset` (rather than a `DataArray`), the code searches
 
 | Variable type | Auto-detected names |
 |--------------|---------------------|
-| Precipitation | `precip`, `prcp`, `pr`, `ppt`, `rainfall` |
+| Precipitation | `precip`, `prcp`, `precipitation`, `pr`, `ppt`, `rainfall` |
 | PET | `pet`, `eto`, `et`, `evap` |
-| Temperature | `temp`, `tas`, `t2m` |
+| Temperature | `temp`, `tas`, `tasmin`, `tasmax`, `t2m`, `tmean`, `tmin`, `tmax` |
 
 You can always override auto-detection with explicit parameters: `precip_var_name=`, `pet_var_name=`, `temp_var_name=`.
 
@@ -87,6 +87,33 @@ The code enforces these minimums per grid cell during calibration. If a cell fai
 | Minimum valid values | 30 | Fitting skipped (NaN output) |
 | Minimum non-zero values | 10 | Fitting skipped (NaN output) |
 | Maximum zero proportion | 95% | Fitting skipped (NaN output) |
+
+::: {.callout-warning}
+## Arid regions and zero precipitation
+
+**Problem:** In deserts and semi-arid regions, many months have zero precipitation. If >95% of months are zero, fitting fails entirely (NaN output). Even with 80-95% zeros, fitting quality degrades.
+
+**Why this matters:** Pearson Type III distribution requires at least 4 non-zero values for L-moments computation. When this fails, the code falls back to Method of Moments, then to a normal approximation — but results may be unreliable.
+
+**Diagnosis:** Use `diagnose_data()` before running SPI/SPEI to check zero proportions:
+
+```python
+from distributions import diagnose_data
+
+# Check a single location
+ts = precip.isel(lat=50, lon=100).values
+diag = diagnose_data(ts)
+print(f"Zero proportion: {diag.zero_proportion:.1%}")
+print(f"Recommendation: {diag.recommendation}")
+```
+
+**Options for arid regions:**
+
+1. **Accept NaN** — If a region is truly hyper-arid, SPI may not be meaningful there
+2. **Use longer time scales** — SPI-12 or SPI-24 aggregates more precipitation, reducing zero proportion
+3. **Mask desert pixels** — Exclude cells with mean annual precipitation < 50 mm
+4. **Use Gamma distribution** — More robust than Pearson III for high-zero data (but still limited)
+:::
 
 ::: {.callout-tip}
 ## Quick sanity checks (recommended)

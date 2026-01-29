@@ -135,9 +135,9 @@ SPEI_WATER_BALANCE_OFFSET = 1000.0
 
 # Variable name patterns for auto-detection in NetCDF datasets.
 # Add patterns here if your data uses different variable names.
-PRECIP_VAR_PATTERNS = ['precip', 'prcp', 'pr', 'ppt', 'rainfall']
+PRECIP_VAR_PATTERNS = ['precip', 'prcp', 'precipitation', 'pr', 'ppt', 'rainfall']
 PET_VAR_PATTERNS = ['pet', 'eto', 'et', 'evap']
-TEMP_VAR_PATTERNS = ['temp', 'tas', 't2m']
+TEMP_VAR_PATTERNS = ['temp', 'tas', 'tasmin', 'tasmax', 't2m', 'tmean', 'tmin', 'tmax']
 
 
 # =============================================================================

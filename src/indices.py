@@ -582,18 +582,21 @@ def spei(
     precip_var_name: Optional[str] = None,
     pet_var_name: Optional[str] = None,
     temp_var_name: Optional[str] = None,
-    distribution: str = DEFAULT_DISTRIBUTION
+    distribution: str = DEFAULT_DISTRIBUTION,
+    pet_method: str = 'thornthwaite',
+    temp_min: Optional[Union[np.ndarray, xr.DataArray]] = None,
+    temp_max: Optional[Union[np.ndarray, xr.DataArray]] = None
 ) -> Union[xr.DataArray, Tuple[xr.DataArray, Dict[str, np.ndarray]]]:
     """
     Calculate Standardized Precipitation Evapotranspiration Index (SPEI).
 
     SPEI uses the water balance (P - PET) instead of just precipitation.
     PET can be provided directly or calculated from temperature using
-    the Thornthwaite method.
+    Thornthwaite or Hargreaves-Samani method.
 
     :param precip: precipitation data in mm
     :param pet: potential evapotranspiration in mm (optional if temperature provided)
-    :param temperature: temperature in °C for PET calculation (optional if PET provided)
+    :param temperature: mean temperature in C for PET calculation (optional if PET provided)
     :param latitude: latitude for PET calculation (required if using temperature)
     :param scale: accumulation period in time steps
     :param periodicity: 'monthly' or 'daily'
@@ -608,6 +611,11 @@ def spei(
     :param distribution: distribution type ('gamma', 'pearson3', 'log_logistic',
         'gev', 'gen_logistic'). Default: 'gamma'.
         Note: Pearson III or Log-Logistic are recommended for SPEI.
+    :param pet_method: PET calculation method ('thornthwaite' or 'hargreaves').
+        - 'thornthwaite': Uses only mean temperature (default)
+        - 'hargreaves': Uses mean, min, max temperature (better for arid regions)
+    :param temp_min: minimum temperature in C (required for Hargreaves method)
+    :param temp_max: maximum temperature in C (required for Hargreaves method)
     :return: SPEI values as xarray DataArray, or tuple (SPEI, params)
 
     Example:
@@ -617,8 +625,12 @@ def spei(
         >>> # With Pearson III distribution (recommended for SPEI)
         >>> spei_12 = spei(precip_da, pet=pet_da, scale=12, distribution='pearson3')
 
-        >>> # With temperature (auto-compute PET)
+        >>> # With temperature - Thornthwaite method (default)
         >>> spei_12 = spei(precip_da, temperature=temp_da, latitude=lat_da, scale=12)
+
+        >>> # With temperature - Hargreaves method (better for arid regions)
+        >>> spei_12 = spei(precip_da, temperature=temp_mean, latitude=lat_da, scale=12,
+        ...               pet_method='hargreaves', temp_min=tmin, temp_max=tmax)
 
         >>> # Save and reuse parameters
         >>> spei_12, params = spei(precip_da, pet=pet_da, scale=12, return_params=True)
@@ -666,10 +678,17 @@ def spei(
             pet_array = np.asarray(pet)
     elif temperature is not None:
         # Compute PET from temperature
-        _logger.info("Computing PET from temperature using Thornthwaite method")
+        pet_method = pet_method.lower()
+        _logger.info(f"Computing PET from temperature using {pet_method.capitalize()} method")
 
         if latitude is None:
             raise ValueError("latitude required for PET calculation from temperature")
+
+        if pet_method == 'hargreaves' and (temp_min is None or temp_max is None):
+            raise ValueError(
+                "Hargreaves method requires temp_min and temp_max parameters. "
+                "Use pet_method='thornthwaite' if only mean temperature is available."
+            )
 
         # Handle temperature input
         if isinstance(temperature, xr.Dataset):
@@ -693,8 +712,13 @@ def spei(
         if data_start_year is None:
             raise ValueError("data_start_year required for PET calculation")
 
-        # Calculate PET
-        pet_da = calculate_pet(temp_da, latitude, data_start_year)
+        # Calculate PET using specified method
+        pet_da = calculate_pet(
+            temp_da, latitude, data_start_year,
+            method=pet_method,
+            temp_min=temp_min,
+            temp_max=temp_max
+        )
         pet_array = pet_da.values if isinstance(pet_da, xr.DataArray) else pet_da
     else:
         raise ValueError("Either 'pet' or 'temperature' (with 'latitude') must be provided")
@@ -822,14 +846,17 @@ def spei_multi_scale(
     pet_var_name: Optional[str] = None,
     temp_var_name: Optional[str] = None,
     distribution: str = DEFAULT_DISTRIBUTION,
-    global_attrs: Optional[Dict] = None
+    global_attrs: Optional[Dict] = None,
+    pet_method: str = 'thornthwaite',
+    temp_min: Optional[Union[np.ndarray, xr.DataArray]] = None,
+    temp_max: Optional[Union[np.ndarray, xr.DataArray]] = None
 ) -> Union[xr.Dataset, Tuple[xr.Dataset, Dict[int, Dict[str, np.ndarray]]]]:
     """
     Calculate SPEI for multiple time scales.
 
     :param precip: precipitation data
     :param pet: potential evapotranspiration (optional if temperature provided)
-    :param temperature: temperature for PET calculation
+    :param temperature: mean temperature for PET calculation
     :param latitude: latitude for PET calculation
     :param scales: list of accumulation scales (e.g., [1, 3, 6, 12])
     :param periodicity: 'monthly' or 'daily'
@@ -844,6 +871,9 @@ def spei_multi_scale(
         'gev', 'gen_logistic'). Default: 'gamma'
     :param global_attrs: optional dict of global attributes to override defaults
         (e.g., {'institution': 'My Org', 'source': 'My Project'})
+    :param pet_method: PET calculation method ('thornthwaite' or 'hargreaves')
+    :param temp_min: minimum temperature (required for Hargreaves)
+    :param temp_max: maximum temperature (required for Hargreaves)
     :return: Dataset with SPEI for all scales
 
     Example:
@@ -852,6 +882,10 @@ def spei_multi_scale(
         >>> # With Pearson III (recommended for SPEI)
         >>> spei_ds = spei_multi_scale(precip_da, pet=pet_da, scales=[3, 12],
         ...                            distribution='pearson3')
+        >>> # With Hargreaves PET
+        >>> spei_ds = spei_multi_scale(precip_da, temperature=tmean, latitude=lat,
+        ...                            scales=[3, 12], pet_method='hargreaves',
+        ...                            temp_min=tmin, temp_max=tmax)
     """
     dist = distribution.lower()
     _logger.info(f"Computing SPEI for scales: {scales} (distribution={dist})")
@@ -879,7 +913,10 @@ def spei_multi_scale(
             precip_var_name=precip_var_name,
             pet_var_name=pet_var_name,
             temp_var_name=temp_var_name,
-            distribution=dist
+            distribution=dist,
+            pet_method=pet_method,
+            temp_min=temp_min,
+            temp_max=temp_max
         )
 
         var_name_out = get_variable_name('spei', s, periodicity, distribution=dist)

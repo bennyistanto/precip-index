@@ -192,8 +192,32 @@ print(f"Mean P-PET: {water_balance.mean().values:.1f} mm/month")
 
 ### Issue 3: PET > Precipitation Always
 
-**Problem:** In deserts, PET always exceeds precipitation    
-**Solution:** SPEI is designed for this — shows persistent dry conditions    
+**Problem:** In deserts, PET always exceeds precipitation
+**Solution:** SPEI is designed for this — shows persistent dry conditions
+
+### Issue 4: NaN in Arid Regions (Distribution Fitting Failure)
+
+**Problem:** Hyper-arid grid cells return NaN even with valid data
+**Cause:** Pearson Type III requires sufficient non-zero values for L-moments computation. When >95% of water balance values cluster near zero or are identical, fitting fails.
+
+**Diagnosis:**
+```python
+from distributions import diagnose_data
+
+# Check the water balance distribution
+water_balance = (precip - pet).isel(lat=50, lon=100).values
+diag = diagnose_data(water_balance)
+print(f"Zero proportion: {diag.zero_proportion:.1%}")
+print(f"Suitable for Pearson III: {diag.is_suitable_pearson3}")
+```
+
+**Solutions:**
+
+- Use **Gamma distribution** instead of Pearson III (more robust for extreme cases)
+- Use longer time scales (SPEI-12, SPEI-24)
+- Mask hyper-arid pixels where SPEI is not meaningful
+
+See [Data Model — Arid Regions](../get-started/data-model.qmd#arid-regions-and-zero-precipitation) for detailed guidance.
 
 ## Visualization
 
