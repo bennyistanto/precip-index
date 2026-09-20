@@ -15,6 +15,7 @@ Output:
     docs/images/global-spi12-202512.png
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -37,14 +38,29 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # Input / output paths
 BASE_DIR = Path(__file__).parent.parent
-INPUT_FILE = BASE_DIR / 'global' / 'output' / 'netcdf' / 'wld_cli_chirps3_d3_spi_gamma_12_month.nc'
-OUTPUT_FILE = BASE_DIR / 'docs' / 'images' / 'global-spi12-202412.png'
+INPUT_FILE = Path(r'E:/temp/chirps/spi/output3/wld_cli_chirps3_spi_gamma_12_month.nc')
+OUTPUT_FILE = BASE_DIR / 'docs' / 'images' / 'global-spi12-202512.png'
 
 # Time slice to plot
-TARGET_DATE = '2024-12-21'
+TARGET_DATE = '2025-12-21'
 
 # Variable name in the NetCDF
 VAR_NAME = 'spi_gamma_12_month'
+
+# Accumulation length, read off the variable name so that pointing this script
+# at another timescale needs no other edit.
+TIMESCALE_LABEL = re.search(r'(\d+)_month', VAR_NAME).group(1) + '-month'
+
+# Title: the long-format index name on its own.
+INDEX_NAME = 'Standardized Precipitation Index'
+
+# Subtitle parts. The baseline and the date are appended at plot time, both
+# read from the file rather than typed here.
+DATASET_LABEL = 'CHIRPS v3'
+DISTRIBUTION_LABEL = 'Gamma'
+
+# Colorbar keeps the fully qualified label.
+INDEX_LABEL = 'Standardized Precipitation Index (Gamma), 12-month'
 
 # Map settings
 PROJECTION = ccrs.EqualEarth()        # Equal-area projection
@@ -112,6 +128,16 @@ def load_data(filepath: Path, target_date: str, var_name: str) -> xr.DataArray:
     # Load into memory (single time slice: ~65 MB for float32 2400x7200)
     print(f"  Loading data slice ({da.shape[0]} x {da.shape[1]}) ...")
     da = da.load()
+
+    # Carry the calibration period out of the dataset before closing it, so the
+    # subtitle states the baseline the index is standardised against. Read from
+    # the file rather than typed in, so a rerun on another baseline labels
+    # itself instead of silently keeping the old text.
+    cal_start = ds.attrs.get('calibration_start_year')
+    cal_end = ds.attrs.get('calibration_end_year')
+    da.attrs['baseline'] = (f'{cal_start}-{cal_end} baseline'
+                            if cal_start and cal_end else None)
+    print(f"  Baseline: {da.attrs['baseline'] or 'NOT RECORDED IN FILE'}")
     ds.close()
 
     valid = int(np.isfinite(da.values).sum())
@@ -176,14 +202,18 @@ def plot_global_spi(da: xr.DataArray, output_path: Path):
     gl.ylocator = mticker.FixedLocator(range(-60, 81, 30))
 
     # Title and subtitle with clear spacing
-    date_label = f"{da.time.dt.strftime('%B %Y').values}"
+    date_label = f"{da.time.dt.strftime('%b %Y').values}"
     fig.text(
-        0.5, 0.97, 'Standardized Precipitation Index (Gamma), 12-month',
+        0.5, 0.97, INDEX_NAME,
         ha='center', va='top',
         fontsize=14, fontweight='bold',
     )
     fig.text(
-        0.5, 0.93, f'as of {date_label}',
+        0.5, 0.93,
+        ', '.join(part for part in [
+            DATASET_LABEL, DISTRIBUTION_LABEL,
+            f'{TIMESCALE_LABEL} accumulation', da.attrs.get('baseline'),
+        ] if part) + f'  ·  as of {date_label}',
         ha='center', va='top',
         fontsize=11, color='#404040',
     )
@@ -202,7 +232,7 @@ def plot_global_spi(da: xr.DataArray, output_path: Path):
         fontsize=7,
     )
     cbar.ax.set_xlabel(
-        'Standardized Precipitation Index (Gamma), 12-month',
+        INDEX_LABEL,
         fontsize=9, labelpad=6,
     )
 
@@ -234,7 +264,7 @@ def plot_global_spi(da: xr.DataArray, output_path: Path):
 def main():
     """Main entry point."""
     print("=" * 60)
-    print(" GLOBAL SPI-12 MAP — DECEMBER 2024")
+    print(f" GLOBAL SPI-12 MAP — {TARGET_DATE}")
     print("=" * 60)
 
     # Check input exists
