@@ -1,42 +1,42 @@
 ======================================================================
 SPEI Calculation Report
-Generated: 2026-01-29 13:52:39
+Generated: 2026-09-19 23:06:00
 ======================================================================
 
 SPEI Calculation Summary:
 
 
 SPEI-3:
-  PET (Gamma): mean=-0.0515, std=0.9729
-  PET (Pearson III): mean=-0.0319, std=0.9338
-  PET (Log-Logistic): mean=0.0014, std=0.9923
-  Thornthwaite (Gamma): mean=-0.0177, std=0.9912
-  Thornthwaite (Pearson III): mean=0.0024, std=0.9446
-  Thornthwaite (Log-Logistic): mean=0.0308, std=1.0030
-  Hargreaves (Gamma): mean=-0.0625, std=1.0121
-  Hargreaves (Pearson III): mean=-0.0588, std=0.9957
-  Hargreaves (Log-Logistic): mean=-0.0125, std=1.0238
+  PET (Gamma): mean=0.0787, std=1.0922
+  PET (Pearson III): mean=0.0933, std=1.0472
+  PET (Log-Logistic): mean=0.1358, std=1.1201
+  Thornthwaite (Gamma): mean=0.1797, std=1.1099
+  Thornthwaite (Pearson III): mean=0.1937, std=1.0568
+  Thornthwaite (Log-Logistic): mean=0.2370, std=1.1337
+  Hargreaves (Gamma): mean=0.0987, std=1.0917
+  Hargreaves (Pearson III): mean=0.1167, std=1.0397
+  Hargreaves (Log-Logistic): mean=0.1577, std=1.1184
 
 SPEI-12:
-  PET (Gamma): mean=-0.0796, std=0.9610
-  PET (Pearson III): mean=-0.0729, std=0.9774
-  PET (Log-Logistic): mean=0.0058, std=0.9808
-  Thornthwaite (Gamma): mean=-0.0290, std=0.9895
-  Thornthwaite (Pearson III): mean=-0.0262, std=0.9957
-  Thornthwaite (Log-Logistic): mean=0.0443, std=1.0027
-  Hargreaves (Gamma): mean=-0.0926, std=0.9957
-  Hargreaves (Pearson III): mean=-0.0980, std=1.0248
-  Hargreaves (Log-Logistic): mean=-0.0160, std=1.0099
+  PET (Gamma): mean=0.1363, std=1.0817
+  PET (Pearson III): mean=0.1245, std=1.0808
+  PET (Log-Logistic): mean=0.2025, std=1.0647
+  Thornthwaite (Gamma): mean=0.2857, std=1.1163
+  Thornthwaite (Pearson III): mean=0.2747, std=1.0927
+  Thornthwaite (Log-Logistic): mean=0.3273, std=1.0836
+  Hargreaves (Gamma): mean=0.1707, std=1.0803
+  Hargreaves (Pearson III): mean=0.1599, std=1.0718
+  Hargreaves (Log-Logistic): mean=0.2340, std=1.0630
 
 PET Method Comparison in SPEI:
 
 
 SPEI-3:
-  PET vs Thornthwaite: r=0.9880
-  PET vs Hargreaves: r=0.9927
-  Thornthwaite vs Hargreaves: r=0.9872
+  PET vs Thornthwaite: r=0.9779
+  PET vs Hargreaves: r=0.9981
+  Thornthwaite vs Hargreaves: r=0.9834
 
 SPEI-12:
-  PET vs Thornthwaite: r=0.9835
-  PET vs Hargreaves: r=0.9934
-  Thornthwaite vs Hargreaves: r=0.9829
+  PET vs Thornthwaite: r=0.9678
+  PET vs Hargreaves: r=0.9972
+  Thornthwaite vs Hargreaves: r=0.9784

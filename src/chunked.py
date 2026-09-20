@@ -14,8 +14,8 @@ bidirectional event analysis, and scalable processing.
 """
 
 import gc
-import os
 import tempfile
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
@@ -24,15 +24,52 @@ import numpy as np
 import xarray as xr
 
 from config import (
+    DEFAULT_CHUNK_LAT,
+    DEFAULT_CHUNK_LON,
     DISTRIBUTION_PARAM_NAMES,
+    MEMORY_MULTIPLIER,
+    MEMORY_MULTIPLIER_SPEI,
+    MEMORY_SAFETY_FACTOR,
+    MIN_CHUNK_SIZE,
     PET_VAR_PATTERNS,
     Periodicity,
     PRECIP_VAR_PATTERNS,
     SPEI_WATER_BALANCE_OFFSET,
 )
-from utils import get_global_attributes, get_logger
+from utils import find_variable, get_global_attributes, get_logger
 
 _logger = get_logger(__name__)
+
+
+def _write_chunk_slice(
+    output_path: Union[str, Path],
+    var_name: str,
+    chunk_info: "ChunkInfo",
+    values: np.ndarray,
+) -> None:
+    """
+    Write one spatial tile into an existing NetCDF variable, in place.
+
+    Opens the file with netCDF4 and assigns only the tile's slice. This never
+    materializes the full variable, unlike the xarray read-modify-write pattern
+    (``ds[var].values[...] = tile; ds.to_netcdf(path, mode='a')``), which loads
+    and rewrites the entire array for every chunk - 126.8 GiB per chunk for a
+    global TerraClimate grid, and a self-referential write to a file that is
+    still open.
+
+    :param output_path: path to the NetCDF file to update
+    :param var_name: name of the variable to write into
+    :param chunk_info: tile bounds
+    :param values: array of shape (time, lat_chunk, lon_chunk)
+    """
+    import netCDF4
+
+    with netCDF4.Dataset(str(output_path), mode='r+') as nc:
+        nc.variables[var_name][
+            :,
+            chunk_info.lat_start:chunk_info.lat_end,
+            chunk_info.lon_start:chunk_info.lon_end
+        ] = values
 
 
 # =============================================================================
@@ -68,8 +105,8 @@ def estimate_memory(
     n_lat: int,
     n_lon: int,
     available_memory_gb: float = None,
-    memory_multiplier: float = 12.0,
-    safety_factor: float = 0.7
+    memory_multiplier: float = MEMORY_MULTIPLIER,
+    safety_factor: float = MEMORY_SAFETY_FACTOR
 ) -> MemoryEstimate:
     """
     Estimate memory requirements for SPI/SPEI computation.
@@ -78,8 +115,10 @@ def estimate_memory(
     :param n_lat: Number of latitude points
     :param n_lon: Number of longitude points
     :param available_memory_gb: Available RAM in GB (auto-detected if None)
-    :param memory_multiplier: Peak memory as multiple of input (default 12x)
-    :param safety_factor: Fraction of available memory to use (default 0.7)
+    :param memory_multiplier: Peak memory as multiple of input
+        (default: config.MEMORY_MULTIPLIER; use MEMORY_MULTIPLIER_SPEI for SPEI)
+    :param safety_factor: Fraction of available memory to use
+        (default: config.MEMORY_SAFETY_FACTOR)
     :return: MemoryEstimate object with recommendations
     """
     # Auto-detect available memory
@@ -116,8 +155,8 @@ def estimate_memory(
         chunk_lon = min(chunk_size, n_lon)
 
         # Ensure minimum chunk size for efficiency
-        chunk_lat = max(chunk_lat, 100)
-        chunk_lon = max(chunk_lon, 100)
+        chunk_lat = max(chunk_lat, MIN_CHUNK_SIZE)
+        chunk_lon = max(chunk_lon, MIN_CHUNK_SIZE)
 
         # Calculate number of chunks
         n_lat_chunks = int(np.ceil(n_lat / chunk_lat))
@@ -247,7 +286,6 @@ class ChunkedProcessor:
         >>> processor = ChunkedProcessor(
         ...     chunk_lat=500,
         ...     chunk_lon=500,
-        ...     n_workers=8
         ... )
         >>> result = processor.compute_spi(
         ...     precip_path='chirps_global.nc',
@@ -260,8 +298,8 @@ class ChunkedProcessor:
 
     def __init__(
         self,
-        chunk_lat: int = 500,
-        chunk_lon: int = 500,
+        chunk_lat: int = DEFAULT_CHUNK_LAT,
+        chunk_lon: int = DEFAULT_CHUNK_LON,
         n_workers: int = None,
         temp_dir: Optional[str] = None,
         verbose: bool = True
@@ -271,19 +309,35 @@ class ChunkedProcessor:
 
         :param chunk_lat: Chunk size in latitude dimension
         :param chunk_lon: Chunk size in longitude dimension
-        :param n_workers: Number of parallel workers (default: CPU count)
+        :param n_workers: **Deprecated and ignored.** This processor walks tiles
+            one at a time in the calling process; the computation underneath is
+            vectorized NumPy/SciPy with no worker pool to size. Passing a value
+            emits a DeprecationWarning. For concurrent tiles use
+            ``dask_processor.compute_spi_dask`` / ``compute_spei_dask``, which
+            take a real ``n_workers``.
         :param temp_dir: Directory for temporary files
         :param verbose: Print progress information
         """
         self.chunk_lat = chunk_lat
         self.chunk_lon = chunk_lon
-        self.n_workers = n_workers or os.cpu_count()
         self.temp_dir = temp_dir or tempfile.gettempdir()
         self.verbose = verbose
 
+        if n_workers is not None:
+            warnings.warn(
+                "ChunkedProcessor(n_workers=...) is ignored: tiles are processed "
+                "serially and the inner computation is vectorized NumPy/SciPy. "
+                "Use dask_processor.compute_spi_dask / compute_spei_dask for "
+                "concurrent tiles.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        # Retained so existing callers reading the attribute keep working.
+        self.n_workers = 1
+
         _logger.info(
             f"ChunkedProcessor initialized: chunk_size=({chunk_lat}, {chunk_lon}), "
-            f"workers={self.n_workers}"
+            f"tiles processed serially"
         )
 
     def _log(self, msg: str):
@@ -340,16 +394,10 @@ class ChunkedProcessor:
 
         if isinstance(precip, (str, Path)):
             ds = xr.open_dataset(precip, chunks={'time': -1, 'lat': self.chunk_lat, 'lon': self.chunk_lon})
-            if var_name is None:
-                # Auto-detect precipitation variable
-                precip_vars = [v for v in ds.data_vars
-                              if any(x in v.lower() for x in PRECIP_VAR_PATTERNS)]
-                if len(precip_vars) == 1:
-                    var_name = precip_vars[0]
-                elif len(precip_vars) == 0:
-                    var_name = list(ds.data_vars)[0]
-                else:
-                    raise ValueError(f"Multiple precipitation variables found: {precip_vars}. Specify var_name.")
+            var_name = find_variable(
+                ds, PRECIP_VAR_PATTERNS,
+                kind='precipitation variable', explicit=var_name
+            )
             precip_da = ds[var_name]
         elif isinstance(precip, xr.Dataset):
             if var_name is None:
@@ -370,6 +418,9 @@ class ChunkedProcessor:
 
         # Get year range
         data_start_year, data_end_year = get_data_year_range(ds)
+
+        # Resolve distribution up front - the single-chunk branch below needs it
+        dist = distribution.lower() if isinstance(distribution, str) else 'gamma'
 
         # Memory estimation
         mem_est = estimate_memory(n_time, n_lat, n_lon)
@@ -404,7 +455,6 @@ class ChunkedProcessor:
         from config import NC_FILL_VALUE
         from utils import get_variable_name, get_variable_attributes
 
-        dist = distribution.lower() if isinstance(distribution, str) else 'gamma'
         var_name_out = get_variable_name('spi', scale, periodicity, distribution=dist)
 
         # Create empty dataset
@@ -480,14 +530,11 @@ class ChunkedProcessor:
                     distribution=dist
                 )
 
-                # Write result chunk to output file
-                with xr.open_dataset(output_path, mode='r+') as out_ds:
-                    out_ds[var_name_out].values[
-                        :,
-                        chunk_info.lat_start:chunk_info.lat_end,
-                        chunk_info.lon_start:chunk_info.lon_end
-                    ] = result_chunk.astype(np.float32)
-                    out_ds.to_netcdf(output_path, mode='a')
+                # Write only this tile's slice, in place
+                _write_chunk_slice(
+                    output_path, var_name_out, chunk_info,
+                    result_chunk.astype(np.float32)
+                )
 
                 # Store parameters
                 if save_params:
@@ -538,11 +585,11 @@ class ChunkedProcessor:
 
         self._log(f"Chunked SPI computation complete: {output_path}")
 
-        # Load into memory and close file handle so the file is not locked
-        result = xr.open_dataset(output_path)
-        result.load()
-        result.close()
-        return result
+        # Return a lazy handle. Do NOT call .load() here: for a global grid the
+        # variable is far larger than RAM (126.8 GiB for TerraClimate at
+        # 912x4320x8640 float32), so eager loading defeats the whole point of
+        # chunked processing. Caller can .load() a subset if they want one.
+        return xr.open_dataset(output_path)
 
     def _compute_single_chunk(
         self,
@@ -687,9 +734,12 @@ class ChunkedProcessor:
         # Get year range
         data_start_year, _ = get_data_year_range(precip_ds)
 
-        # Memory estimation (multiply by 2 for both precip and PET)
-        mem_est = estimate_memory(n_time, n_lat, n_lon)
-        mem_est.peak_memory_gb *= 1.5  # Account for both inputs
+        # Memory estimation. SPEI holds precip, PET and the water balance, so
+        # use a 1.5x larger multiplier than SPI. Passing it into estimate_memory
+        # (rather than scaling peak_memory_gb afterwards) keeps fits_in_memory
+        # and recommended_chunk_size consistent with the reported peak.
+        mem_est = estimate_memory(n_time, n_lat, n_lon,
+                                  memory_multiplier=MEMORY_MULTIPLIER_SPEI)
         self._log(f"\n{mem_est}")
 
         # Prepare output file
@@ -775,14 +825,11 @@ class ChunkedProcessor:
                     distribution=dist
                 )
 
-                # Write result
-                with xr.open_dataset(output_path, mode='r+') as out_ds:
-                    out_ds[var_name_out].values[
-                        :,
-                        chunk_info.lat_start:chunk_info.lat_end,
-                        chunk_info.lon_start:chunk_info.lon_end
-                    ] = result_chunk.astype(np.float32)
-                    out_ds.to_netcdf(output_path, mode='a')
+                # Write only this tile's slice, in place
+                _write_chunk_slice(
+                    output_path, var_name_out, chunk_info,
+                    result_chunk.astype(np.float32)
+                )
 
                 if save_params:
                     for pname in param_names:
@@ -832,18 +879,19 @@ class ChunkedProcessor:
 
         self._log(f"Chunked SPEI computation complete: {output_path}")
 
-        # Load into memory and close file handle so the file is not locked
-        ds = xr.open_dataset(output_path)
-        ds.load()
-        ds.close()
-        return ds
+        # Return a lazy handle - see the note in compute_spi_chunked
+        return xr.open_dataset(output_path)
 
     def _find_var(self, ds: xr.Dataset, patterns: List[str]) -> str:
-        """Find variable matching patterns."""
-        for var in ds.data_vars:
-            if any(p in var.lower() for p in patterns):
-                return var
-        return list(ds.data_vars)[0]
+        """
+        Find the data variable matching the given name patterns.
+
+        Thin wrapper over utils.find_variable, which does most-specific-first
+        matching so short patterns like 'pr' and 'et' cannot hijack names such
+        as 'pressure' or 'wetdays'.
+        """
+        kind = 'precipitation variable' if patterns is PRECIP_VAR_PATTERNS else 'variable'
+        return find_variable(ds, patterns, kind=kind)
 
 
 # =============================================================================
@@ -856,7 +904,7 @@ def compute_spi_global(
     scale: int = 12,
     calibration_start_year: int = 1991,
     calibration_end_year: int = 2020,
-    chunk_size: int = 500,
+    chunk_size: int = DEFAULT_CHUNK_LAT,
     n_workers: int = None,
     var_name: Optional[str] = None,
     distribution: str = 'gamma',
@@ -872,8 +920,8 @@ def compute_spi_global(
     :param scale: Accumulation scale (default: 12)
     :param calibration_start_year: Calibration start year
     :param calibration_end_year: Calibration end year
-    :param chunk_size: Spatial chunk size (default: 500)
-    :param n_workers: Number of parallel workers
+    :param chunk_size: Spatial chunk size (default: config.DEFAULT_CHUNK_LAT)
+    :param n_workers: **Deprecated and ignored** - see ChunkedProcessor
     :param var_name: Precipitation variable name
     :return: Dataset with computed SPI
 
@@ -887,7 +935,7 @@ def compute_spi_global(
     processor = ChunkedProcessor(
         chunk_lat=chunk_size,
         chunk_lon=chunk_size,
-        n_workers=n_workers
+        n_workers=n_workers,
     )
 
     return processor.compute_spi_chunked(
@@ -909,7 +957,7 @@ def compute_spei_global(
     scale: int = 12,
     calibration_start_year: int = 1991,
     calibration_end_year: int = 2020,
-    chunk_size: int = 500,
+    chunk_size: int = DEFAULT_CHUNK_LAT,
     n_workers: int = None,
     precip_var_name: Optional[str] = None,
     pet_var_name: Optional[str] = None,
@@ -925,8 +973,8 @@ def compute_spei_global(
     :param scale: Accumulation scale
     :param calibration_start_year: Calibration start year
     :param calibration_end_year: Calibration end year
-    :param chunk_size: Spatial chunk size
-    :param n_workers: Number of parallel workers
+    :param chunk_size: Spatial chunk size (default: config.DEFAULT_CHUNK_LAT)
+    :param n_workers: **Deprecated and ignored** - see ChunkedProcessor
     :param precip_var_name: Precipitation variable name
     :param pet_var_name: PET variable name
     :return: Dataset with computed SPEI

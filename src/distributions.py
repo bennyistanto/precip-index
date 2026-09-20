@@ -33,12 +33,11 @@ bidirectional event analysis, and scalable processing.
 ---
 """
 
-from __future__ import annotations
-
+import logging
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 from scipy import stats
@@ -48,26 +47,40 @@ from scipy.special import gammaln
 # Suppress runtime warnings for edge cases
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
+# Module logger. Falls back to the stdlib when used outside the package, for
+# the same reason the config import below has literal fallbacks.
+try:
+    from utils import get_logger
+    _logger = get_logger(__name__)
+except ImportError:  # pragma: no cover
+    _logger = logging.getLogger(__name__)
+
 
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
 # =============================================================================
 
-# Minimum number of valid values required for distribution fitting
-MIN_VALUES_FOR_FIT = 30
-
-# Minimum number of non-zero values for reliable fitting
-MIN_NONZERO_VALUES = 10
-
-# Maximum proportion of zeros allowed (beyond this, fitting is unreliable)
-MAX_ZERO_PROPORTION = 0.95
-
-# Valid range for fitted index values (±3.09 = 99.9th percentile of standard normal)
+# Fitting thresholds and the valid range for fitted index values
+# (±3.09 = 99.9th percentile of standard normal).
+#
+# config.py is the single source of truth for these; the literals below are
+# only a fallback for when distributions.py is used outside the package.
+# See config.MIN_VALUES_FOR_FIT for why it must stay below the calibration
+# window length.
 try:
-    from config import FITTED_INDEX_VALID_MIN, FITTED_INDEX_VALID_MAX
+    from config import (
+        FITTED_INDEX_VALID_MAX,
+        FITTED_INDEX_VALID_MIN,
+        MAX_ZERO_PROPORTION,
+        MIN_NONZERO_VALUES,
+        MIN_VALUES_FOR_FIT,
+    )
 except ImportError:
     FITTED_INDEX_VALID_MIN = -3.09
     FITTED_INDEX_VALID_MAX = 3.09
+    MIN_VALUES_FOR_FIT = 20
+    MIN_NONZERO_VALUES = 10
+    MAX_ZERO_PROPORTION = 0.95
 
 # Small value to avoid division by zero
 EPSILON = 1e-10
@@ -824,8 +837,12 @@ def pearson3_cdf(
                 warnings.simplefilter("ignore")
                 cdf_vals = stats.norm.cdf(valid_values, loc=loc, scale=scale)
                 result[valid_mask] = np.clip(cdf_vals, 0.0, 1.0)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug(
+                "Pearson III near-symmetric normal approximation failed "
+                "(loc=%s, scale=%s): %s. Returning NaN for these values.",
+                loc, scale, exc,
+            )
         return result
 
     # For non-zero skewness, use Pearson III with error handling
@@ -865,8 +882,12 @@ def pearson3_cdf(
         try:
             cdf_vals = stats.norm.cdf(valid_values, loc=loc, scale=scale)
             result[valid_mask] = np.clip(cdf_vals, 1e-10, 1.0 - 1e-10)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "Pearson III CDF failed and the normal fallback also failed "
+                "(skew=%s, loc=%s, scale=%s): %s. Returning NaN for these values.",
+                skew, loc, scale, exc,
+            )
 
     return result
 
@@ -1144,8 +1165,12 @@ def gev_cdf(
             result[valid_mask] = stats.genextreme.cdf(
                 values[valid_mask], shape, loc=loc, scale=scale
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "GEV CDF failed (shape=%s, loc=%s, scale=%s): %s. "
+                "Returning NaN for these values.",
+                shape, loc, scale, exc,
+            )
 
     return result
 
@@ -1249,8 +1274,12 @@ def gen_logistic_cdf(
             result[valid_mask] = stats.genlogistic.cdf(
                 values[valid_mask], shape, loc=loc, scale=scale
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "Generalized Logistic CDF failed (shape=%s, loc=%s, scale=%s): %s. "
+                "Returning NaN for these values.",
+                shape, loc, scale, exc,
+            )
 
     return result
 

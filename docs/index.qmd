@@ -149,10 +149,26 @@ Calibrate distribution parameters on historical data, save them as NetCDF, and a
 ::: {.callout-tip}
 ## Global-Scale Performance
 
-Benchmarked on a workstation with 128 GB RAM:
+**Serial chunked processing**, benchmarked on a workstation with 128 GB RAM:
 
 - **CHIRPS v3 SPI-12** (0.05°, 17.3M cells, 539 months, ~69 GB) — **~2h 47m** with Gamma distribution, 12 spatial chunks
 - **TerraClimate SPEI-12** (0.04°, 37.3M cells, 816 months, ~226 GB) — **~26h** with Pearson III distribution, 32 spatial chunks
+
+**Concurrent Dask processing** turns that into under three hours end to end.
+TerraClimate v1.1 SPEI-12 (0.04°, 37.3M cells, 912 months, Pearson III), at tile
+640 with 6 workers on ~350 GB of available RAM:
+
+| Phase | Wall clock |
+|:------|-----------:|
+| Dask compute, 98/98 tiles, 0 failures | **1h 36m** |
+| Zarr to NetCDF export (136 GB array) | **1h 16m** |
+| **End to end** | **2h 53m** |
+
+Two things worth knowing. Roughly **half the elapsed time is the export**, not
+the computation, and it is single-threaded and I/O-bound: keep the output as
+Zarr if you can read it directly. And the accumulation scale is free, measured
+rather than assumed: the same run at SPEI-2 took 1h 40m, four minutes *slower*
+than SPEI-12.
 
 Regional subsets (country-level) complete in seconds to minutes. Memory-efficient spatial tiling means you don't need a supercomputer. See [Performance Benchmarks](technical/implementation.qmd#performance-benchmarks) for detailed comparison.
 :::
@@ -185,7 +201,7 @@ SPEI-12 (Pearson III) calculated from **TerraClimate** at 0.0417° ~ 4km resolut
 
 ## Validation Results
 
-All distributions tested against TerraClimate Bali data (1958–2024). Cross-distribution correlation exceeds 0.98. The test suite generates **28 visualizations** including advanced analytics and operational mode validation.
+All distributions tested against TerraClimate Bali data (1950–2025). Cross-distribution correlation exceeds 0.98. The test suite generates **28 visualizations** including advanced analytics and operational mode validation.
 
 ::: {.panel-tabset}
 ### Multi-Scale SPI
@@ -228,7 +244,7 @@ Long-term analysis showing drought frequency, mean index, and trends by decade.
 
 ![](images/spi_12_climate_stripes.png)
 
-Climate stripes visualization showing annual drought conditions from 1959-2024. Red = drought years, blue = wet years.
+Climate stripes visualization showing annual drought conditions from 1951-2025. Red = drought years, blue = wet years.
 
 ### Exceedance Probability
 

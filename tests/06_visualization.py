@@ -156,7 +156,7 @@ def create_spatial_maps(results: dict):
         # Mean over entire period
         mean_da = da.mean(dim='time')
         im1 = axes[0].pcolormesh(da.lon, da.lat, mean_da, cmap='RdYlBu', vmin=-1, vmax=1, shading='auto')
-        axes[0].set_title(f'Mean {name.upper()} (1958-2024)')
+        axes[0].set_title(f'Mean {name.upper()} (1950-2025)')
         axes[0].set_xlabel('Longitude')
         axes[0].set_ylabel('Latitude')
         plt.colorbar(im1, ax=axes[0], label=name.upper())
@@ -255,7 +255,7 @@ def create_summary_figure(results: dict, precip, tmean):
 
     ax4.set_xlabel('Time')
     ax4.set_ylabel('SPI-12')
-    ax4.set_title('SPI-12 Time Series (1958-2024)')
+    ax4.set_title('SPI-12 Time Series (1950-2025)')
     ax4.set_ylim(-3.5, 3.5)
     ax4.grid(True, alpha=0.3)
 
@@ -266,7 +266,7 @@ def create_summary_figure(results: dict, precip, tmean):
                        cmap='RdYlBu', vmin=-0.5, vmax=0.5, shading='auto')
     ax5.set_xlabel('Longitude')
     ax5.set_ylabel('Latitude')
-    ax5.set_title('Mean SPI-12 (1958-2024)')
+    ax5.set_title('Mean SPI-12 (1950-2025)')
     plt.colorbar(im, ax=ax5, label='SPI-12')
 
     plt.suptitle('Precipitation Index Analysis - Bali, Indonesia', fontsize=14, fontweight='bold', y=1.02)
@@ -402,7 +402,7 @@ def create_seasonal_drought_heatmap(results: dict):
 
         ax.set_xlabel('Year', fontsize=12)
         ax.set_ylabel('Month', fontsize=12)
-        ax.set_title(f'{name.upper()} Seasonal Drought Heatmap - Bali (1958-2024)\n'
+        ax.set_title(f'{name.upper()} Seasonal Drought Heatmap - Bali (1950-2025)\n'
                     'Red = Drought, Blue = Wet', fontsize=14, fontweight='bold')
 
         # Colorbar
@@ -483,11 +483,16 @@ def create_historical_events_plot(results: dict):
                                arrowprops=dict(arrowstyle='->', color='darkblue', lw=0.5))
 
         ax1.set_ylabel(name.upper(), fontsize=12)
-        ax1.set_title(f'{name.upper()} Historical Extreme Events - Bali (1958-2024)\n'
+        ax1.set_title(f'{name.upper()} Historical Extreme Events - Bali (1950-2025)\n'
                      f'Identified {len(drought_events)} drought and {len(wet_events)} wet events',
                      fontsize=14, fontweight='bold')
-        ax1.set_ylim(-3.5, 3.5)
-        ax1.legend(loc='upper right', fontsize=8, ncol=3)
+        # Headroom for the event-year callouts. They sit 20 points off the
+        # peak, and the index itself reaches the +/-3.09 clip, so a +/-3.5
+        # limit pushed the top labels into the title and behind the legend.
+        # The band above +3.5 is reserved for labels, and the legend above it.
+        ax1.set_ylim(-4.3, 5.4)
+        ax1.set_yticks([-3, -2, -1, 0, 1, 2, 3])
+        ax1.legend(loc='upper right', fontsize=8, ncol=3, framealpha=0.9)
         ax1.grid(True, alpha=0.3)
 
         # Panel 2: Event statistics (using datetime x-axis to align with top panel)
@@ -552,7 +557,11 @@ def create_historical_events_plot(results: dict):
         ax2.set_xlabel('Year', fontsize=12)
         ax2.set_ylabel('Event Magnitude', fontsize=12)
         ax2.set_title('Event Magnitude by Year', fontsize=12)
-        ax2.legend()
+        # Same reasoning as the panel above: leave room for the bar callouts
+        # and the legend instead of letting them sit on the top spine.
+        _top = ax2.get_ylim()[1]
+        ax2.set_ylim(0, _top * 1.28)
+        ax2.legend(loc='upper right', framealpha=0.9)
         ax2.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
@@ -616,7 +625,7 @@ def create_multiscale_comparison(precip):
         ax.text(0.02, 0.95, desc, transform=ax.transAxes, fontsize=9,
                verticalalignment='top', style='italic', alpha=0.7)
 
-    axes[0].set_title('Multi-Scale SPI Comparison - Bali (1958-2024)\n'
+    axes[0].set_title('Multi-Scale SPI Comparison - Bali (1950-2025)\n'
                      'Shorter scales capture recent anomalies; longer scales reveal persistent conditions',
                      fontsize=14, fontweight='bold')
     axes[-1].set_xlabel('Time', fontsize=12)
@@ -645,13 +654,14 @@ def create_decadal_trend_analysis(results: dict):
 
         # Define decades
         decades = {
-            '1960s': (1958, 1969),
+            '1950s': (1950, 1959),
+            '1960s': (1960, 1969),
             '1970s': (1970, 1979),
             '1980s': (1980, 1989),
             '1990s': (1990, 1999),
             '2000s': (2000, 2009),
             '2010s': (2010, 2019),
-            '2020s': (2020, 2024)
+            '2020s': (2020, 2025)
         }
 
         # Create figure with multiple panels
@@ -880,7 +890,7 @@ def create_climate_stripes(results: dict):
         ax.set_xticklabels(years[::10], fontsize=10)
         ax.set_yticks([])
 
-        ax.set_title(f'{name.upper()} Climate Stripes - Bali (1958-2024)\n'
+        ax.set_title(f'{name.upper()} Climate Stripes - Bali (1950-2025)\n'
                     'Blue = Wet Years, Red = Dry Years', fontsize=14, fontweight='bold')
 
         plt.tight_layout()

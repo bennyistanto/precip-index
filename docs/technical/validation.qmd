@@ -3,7 +3,7 @@ title: "Validation & Test Results"
 subtitle: "Verifying SPI/SPEI output quality across distributions and configurations"
 ---
 
-This page presents validation results from the `precip-index` test suite, run against TerraClimate monthly data for **Bali, Indonesia (1958--2024)**. Each test verifies that the package produces statistically sound drought and wet-spell indices across multiple probability distributions.
+This page presents validation results from the `precip-index` test suite, run against TerraClimate v1.1 monthly data for **Bali, Indonesia (1950--2025)**. Each test verifies that the package produces statistically sound drought and wet-spell indices across multiple probability distributions.
 
 
 ## About the Test Dataset {#sec-test-data}
@@ -14,13 +14,13 @@ Bali was selected as the validation region for several reasons that make it idea
 
 1. **Tropical Monsoon Climate** — Bali has a distinct wet season (November–March) and dry season (April–October), providing clear seasonal precipitation variability essential for SPI/SPEI validation.
 
-2. **Strong ENSO Signal** — The island is highly sensitive to El Niño-Southern Oscillation (ENSO) events. Major droughts in 1997-98, 2015-16, and 2019 coincided with strong El Niño episodes, providing known "ground truth" events to validate against.
+2. **Strong ENSO Signal** — The island is sensitive to El Niño-Southern Oscillation (ENSO) events, and the 1997-98 strong El Niño drought is clearly present in the record, giving a known event to validate against. See @tbl-droughts for the episodes the package actually resolves, which do not map one-to-one onto the ENSO record.
 
 3. **Diverse Topography** — Elevation ranges from sea level to >3,000m (Mt. Agung), creating orographic rainfall gradients. This tests the package's ability to handle spatial variability within a small domain.
 
 4. **Manageable Size** — The ~5,780 km² island provides enough grid cells (319 land cells) for meaningful spatial statistics while keeping computation times reasonable for testing.
 
-5. **Long Climate Record** — TerraClimate provides data from 1958, enabling 67-year analyses of drought trends and decadal variability.
+5. **Long Climate Record** — TerraClimate v1.1 reaches back to 1950, giving a 76-year record for drought trends and decadal variability.
 
 ### Test Data Specifications
 
@@ -29,13 +29,39 @@ Bali was selected as the validation region for several reasons that make it idea
 
 | Parameter | Value |
 |:----------|:------|
-| **Source** | TerraClimate monthly gridded climate data |
+| **Source** | TerraClimate monthly gridded climate data, **version 1.1** (WorldClim v2.1 + ERA5) |
 | **Domain** | Bali, Indonesia (114.35–115.77°E, 7.98–8.94°S) |
 | **Resolution** | ~4 km (1/24°) |
 | **Grid Size** | 24 × 35 cells (840 total, 319 land cells) |
-| **Time Period** | January 1958 – December 2024 (804 months, 67 years) |
+| **Time Period** | January 1950 – December 2025 (912 months, 76 years) |
 | **Land Coverage** | 38.0% of grid cells |
 | **Temporal Completeness** | 100% for all land cells |
+:::
+
+::: {.callout-warning}
+## Version 1.1 replaced version 1.0 in these results
+
+Everything on this page was regenerated from TerraClimate **v1.1**. The previous
+results used v1.0, which drew on CRU Ts4.0 and JRA-55; v1.1 uses WorldClim v2.1
+and ERA5. Over the identical Bali domain and the identical 1958–2024 span, only
+0.1% of monthly precipitation values are unchanged between the two, and the mean
+absolute difference is 44.4 mm/month.
+
+The temperatures moved more than the rainfall. Mean temperature is almost
+untouched (+0.34%), but tmin rose 5.4% and tmax fell 3.1%, narrowing the mean
+diurnal range from 9.38°C to 7.42°C, a 21% reduction. Hargreaves PET scales with
+the square root of that range, so it is the figure most affected by the version
+change. Thornthwaite, which uses only mean temperature, is barely affected.
+
+**The indices moved accordingly.** Recomputing on v1.0 and v1.1 with identical
+code and comparing over the shared 1958-2024 months, correlation between the two
+versions is r = 0.71 to 0.76 for every SPI and SPEI variant, mean absolute
+difference is 0.52 to 0.66 index units, and **60 to 69% of cell-months change
+WMO class**. PET splits as the diurnal range predicts: Thornthwaite moves
+5.6 mm/month (r = 0.97), Hargreaves 14.8 mm/month (r = 0.85).
+
+Do not compare numbers on this page against a v1.0 run and read the difference
+as a code change.
 :::
 
 ### Available Variables
@@ -44,11 +70,11 @@ The test suite uses five TerraClimate variables:
 
 | Variable | Description | Units | Mean | Range |
 |:---------|:------------|:------|:-----|:------|
-| **ppt** | Precipitation | mm/month | 158.6 | 0.01 – 1004.7 |
-| **tmean** | Mean temperature | °C | 24.5 | 14.6 – 29.9 |
-| **tmin** | Minimum temperature | °C | 19.9 | 8.8 – 25.4 |
-| **tmax** | Maximum temperature | °C | 29.2 | 18.9 – 35.8 |
-| **pet** | Potential evapotranspiration (Penman-Monteith) | mm/month | 112.4 | 49.9 – 186.0 |
+| **ppt** | Precipitation | mm/month | 157.3 | 0.0 – 943.7 |
+| **tmean** | Mean temperature | °C | 24.6 | 14.6 – 30.0 |
+| **tmin** | Minimum temperature | °C | 20.9 | 10.1 – 25.8 |
+| **tmax** | Maximum temperature | °C | 28.3 | 18.0 – 35.2 |
+| **pet** | Potential evapotranspiration (Penman-Monteith) | mm/month | 110.8 | 44.5 – 182.0 |
 
 : TerraClimate variables used for validation. Statistics are for land cells only. {#tbl-variables}
 
@@ -62,23 +88,46 @@ The map below shows the Bali test domain with SPI-12 values at selected time poi
 
 Understanding Bali's climate helps interpret the validation results:
 
-- **Annual Rainfall**: ~1,900 mm/year on average, but highly variable (1,200–3,000 mm depending on location and year)
-- **Wet Season**: November–March (80% of annual rainfall)
+- **Annual Rainfall**: 1,888 mm/year averaged over the domain, varying from 1,160 mm/year at the driest cell to 2,737 at the wettest, and from 1,181 to 2,854 mm/year between the driest and wettest years
+- **Wet Season**: November–March (67% of annual rainfall)
 - **Dry Season**: April–October (can be severe during El Niño years)
 - **Temperature**: Relatively stable year-round (24–26°C at lowlands), with cooler highlands
 
-**Major Drought Events in the Record**:
+**Major Drought Episodes in the Record**:
 
-| Event | Period | Cause | SPI-12 Peak |
-|:------|:-------|:------|:------------|
-| 1997-98 drought | Jul 1997 – Apr 1998 | Strong El Niño | < -2.5 |
-| 2015-16 drought | Aug 2015 – Mar 2016 | Strong El Niño | < -2.0 |
-| 2019 drought | Jul – Nov 2019 | Moderate El Niño | < -1.5 |
-| 1982-83 drought | Jun 1982 – May 1983 | Strong El Niño | < -2.0 |
+The table below is computed from the test suite's own SPI-12 (Gamma) output
+rather than quoted from elsewhere. An episode is a run of consecutive months
+whose domain-mean SPI-12 stays below -1.0; 21 such episodes occur in the
+76-year record. The ten deepest:
 
-: Major drought events in the Bali record. These events serve as validation benchmarks. {#tbl-droughts}
+| Period | Months | Domain-mean peak | Driest single cell |
+|:-------|-------:|-----------------:|-------------------:|
+| Feb 1953 – Jan 1954 | 12 | **-2.29** | -3.09 |
+| Jul 1969 – Oct 1970 | 16 | -2.22 | -2.90 |
+| Oct 1997 – Apr 1998 | 7 | -2.17 | -2.64 |
+| Oct – Nov 1965 | 2 | -1.97 | -2.61 |
+| Nov 2023 – Oct 2024 | 12 | -1.95 | -3.07 |
+| Jan – Sep 1964 | 9 | -1.93 | -2.46 |
+| Jul – Dec 1961 | 6 | -1.93 | -2.67 |
+| Jan – Nov 2007 | 11 | -1.88 | -2.57 |
+| Oct – Dec 1972 | 3 | -1.73 | -2.60 |
+| Nov 2019 – Oct 2020 | 12 | -1.63 | -2.29 |
 
-These known drought events provide "ground truth" for validating that the package correctly identifies extreme conditions.
+: The ten deepest drought episodes in the Bali record, measured from `tests/output/netcdf/spi_12_gamma.nc`. {#tbl-droughts}
+
+The 1997-98 episode is the well-documented strong El Niño drought and the
+package places it third deepest. Note two consequences of the dataset change:
+the deepest episode in the record, 1953-54, only appears because the record now
+starts in 1950, and the 1982-83 event listed in earlier versions of this page
+does not reach the -1.0 domain-mean threshold in TerraClimate v1.1 at all.
+
+::: {.callout-note}
+## These are episode peaks, not per-cell thresholds
+
+Domain-mean and single-cell peaks differ by roughly 0.5 to 1.1 index units
+because a drought is rarely uniform across the island. Quoting one where the
+other is meant is the easiest way to misread this table.
+:::
 
 
 ## 1. SPI Distribution Comparison {#sec-spi-distribution}
@@ -104,13 +153,13 @@ The SPI was computed with three probability distributions: **Gamma** (WMO standa
 
 **Cross-Distribution Correlations (SPI-12)**:
 
-| Distribution Pair | Correlation |
-|:------------------|:------------|
-| Gamma vs Pearson III | r = 0.992 |
-| Gamma vs Log-Logistic | r = 0.996 |
-| Pearson III vs Log-Logistic | r = 0.993 |
+| Distribution Pair | SPI-12 | SPI-3 |
+|:------------------|:-------|:------|
+| Gamma vs Pearson III | r = 0.9908 | r = 0.9867 |
+| Gamma vs Log-Logistic | r = 0.9957 | r = 0.9899 |
+| Pearson III vs Log-Logistic | r = 0.9910 | r = 0.9810 |
 
-: Cross-distribution correlations for SPI-12 on Bali dataset. {#tbl-spi-corr}
+: Cross-distribution correlations on the Bali dataset, from `tests/output/reports/02_spi_calculation_report.txt`. {#tbl-spi-corr}
 
 ### 1.3 WMO Time Series Visualization
 
@@ -122,7 +171,7 @@ The `plot_index()` function produces standardized bar charts following WMO droug
 
 - The 11-category WMO color scheme correctly maps index values to severity classes.
 - Major drought events (1997-98, 2015-16, 2019) are clearly visible.
-- The time axis spans the full 67-year record with readable labels.
+- The time axis spans the full 76-year record with readable labels.
 
 ### 1.4 Spatial SPI Maps
 
@@ -215,7 +264,17 @@ Direct comparison between SPI and SPEI reveals the impact of evaporative demand 
 
 The seasonal heatmap reveals month-by-month drought patterns across years, useful for identifying seasonal drought tendencies.
 
+::: {.panel-tabset}
+
+#### SPI-12
+
 ![Seasonal drought heatmap showing SPI-12 values by month (rows) and year (columns). Red indicates drought conditions, blue indicates wet conditions.](../images/spi_12_seasonal_heatmap.png){#fig-seasonal-heatmap}
+
+#### SPEI-12
+
+![The same heatmap for SPEI-12. Because SPEI subtracts evaporative demand, warm dry months read as more severe than in SPI.](../images/spei_12_seasonal_heatmap.png){#fig-seasonal-heatmap-spei}
+
+:::
 
 **What to look for**:
 
@@ -227,7 +286,17 @@ The seasonal heatmap reveals month-by-month drought patterns across years, usefu
 
 Run theory analysis identifies and characterizes historical drought and wet events.
 
+::: {.panel-tabset}
+
+#### SPI-12
+
 ![Historical extreme events plot showing drought events (red shading) and wet events (blue shading) with run theory analysis. Top 5 drought events by magnitude are annotated.](../images/spi_12_historical_events.png){#fig-historical-events}
+
+#### SPEI-12
+
+![The same run theory analysis applied to SPEI-12. Event counts and magnitudes differ from SPI because the water balance, not rainfall alone, defines the deficit.](../images/spei_12_historical_events.png){#fig-historical-events-spei}
+
+:::
 
 **What to look for**:
 
@@ -239,7 +308,17 @@ Run theory analysis identifies and characterizes historical drought and wet even
 
 Long-term analysis reveals how drought frequency and intensity have changed over decades.
 
+::: {.panel-tabset}
+
+#### SPI-12
+
 ![Decadal trend analysis showing: (a) drought frequency by decade, (b) mean SPI-12 by decade, (c) SPI distribution by decade, and (d) 10-year running mean with linear trend.](../images/spi_12_decadal_trends.png){#fig-decadal-trends}
+
+#### SPEI-12
+
+![The same four panels for SPEI-12. Comparing the two shows how much of a decadal signal is rainfall and how much is evaporative demand.](../images/spei_12_decadal_trends.png){#fig-decadal-trends-spei}
+
+:::
 
 **What to look for**:
 
@@ -263,7 +342,17 @@ The exceedance probability plot provides risk assessment information for plannin
 
 Climate stripes provide an intuitive visual summary of drought conditions over the entire record.
 
-![Climate stripes visualization showing annual mean SPI-12 from 1959 to 2024. Each stripe represents one year, colored by drought severity (red) or wet conditions (blue).](../images/spi_12_climate_stripes.png){#fig-climate-stripes}
+::: {.panel-tabset}
+
+#### SPI-12
+
+![Climate stripes visualization showing annual mean SPI-12 from 1951 to 2025. Each stripe represents one year, colored by drought severity (red) or wet conditions (blue).](../images/spi_12_climate_stripes.png){#fig-climate-stripes}
+
+#### SPEI-12
+
+![Climate stripes for SPEI-12 over the same years.](../images/spei_12_climate_stripes.png){#fig-climate-stripes-spei}
+
+:::
 
 **What to look for**:
 
@@ -278,8 +367,8 @@ In real-world drought monitoring, you don't recalibrate every time new data arri
 
 ### The Workflow
 
-1. **Calibration Phase**: Calculate SPI/SPEI on historical data (1958-2021) and save fitted distribution parameters
-2. **Operational Phase**: Load saved parameters and apply to new data (2022-2024) without refitting
+1. **Calibration Phase**: Calculate SPI/SPEI on historical data (1950-2021) and save fitted distribution parameters
+2. **Operational Phase**: Load saved parameters and apply to new data (2022-2025) without refitting
 3. **Validation**: Confirm operational results are identical to fresh calculations
 
 ### Workflow Visualization
@@ -290,13 +379,13 @@ In real-world drought monitoring, you don't recalibrate every time new data arri
 
 - The transition from calibration to operational period should be seamless.
 - Results using loaded parameters match fresh calculations exactly (r = 1.0, max diff < 10⁻⁶).
-- New drought/wet events in 2022-2024 are properly detected using historical parameters.
+- New drought/wet events in 2022-2025 are properly detected using historical parameters.
 
 ### Distribution Parameters
 
 The fitted parameters are stored as spatial grids for each calendar month, allowing consistent application to new data:
 
-![Distribution parameter maps showing the Gamma shape (alpha) and scale (beta) parameters for January and July. These parameters, fitted on 1958-2021 data, are applied to all future calculations.](../images/operational_mode_parameters.png){#fig-operational-params}
+![Distribution parameter maps showing the Gamma shape (alpha) and scale (beta) parameters for January and July. These parameters, fitted on 1950-2021 data, are applied to all future calculations.](../images/operational_mode_parameters.png){#fig-operational-params}
 
 ### Multi-Scale, Multi-Distribution Validation
 
@@ -327,7 +416,7 @@ from indices import spi, save_fitting_params, load_fitting_params
 # === CALIBRATION PHASE (run once) ===
 # Calculate SPI and get fitted parameters
 spi_12, params = spi(
-    historical_precip,  # 1958-2021
+    historical_precip,  # 1950-2021
     scale=12,
     calibration_start_year=1991,
     calibration_end_year=2020,
@@ -348,7 +437,7 @@ params = load_fitting_params('spi_12_params.nc', scale=12, periodicity='monthly'
 
 # Apply to new data without refitting
 spi_12_new = spi(
-    new_precip,  # 2022-2024 (or any period)
+    new_precip,  # 2022-2025 (or any period)
     scale=12,
     fitting_params=params  # Uses pre-computed parameters
 )

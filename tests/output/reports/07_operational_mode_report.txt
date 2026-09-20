@@ -1,14 +1,14 @@
 ======================================================================
 Operational Mode Test
-Generated: 2026-01-29 22:05:56
+Generated: 2026-09-20 08:35:18
 ======================================================================
 
 OPERATIONAL MODE TEST RESULTS
 ==================================================
 
 Workflow: Calibrate once on historical data, apply to new observations
-Calibration Period: 1958-2021
-Operational Period: 2022-2024
+Calibration Period: 1950-2021
+Operational Period: 2022-2025
 
 SPI RESULTS
 --------------------------------------------------
@@ -47,30 +47,30 @@ SPEI RESULTS
 
 spei_3_gamma:
   Parameter file: spei_3_gamma_params.nc
-  Correlation (oper vs fresh): 0.99999913
-  RMSE: 1.75e-03
-  Max difference: 9.46e-02
+  Correlation (oper vs fresh): 0.99999891
+  RMSE: 2.37e-03
+  Max difference: 8.70e-02
   Identical: NO
 
 spei_3_pearson3:
   Parameter file: spei_3_pearson3_params.nc
-  Correlation (oper vs fresh): 0.99999912
-  RMSE: 1.85e-03
-  Max difference: 1.38e-01
+  Correlation (oper vs fresh): 0.99996293
+  RMSE: 8.91e-03
+  Max difference: 1.34e+00
   Identical: NO
 
 spei_12_gamma:
   Parameter file: spei_12_gamma_params.nc
-  Correlation (oper vs fresh): 0.99999731
-  RMSE: 2.96e-03
-  Max difference: 3.39e-02
+  Correlation (oper vs fresh): 0.99999612
+  RMSE: 4.14e-03
+  Max difference: 4.66e-02
   Identical: NO
 
 spei_12_pearson3:
   Parameter file: spei_12_pearson3_params.nc
-  Correlation (oper vs fresh): 0.99999980
-  RMSE: 1.97e-03
-  Max difference: 7.48e-03
+  Correlation (oper vs fresh): 0.99999969
+  RMSE: 3.24e-03
+  Max difference: 2.34e-02
   Identical: NO
 
 

@@ -256,11 +256,11 @@ stats = calculate_period_statistics(
     spi_12,
     threshold=-1.2,
     start_year=2020,
-    end_year=2024
+    end_year=2025
 )
 
 # Plot number of events per grid cell
-stats.num_events.plot(title='Number of Dry/Wet Events 2020-2024')
+stats.num_events.plot(title='Number of Dry/Wet Events 2020-2025')
 ```
 :::
 

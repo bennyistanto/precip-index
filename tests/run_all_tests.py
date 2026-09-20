@@ -5,7 +5,7 @@ Run all integration tests for precip-index package.
 This script executes all numbered test files in sequence and provides
 a comprehensive summary of results.
 
-Tests use TerraClimate Bali data (1958-2024) from input/ folder.
+Tests use TerraClimate Bali data (1950-2025) from input/ folder.
 
 Author: Benny Istanto
 """
@@ -48,13 +48,13 @@ def check_input_data():
 
     input_dir = REPO_ROOT / 'input'
     required_files = [
-        ('terraclimate_bali_ppt_1958_2024.nc', 'Precipitation (required)'),
-        ('terraclimate_bali_tmean_1958_2024.nc', 'Temperature mean (required)'),
-        ('terraclimate_bali_pet_1958_2024.nc', 'PET (optional)'),
+        ('terraclimate_bali_ppt_1950_2025.nc', 'Precipitation (required)'),
+        ('terraclimate_bali_tmean_1950_2025.nc', 'Temperature mean (required)'),
+        ('terraclimate_bali_pet_1950_2025.nc', 'PET (optional)'),
     ]
     optional_files = [
-        ('terraclimate_bali_tmin_1958_2024.nc', 'Temperature min (for Hargreaves)'),
-        ('terraclimate_bali_tmax_1958_2024.nc', 'Temperature max (for Hargreaves)'),
+        ('terraclimate_bali_tmin_1950_2025.nc', 'Temperature min (for Hargreaves)'),
+        ('terraclimate_bali_tmax_1950_2025.nc', 'Temperature max (for Hargreaves)'),
     ]
 
     all_required_exist = True
@@ -118,7 +118,7 @@ def run_test(test_file: Path) -> tuple:
 def main():
     """Run all tests."""
     print_header("PRECIP-INDEX TEST SUITE", width=70)
-    print("Running integration tests with TerraClimate Bali data (1958-2024)")
+    print("Running integration tests with TerraClimate Bali data (1950-2025)")
     print("Source: input/ folder")
 
     # Check input data

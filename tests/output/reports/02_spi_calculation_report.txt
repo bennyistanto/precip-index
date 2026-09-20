@@ -1,50 +1,50 @@
 ======================================================================
 SPI Calculation Report
-Generated: 2026-01-29 13:38:37
+Generated: 2026-09-19 22:51:03
 ======================================================================
 
 SPI Statistics Summary:
 
 
 spi_3_gamma:
-  Mean: -0.0440, Std: 0.9868
-  Range: [-3.09, 3.02]
-  Drought (<-1): 17.0%, Wet (>+1): 15.4%
+  Mean: 0.0865, Std: 1.0884
+  Range: [-3.09, 3.09]
+  Drought (<-1): 14.8%, Wet (>+1): 19.3%
 
 spi_3_pearson3:
-  Mean: -0.0284, Std: 0.9306
-  Range: [-2.86, 3.09]
-  Drought (<-1): 14.5%, Wet (>+1): 15.1%
+  Mean: 0.1008, Std: 1.0358
+  Range: [-3.09, 3.09]
+  Drought (<-1): 13.7%, Wet (>+1): 18.7%
 
 spi_3_log_logistic:
-  Mean: -0.0838, Std: 0.9775
-  Range: [-3.09, 2.20]
-  Drought (<-1): 19.1%, Wet (>+1): 14.7%
+  Mean: 0.0765, Std: 1.0753
+  Range: [-3.09, 3.09]
+  Drought (<-1): 16.6%, Wet (>+1): 21.0%
 
 spi_12_gamma:
-  Mean: -0.0829, Std: 0.9925
-  Range: [-2.99, 2.71]
-  Drought (<-1): 20.2%, Wet (>+1): 15.5%
+  Mean: 0.1320, Std: 1.0878
+  Range: [-3.09, 3.09]
+  Drought (<-1): 15.3%, Wet (>+1): 21.3%
 
 spi_12_pearson3:
-  Mean: -0.0758, Std: 0.9821
-  Range: [-3.09, 2.44]
-  Drought (<-1): 19.2%, Wet (>+1): 15.0%
+  Mean: 0.1245, Std: 1.0826
+  Range: [-3.09, 3.09]
+  Drought (<-1): 14.8%, Wet (>+1): 20.9%
 
 spi_12_log_logistic:
-  Mean: -0.0364, Std: 1.0080
-  Range: [-2.77, 2.50]
-  Drought (<-1): 20.6%, Wet (>+1): 18.1%
+  Mean: 0.1717, Std: 1.0657
+  Range: [-3.04, 3.09]
+  Drought (<-1): 15.4%, Wet (>+1): 23.8%
 
 Distribution Comparison:
 
 
 SPI-3:
-  gamma vs pearson3: r=0.9884
-  gamma vs log_logistic: r=0.9922
-  pearson3 vs log_logistic: r=0.9745
+  gamma vs pearson3: r=0.9867
+  gamma vs log_logistic: r=0.9899
+  pearson3 vs log_logistic: r=0.9810
 
 SPI-12:
-  gamma vs pearson3: r=0.9924
-  gamma vs log_logistic: r=0.9962
-  pearson3 vs log_logistic: r=0.9928
+  gamma vs pearson3: r=0.9908
+  gamma vs log_logistic: r=0.9957
+  pearson3 vs log_logistic: r=0.9910

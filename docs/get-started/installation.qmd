@@ -78,12 +78,12 @@ Expected output:
 PRECIP-INDEX TEST SUITE
 ======================================================================
 Running all integration tests...
-Dataset: TerraClimate Bali (1958-2024)
+Dataset: TerraClimate Bali (1950-2025)
 
 Checking input data files...
-  [OK] input/terraclimate_bali_ppt_1958_2024.nc (0.8 MB)
-  [OK] input/terraclimate_bali_tmean_1958_2024.nc (1.7 MB)
-  [OK] input/terraclimate_bali_pet_1958_2024.nc (0.8 MB)
+  [OK] input/terraclimate_bali_ppt_1950_2025.nc (0.8 MB)
+  [OK] input/terraclimate_bali_tmean_1950_2025.nc (1.7 MB)
+  [OK] input/terraclimate_bali_pet_1950_2025.nc (0.8 MB)
 
 ...
 
@@ -106,9 +106,9 @@ precip-index/
 │   ├── visualization.py   # Plotting functions
 │   └── utils.py           # Utilities and memory tools
 ├── input/                 # Example data
-│   ├── terraclimate_bali_ppt_1958_2024.nc
-│   ├── terraclimate_bali_tmean_1958_2024.nc
-│   └── terraclimate_bali_pet_1958_2024.nc
+│   ├── terraclimate_bali_ppt_1950_2025.nc
+│   ├── terraclimate_bali_tmean_1950_2025.nc
+│   └── terraclimate_bali_pet_1950_2025.nc
 ├── notebook/              # Jupyter tutorials
 │   ├── 01_calculate_spi.ipynb
 │   ├── 02_calculate_spei.ipynb

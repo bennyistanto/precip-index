@@ -19,7 +19,6 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.dates import DateFormatter
-from datetime import datetime
 
 from utils import get_logger
 

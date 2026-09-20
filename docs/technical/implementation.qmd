@@ -39,6 +39,8 @@ precip-index/
 - `spi_global()` - Global-scale SPI with automatic chunking
 - `spei_global()` - Global-scale SPEI with automatic chunking
 - `estimate_memory_requirements()` - Pre-computation memory estimation
+- `save_fitting_params()` / `load_fitting_params()` - Parameter persistence for
+  operational workflows
 
 **Technology:**
 
@@ -69,7 +71,10 @@ precip-index/
 **Technology:**
 
 - Spatial tiling for memory efficiency
-- Streaming I/O to disk
+- Sliced netCDF4 writes: each tile writes only its own slice, rather than
+  reading the whole variable back, modifying it, and writing it out again
+- Tiles are processed serially in the calling process. The `n_workers`
+  argument is deprecated and ignored: use `dask_processor` for concurrency
 - Automatic garbage collection
 - Progress callbacks for monitoring
 
@@ -79,7 +84,38 @@ precip-index/
 - Chunk size auto-optimization based on available memory
 - ~12x memory reduction vs. in-memory processing
 
-### 3. compute.py
+### 3. dask_processor.py
+
+**Purpose:** Concurrent tiled processing for global grids, with resume and
+parameter retention
+
+**Key Functions:**
+
+- `compute_spi_dask()` - Global SPI across a Dask `LocalCluster`
+- `compute_spei_dask()` - Global SPEI, same machinery
+- `plan_layout()` - Size the tile so `n_workers` tiles fit in memory at once
+- `zarr_to_netcdf()` - Stream a finished Zarr store out to NetCDF
+- `DaskLayout` - Dataclass holding tile size, worker count and peak memory
+
+**Technology:**
+
+- Zarr region writes, which are lock-free when the regions are disjoint, so
+  workers write concurrently without coordination
+- A run manifest (`.manifest.json`) keyed on a signature of the run, so an
+  interrupted run resumes and only recomputes missing tiles
+- Per-tile fitting parameters staged to `_tileparams/` and assembled at the end
+- Write retry with exponential backoff, which absorbs the transient file locks
+  that antivirus and search indexers produce on Windows
+
+**Performance:**
+
+- Peak memory is **per worker**, not per tile: total is the per-tile figure
+  times `n_workers`. Always call `plan_layout()` before launching
+- Global TerraClimate SPEI (4320×8640, 912 months) at tile 640 with 6 workers:
+  **1h 36m** to compute all 98 tiles, plus **1h 16m** if you export the Zarr
+  store to a single NetCDF. See @tbl-dask-phases for the phase breakdown
+
+### 4. compute.py
 
 **Purpose:** Core computation algorithms for SPI/SPEI
 
@@ -87,29 +123,58 @@ precip-index/
 
 - `compute_index_parallel()` - Main computation with optional memory-efficient mode
 - `_rolling_sum_3d()` - O(n) cumulative sum algorithm
-- `_compute_gamma_params_vectorized()` - Vectorized parameter fitting
+- `_compute_gamma_params_vectorized()` - Vectorized Gamma parameter fitting
+- `_compute_params_pearson3_vectorized()` - Vectorized Pearson III fitting
 - `_transform_to_normal_vectorized()` - Memory-efficient transformation
 - `compute_index_dask()` - Dask-based lazy computation
 - `compute_index_dask_to_zarr()` - Stream directly to Zarr format
 
 **Technology:**
 
-- Float32 internal processing (50% memory reduction)
+- Float32 storage (50% memory reduction) with a float64 accumulator inside the
+  rolling sum, see below
 - Cumulative sum for O(n) rolling windows
 - Period-by-period processing to limit peak memory
+- Pearson III fitted by vectorized method of moments rather than a per-cell
+  loop, which is roughly 12x faster and bit-identical to the loop it replaced
 
-### 4. config.py
+::: {.callout-note}
+## Why the rolling sum accumulates in float64
+
+`_rolling_sum_3d()` computes windowed sums by differencing a cumulative sum,
+which is O(n) instead of O(n·scale) but is vulnerable to catastrophic
+cancellation. For SPEI the `SPEI_WATER_BALANCE_OFFSET` of 1000 drives the
+running total toward 8e5, where float32 spacing is 0.0625, so the difference
+of two large near-equal sums loses precision. The visible symptom is that the
+same grid cell yields slightly different values depending on how many years of
+record precede it.
+
+Measured on TerraClimate SPEI-12, comparing a 1950-start against a 1958-start
+record: float32 accumulation gave mean absolute difference 9.7e-05 and maximum
+1.3e-02, while float64 accumulation gave exactly zero. Output stays float32;
+only the accumulator is widened. The valid-value counter is `int32` for the
+same reason: `int16` caps at 32,767, which a daily record longer than about
+89 years would overflow.
+:::
+
+### 5. config.py
 
 **Purpose:** Configuration constants and enumerations
 
 **Key Constants:**
 
-- `MEMORY_MULTIPLIER` - Peak memory estimation factor (12x)
+- `MEMORY_MULTIPLIER` / `MEMORY_MULTIPLIER_SPEI` - Peak memory estimation
+  factors (12x for SPI, 18x for SPEI)
 - `MEMORY_SAFETY_FACTOR` - Safety margin for chunk sizing (0.7)
 - `DEFAULT_CHUNK_LAT/LON` - Default chunk dimensions (500)
+- `DASK_TILE_MULTIPLIER_SPI` / `_SPEI` - Per-worker peak for the Dask path
+  (9x and 12x), lower because that path is float32 throughout
+- `MAX_DASK_TILE` - Upper bound on the Dask tile edge (2048)
+- `MIN_VALUES_FOR_FIT`, `MIN_NONZERO_VALUES`, `MAX_ZERO_PROPORTION` -
+  Fitting thresholds, single source of truth for `distributions.py`
 - `Periodicity` - Enum for monthly/daily data
 
-### 5. runtheory.py
+### 6. runtheory.py
 
 **Purpose:** Climate extreme event analysis using run theory (Yevjevich 1967)
 
@@ -137,7 +202,7 @@ precip-index/
 - xarray.apply_ufunc for gridded data
 - Dual magnitude: cumulative + instantaneous
 
-### 6. utils.py
+### 7. utils.py
 
 **Purpose:** Supporting utilities and memory management
 
@@ -150,15 +215,15 @@ precip-index/
 - `eto_hargreaves()` - Hargreaves-Samani PET (low-level)
 - `_extraterrestrial_radiation()` - Daily Ra calculation (FAO-56)
 - `_monthly_mean_extraterrestrial_radiation()` - Monthly Ra averages
-- `validate_data()` - Input checking
-- `load_parameters()` - Pre-fitted parameter loading
-- `save_parameters()` - Parameter persistence
+- `validate_array()` - Input checking
+- `find_variable()` - Resolve a data variable from name patterns, shared by
+  `indices`, `chunked` and `dask_processor`
 - `get_optimal_chunk_size()` - Calculate optimal chunk dimensions
 - `format_bytes()` - Human-readable byte formatting
 - `get_array_memory_size()` - Calculate array memory footprint
 - `print_memory_info()` - Display current memory usage
 
-### 7. visualization.py
+### 8. visualization.py
 
 **Purpose:** Publication-quality climate extremes visualization
 
@@ -351,14 +416,24 @@ mem = estimate_memory_requirements('global_precip.nc')
 print(mem)  # Shows input size, peak memory, recommendations
 ```
 
-**Dask-based streaming to Zarr:**
+**Concurrent global processing with resume and saved parameters:**
 ```python
-from compute import compute_index_dask_to_zarr
-compute_index_dask_to_zarr(
-    precip_da,
-    'output.zarr',
+from dask_processor import compute_spei_dask, plan_layout
+
+layout = plan_layout(n_time=912, n_lat=4320, n_lon=8640,
+                     n_workers=6, index='spei')
+print(layout)   # check peak total against available RAM before launching
+
+compute_spei_dask(
+    'terraclimate_ppt.nc',
+    'terraclimate_pet.nc',
+    'spei_12.zarr',
     scale=12,
-    n_workers=8
+    distribution='pearson3',
+    tile=layout.tile,
+    n_workers=layout.n_workers,
+    params_path='spei_12_params.nc',
+    resume=True
 )
 ```
 
@@ -492,8 +567,65 @@ jupyter>=1.0.0      # Notebook support
 
 | Operation | Dataset | Grid Size | Time Steps | Chunks | Total Time |
 |-----------|---------|-----------|------------|--------|------------|
-| SPI-12 (Gamma) | CHIRPS v3 (0.05°) | 2400 × 7200 (17.3M cells) | 539 months | 12 | **~2h 47m** |
-| SPEI-12 (Pearson III) | TerraClimate (0.04°) | 4320 × 8640 (37.3M cells) | 816 months | 32 | **~26h** |
+| SPI-12 (Gamma), serial chunked | CHIRPS v3 (0.05°) | 2400 × 7200 (17.3M cells) | 539 months | 12 | **~2h 47m** |
+| SPEI-12 (Pearson III), serial chunked | TerraClimate (0.04°) | 4320 × 8640 (37.3M cells) | 816 months | 32 | **~26h** |
+| SPEI-12 (Pearson III), Dask | TerraClimate v1.1 (0.04°) | 4320 × 8640 (37.3M cells) | 912 months | 98 tiles, 6 workers | **1h 36m** |
+| SPEI-2 (Pearson III), Dask | TerraClimate v1.1 (0.04°) | 4320 × 8640 (37.3M cells) | 912 months | 98 tiles, 6 workers | **1h 40m** |
+
+The Dask row is the same computation on `dask_processor` at tile 640 with 6
+concurrent workers, rather than the serial chunked path. It also benefits from
+the vectorized Pearson III fitting described below.
+
+### Dask Run, Phase by Phase
+
+Read off the console timestamps of two complete runs, identical except for the
+accumulation scale. TerraClimate v1.1, Pearson III, 912 × 4320 × 8640, tile 640,
+6 workers, ~350 GB RAM available and 100.2 GB peak planned. Both completed all
+98 tiles with no failures:
+
+| Phase | SPEI-12 | SPEI-2 |
+|:------|--------:|-------:|
+| Cluster startup through first completed tile | 0h 05m 35s | 0h 06m 02s |
+| Tiles 1 to 98 | **1h 28m 34s** | **1h 32m 18s** |
+| Teardown and parameter assembly (6.67 GB) | 0h 00m 38s | 0h 00m 36s |
+| Write parameter file | 0h 01m 24s | 0h 01m 23s |
+| **Dask compute total** | **1h 36m 14s** | **1h 40m 21s** |
+| Zarr to NetCDF export (136 GB array) | **1h 16m 29s** | **1h 17m 46s** |
+| **End to end** | **2h 52m 43s** | **2h 58m 07s** |
+
+: Measured phase timings for two global Dask SPEI runs at different accumulation scales. {#tbl-dask-phases}
+
+Both columns were read from the `dask_processor` console output of the run
+itself. The SPEI-12 run is 2026-09-20 09:23 to 12:16; the SPEI-2 run is
+2026-09-19 23:52 to 2026-09-20 02:50.
+
+Tile completions arrived every 30 seconds at the median for SPEI-12 (mean 55s,
+range 2s to 265s) with 6 workers in flight. The spread is real: tiles over ocean
+finish almost immediately because every cell is NaN, while dense land tiles
+carry the full fitting cost.
+
+::: {.callout-important}
+## The export costs as much as the computation
+
+Converting the finished Zarr store to a single NetCDF took **1h 16m**, 44% of
+the end-to-end time, to write one 136 GB array. That step is single-threaded and
+I/O-bound, so no amount of extra workers helps it.
+
+If your downstream tooling can read Zarr, skip `zarr_to_netcdf()` entirely and
+halve your wall clock. Convert only when you need a single portable file.
+:::
+
+::: {.callout-note}
+## Scale does not drive the cost, as the two columns show
+
+SPEI-12 accumulates a window six times longer than SPEI-2 and finished
+**4 minutes faster**, a difference inside run-to-run noise. This is the expected
+result rather than a surprise: `_rolling_sum_3d()` differences a cumulative sum,
+so it is O(n) in the number of time steps whatever the window length, and the
+distribution fitting is per calendar period, not per scale.
+
+Budget a global run by grid size and record length. The scale you pick is free.
+:::
 
 ### Why Does TerraClimate SPEI Take ~9.5× Longer?
 
@@ -504,11 +636,21 @@ The difference comes from compounding factors across every dimension:
 | **Grid cells** | 17.3M | 37.3M | 2.2× more cells |
 | **Time steps** | 539 months (1981–2025) | 816 months (1958–2026) | 1.5× longer series |
 | **Dataset size** | ~69 GB | ~226 GB | 3.2× more I/O |
-| **Distribution** | Gamma (Method of Moments) | Pearson III (MLE) | ~2× slower fitting |
+| **Distribution** | Gamma (Method of Moments) | Pearson III (Method of Moments) | Slower fitting |
 | **Extra computation** | — | PET calculation | Additional overhead |
 | **Spatial chunks** | 12 | 32 | 2.7× more I/O cycles |
 
-**Key takeaway:** Gamma fitting uses a closed-form Method of Moments solution (fast), while Pearson III uses iterative Maximum Likelihood Estimation (slower per cell). Combined with 2× more grid cells and 1.5× longer time series, the total work scales roughly as 2.2 × 1.5 × 2 ≈ 6.6×. Add the I/O overhead of 32 chunks (each requiring a full read/write cycle) and PET computation, and the ~9.5× ratio is expected.
+**Key takeaway:** the cell count, the series length and the I/O volume all grow
+together. Combined, 2.2× more grid cells and 1.5× longer series already put the
+work near 3.3×, and the I/O overhead of 32 chunks plus the PET computation
+account for the rest of the ~9.5× ratio.
+
+The fitting itself is no longer the bottleneck it was when these numbers were
+taken. Both distributions now use closed-form method of moments, and Pearson III
+is fitted with array reductions rather than one SciPy call per cell per calendar
+period, which replaces roughly 24.9 million scalar calls per 1440×1440 tile with
+12 array operations. Timings above predate that change: see the Dask row for a
+current figure.
 
 ::: {.callout-tip}
 ## Regional Processing Is Fast
@@ -530,14 +672,14 @@ These benchmarks are for **global-scale** datasets. Country or regional subsets 
 
 ### Horizontal Scaling
 
-- Process regions in parallel
-- Independent grid cells
+- `dask_processor` runs tiles concurrently on a local cluster, with resume
+- Grid cells are independent, so tiles need no coordination
 - Batch processing capability
 
 ### Vertical Scaling
 
-- Dask for large grids
 - Chunked I/O for huge datasets
+- Zarr region writes for concurrent output
 - Memory-mapped arrays for extreme sizes
 
 ## Future Optimizations

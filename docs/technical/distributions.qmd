@@ -255,10 +255,25 @@ All fitted parameters are bounded to prevent numerical overflow:
 
 Before fitting, the module checks:
 
-- Minimum sample size (30 valid values required)
-- Minimum non-zero values (10 required for reliable fitting)
-- Maximum zero proportion (95% threshold)
+- Minimum sample size (20 valid values required, `config.MIN_VALUES_FOR_FIT`)
+- Minimum non-zero values (10 required for reliable fitting, `config.MIN_NONZERO_VALUES`)
+- Maximum zero proportion (95% threshold, `config.MAX_ZERO_PROPORTION`)
 - Minimum variance (prevents degenerate fits)
+
+::: {.callout-warning}
+## Keep the minimum sample size below your calibration window
+
+The minimum sample size is an absolute count of valid values per calendar
+period, not a fraction. It must stay **below** the number of values the
+calibration window supplies, or a single gap rejects the fit outright.
+
+This threshold was 30 until 2026-09. With the WMO standard 1991-2020
+calibration supplying exactly 30 values per calendar month, one missing year
+in a cell failed the check and turned that month's entire multi-decade series
+into NaN, while the Gamma path (threshold 4) kept it. At 20, a 30-year window
+tolerates up to 10 missing years. Raise `config.MIN_VALUES_FOR_FIT` if you
+calibrate over a longer period and want stricter completeness.
+:::
 
 ---
 

@@ -25,7 +25,6 @@ References:
 
 import gc
 import os
-from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -37,8 +36,6 @@ from config import (
     DEFAULT_DISTRIBUTION,
     DISTRIBUTION_DISPLAY_NAMES,
     DISTRIBUTION_PARAM_NAMES,
-    FITTED_INDEX_VALID_MAX,
-    FITTED_INDEX_VALID_MIN,
     FITTING_PARAM_NAMES,
     NC_FILL_VALUE,
     PET_VAR_PATTERNS,
@@ -56,18 +53,14 @@ from utils import (
     get_variable_name,
 )
 from compute import (
-    compute_index_dask,
-    compute_index_dask_to_zarr,
     compute_index_parallel,
     compute_spi_1d,
     compute_spei_1d,
-    sum_to_scale,
 )
 from utils import (
     calculate_pet,
-    ensure_cf_compliant,
+    find_variable,
     get_data_year_range,
-    is_data_valid,
 )
 
 # Module logger
@@ -363,17 +356,10 @@ def spi(
 
     # Handle different input types
     if isinstance(precip, xr.Dataset):
-        if var_name is None:
-            # Try to find precipitation variable
-            precip_vars = [v for v in precip.data_vars
-                          if any(p in v.lower() for p in PRECIP_VAR_PATTERNS)]
-            if len(precip_vars) == 1:
-                var_name = precip_vars[0]
-            else:
-                raise ValueError(
-                    "Multiple/no precipitation variables found. Specify var_name parameter. "
-                    f"Available: {list(precip.data_vars)}"
-                )
+        var_name = find_variable(
+            precip, PRECIP_VAR_PATTERNS,
+            kind='precipitation variable', explicit=var_name
+        )
         precip_da = precip[var_name]
     elif isinstance(precip, xr.DataArray):
         precip_da = precip
@@ -651,13 +637,10 @@ def spei(
 
     # Handle Dataset input for precip
     if isinstance(precip, xr.Dataset):
-        if precip_var_name is None:
-            precip_vars = [v for v in precip.data_vars
-                          if any(p in v.lower() for p in PRECIP_VAR_PATTERNS)]
-            if len(precip_vars) == 1:
-                precip_var_name = precip_vars[0]
-            else:
-                raise ValueError(f"Specify precip_var_name. Available: {list(precip.data_vars)}")
+        precip_var_name = find_variable(
+            precip, PRECIP_VAR_PATTERNS,
+            kind='precipitation variable', explicit=precip_var_name
+        )
         precip_da = precip[precip_var_name]
     elif isinstance(precip, xr.DataArray):
         precip_da = precip
@@ -669,12 +652,10 @@ def spei(
     if pet is not None:
         # PET provided directly
         if isinstance(pet, xr.Dataset):
-            if pet_var_name is None:
-                pet_vars = [v for v in pet.data_vars if any(p in v.lower() for p in PET_VAR_PATTERNS)]
-                if len(pet_vars) == 1:
-                    pet_var_name = pet_vars[0]
-                else:
-                    raise ValueError(f"Specify pet_var_name. Available: {list(pet.data_vars)}")
+            pet_var_name = find_variable(
+                pet, PET_VAR_PATTERNS,
+                kind='PET variable', explicit=pet_var_name
+            )
             pet_da = pet[pet_var_name]
         elif isinstance(pet, xr.DataArray):
             pet_da = pet
@@ -697,13 +678,10 @@ def spei(
 
         # Handle temperature input
         if isinstance(temperature, xr.Dataset):
-            if temp_var_name is None:
-                temp_vars = [v for v in temperature.data_vars
-                            if any(p in v.lower() for p in TEMP_VAR_PATTERNS)]
-                if len(temp_vars) == 1:
-                    temp_var_name = temp_vars[0]
-                else:
-                    raise ValueError(f"Specify temp_var_name. Available: {list(temperature.data_vars)}")
+            temp_var_name = find_variable(
+                temperature, TEMP_VAR_PATTERNS,
+                kind='temperature variable', explicit=temp_var_name
+            )
             temp_da = temperature[temp_var_name]
         elif isinstance(temperature, xr.DataArray):
             temp_da = temperature
@@ -845,7 +823,7 @@ def spei_multi_scale(
     pet: Optional[Union[np.ndarray, xr.DataArray]] = None,
     temperature: Optional[Union[np.ndarray, xr.DataArray]] = None,
     latitude: Optional[Union[float, np.ndarray, xr.DataArray]] = None,
-    scales: List[int] = [1, 3, 6, 12],
+    scales: Optional[List[int]] = None,
     periodicity: Union[str, Periodicity] = Periodicity.monthly,
     data_start_year: Optional[int] = None,
     calibration_start_year: int = DEFAULT_CALIBRATION_START_YEAR,
@@ -867,7 +845,7 @@ def spei_multi_scale(
     :param pet: potential evapotranspiration (optional if temperature provided)
     :param temperature: mean temperature for PET calculation
     :param latitude: latitude for PET calculation
-    :param scales: list of accumulation scales (e.g., [1, 3, 6, 12])
+    :param scales: list of accumulation scales; defaults to [1, 3, 6, 12]
     :param periodicity: 'monthly' or 'daily'
     :param data_start_year: first year of data
     :param calibration_start_year: first year of calibration period
@@ -896,6 +874,9 @@ def spei_multi_scale(
         ...                            scales=[3, 12], pet_method='hargreaves',
         ...                            temp_min=tmin, temp_max=tmax)
     """
+    if scales is None:
+        scales = [1, 3, 6, 12]
+
     dist = distribution.lower()
     _logger.info(f"Computing SPEI for scales: {scales} (distribution={dist})")
 
@@ -1306,10 +1287,10 @@ def estimate_memory_requirements(
 
     if isinstance(precip, str):
         ds = xr.open_dataset(precip)
-        if var_name is None:
-            precip_vars = [v for v in ds.data_vars
-                          if any(x in v.lower() for x in PRECIP_VAR_PATTERNS)]
-            var_name = precip_vars[0] if precip_vars else list(ds.data_vars)[0]
+        var_name = find_variable(
+            ds, PRECIP_VAR_PATTERNS,
+            kind='precipitation variable', explicit=var_name
+        )
         result = estimate_memory_from_data(ds, var_name, available_memory_gb)
         ds.close()
         return result

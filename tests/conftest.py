@@ -34,11 +34,11 @@ import xarray as xr
 # Input data files
 INPUT_DIR = REPO_ROOT / 'input'
 INPUT_FILES = {
-    'precip': INPUT_DIR / 'terraclimate_bali_ppt_1958_2024.nc',
-    'tmean': INPUT_DIR / 'terraclimate_bali_tmean_1958_2024.nc',
-    'tmin': INPUT_DIR / 'terraclimate_bali_tmin_1958_2024.nc',
-    'tmax': INPUT_DIR / 'terraclimate_bali_tmax_1958_2024.nc',
-    'pet': INPUT_DIR / 'terraclimate_bali_pet_1958_2024.nc',
+    'precip': INPUT_DIR / 'terraclimate_bali_ppt_1950_2025.nc',
+    'tmean': INPUT_DIR / 'terraclimate_bali_tmean_1950_2025.nc',
+    'tmin': INPUT_DIR / 'terraclimate_bali_tmin_1950_2025.nc',
+    'tmax': INPUT_DIR / 'terraclimate_bali_tmax_1950_2025.nc',
+    'pet': INPUT_DIR / 'terraclimate_bali_pet_1950_2025.nc',
 }
 
 # Variable names in NetCDF files
@@ -59,7 +59,7 @@ OUTPUT_REPORTS = OUTPUT_DIR / 'reports'
 # Test parameters
 CALIBRATION_START = 1991
 CALIBRATION_END = 2020
-DATA_START_YEAR = 1958
+DATA_START_YEAR = 1950
 
 # Distributions to test
 TEST_DISTRIBUTIONS = ['gamma', 'pearson3', 'log_logistic']

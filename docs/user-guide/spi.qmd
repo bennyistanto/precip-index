@@ -243,14 +243,19 @@ if precip.dims != ('time', 'lat', 'lon'):
 ### Issue 3: Memory Error
 
 **Problem:** Out of memory for large datasets
-**Solution:** Use Dask-enabled version
+**Solution:** Use a tiled entry point
+
+`spi()` loads its input into memory, so chunking the dataset on open does not
+help: pass file paths to a tiled function instead.
 
 ```python
-# Load with chunks
-precip = xr.open_dataset('precip.nc', chunks={'time': 100})['precip']
+# Serial tiles, one at a time
+from indices import spi_global
+spi_global('precip.nc', 'spi_12.nc', scale=12, chunk_size=500)
 
-# Calculate with Dask
-spi_12 = spi(precip, scale=12)  # Automatically uses Dask if input is chunked
+# Concurrent tiles, with resume and saved fitting parameters
+from dask_processor import compute_spi_dask
+compute_spi_dask('precip.nc', 'spi_12.zarr', scale=12, n_workers=6)
 ```
 
 ### Issue 4: NaN in Arid Regions

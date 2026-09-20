@@ -16,7 +16,7 @@ format:
 
 ## Overview
 
-This tutorial demonstrates how to calculate the **Standardized Precipitation Index (SPI)** using TerraClimate precipitation data for Bali, Indonesia (1958-2024).
+This tutorial demonstrates how to calculate the **Standardized Precipitation Index (SPI)** using TerraClimate precipitation data for Bali, Indonesia (1950-2025).
 
 **What is SPI?**
 
@@ -92,7 +92,7 @@ print(f"Repository root: {repo_root}")
 
 ```{python}
 # File paths
-precip_file = repo_root / 'input' / 'terraclimate_bali_ppt_1958_2024.nc'
+precip_file = repo_root / 'input' / 'terraclimate_bali_ppt_1950_2025.nc'
 precip_var = 'ppt'
 
 # Calibration period (WMO standard: 1991-2020)
@@ -150,7 +150,7 @@ ax1.grid(True, alpha=0.3)
 
 # Spatial pattern (mean over time)
 precip.mean(dim='time').plot(ax=ax2, cmap='YlGnBu', cbar_kwargs={'label': 'mm/month'})
-ax2.set_title('Mean Precipitation (1958-2024) - Bali, Indonesia')
+ax2.set_title('Mean Precipitation (1950-2025) - Bali, Indonesia')
 ax2.set_xlabel('Longitude')
 ax2.set_ylabel('Latitude')
 
@@ -215,7 +215,7 @@ ax1.legend(loc='upper right', fontsize=9)
 # Spatial pattern (mean over time)
 spi_12.mean(dim='time').plot(ax=ax2, cmap='RdYlBu', vmin=-1, vmax=1,
                               cbar_kwargs={'label': 'Mean SPI-12'})
-ax2.set_title('Mean SPI-12 (1958-2024) - Bali, Indonesia')
+ax2.set_title('Mean SPI-12 (1950-2025) - Bali, Indonesia')
 ax2.set_xlabel('Longitude')
 ax2.set_ylabel('Latitude')
 
@@ -456,7 +456,7 @@ print("  +2.00 and above    : Exceptionally moist")
 print()
 
 # Count occurrences by category
-print("Frequency Distribution (Bali, 1958-2024):")
+print("Frequency Distribution (Bali, 1950-2025):")
 print("=" * 60)
 
 bounds = [-3.0, -2.0, -1.5, -1.2, -0.7, -0.5, 0.5, 0.7, 1.2, 1.5, 2.0, 3.0]

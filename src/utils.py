@@ -17,6 +17,7 @@ bidirectional event analysis, and scalable processing.
 import calendar
 import logging
 import math
+import re
 from datetime import datetime
 from typing import Optional, Tuple, Union
 
@@ -917,6 +918,89 @@ def ensure_cf_compliant(
     return ds
 
 
+def find_variable(
+    ds: xr.Dataset,
+    patterns: list,
+    kind: str = 'variable',
+    explicit: Optional[str] = None,
+) -> str:
+    """
+    Find the data variable in a Dataset matching a list of name patterns.
+
+    Matching runs most-specific first, because a plain substring test makes the
+    short patterns dangerous: ``'pr'`` is inside ``pressure`` and ``probability``,
+    and ``'et'`` is inside ``wetdays`` and ``net_radiation``. The order is:
+
+    1. exact name match (``ppt`` matches the pattern ``ppt``)
+    2. whole-token match after splitting on non-alphanumerics
+       (``total_precip_mm`` matches ``precip``)
+    3. prefix match (``precipitation_flux`` matches ``precip``)
+    4. substring match, longest pattern first so ``precip`` wins over ``pr``
+
+    :param ds: dataset to search
+    :param patterns: candidate name fragments, e.g. config.PRECIP_VAR_PATTERNS
+    :param kind: human-readable label used in log messages
+    :param explicit: caller-supplied variable name; returned as-is after
+        checking it exists, which skips detection entirely
+    :return: name of the matching data variable
+    :raises KeyError: if ``explicit`` is given but absent from the dataset
+    :raises ValueError: if nothing matches and the dataset has several variables
+    """
+    if explicit is not None:
+        if explicit not in ds.data_vars:
+            raise KeyError(
+                f"Variable '{explicit}' not found. "
+                f"Available: {list(ds.data_vars)}"
+            )
+        return explicit
+
+    names = [v for v in ds.data_vars if v.lower() != 'crs']
+    if not names:
+        raise ValueError("Dataset contains no data variables")
+
+    lower = {v: v.lower() for v in names}
+    pats = [p.lower() for p in patterns]
+
+    # 1. exact
+    for v in names:
+        if lower[v] in pats:
+            return v
+
+    # 2. whole token
+    for v in names:
+        tokens = set(re.split(r'[^a-z0-9]+', lower[v]))
+        for p in pats:
+            if p in tokens:
+                return v
+
+    # 3. prefix
+    for v in names:
+        for p in pats:
+            if lower[v].startswith(p):
+                return v
+
+    # 4. substring, longest pattern first
+    for p in sorted(pats, key=len, reverse=True):
+        for v in names:
+            if p in lower[v]:
+                _logger.debug(
+                    f"{kind}: '{v}' matched pattern '{p}' only as a substring"
+                )
+                return v
+
+    if len(names) == 1:
+        _logger.warning(
+            f"No {kind} matched {patterns}; falling back to the only "
+            f"data variable present: '{names[0]}'"
+        )
+        return names[0]
+
+    raise ValueError(
+        f"Could not identify the {kind}. None of {patterns} matched any of "
+        f"{names}. Pass the variable name explicitly."
+    )
+
+
 def get_data_year_range(
     ds: xr.Dataset
 ) -> Tuple[int, int]:
@@ -927,17 +1011,50 @@ def get_data_year_range(
     :return: tuple of (start_year, end_year)
     """
     time_coord = ds['time']
-    
-    # Handle different time coordinate types
+
+    # datetime64 and cftime objects both expose .dt.year
     if np.issubdtype(time_coord.dtype, np.datetime64):
-        start_year = int(time_coord[0].dt.year)
-        end_year = int(time_coord[-1].dt.year)
-    else:
-        # Assume CF time units, try to decode
-        start_year = int(str(time_coord[0].values)[:4])
-        end_year = int(str(time_coord[-1].values)[:4])
-    
-    return start_year, end_year
+        return int(time_coord[0].dt.year), int(time_coord[-1].dt.year)
+
+    try:
+        return int(time_coord[0].dt.year), int(time_coord[-1].dt.year)
+    except (AttributeError, TypeError, ValueError) as exc:
+        # Not a datetime-like axis; fall through to CF decoding below
+        _logger.debug(f"'time' has no usable .dt accessor: {exc}")
+
+    # Undecoded CF numerics (e.g. "days since 1900-01-01" opened with
+    # decode_times=False). Decode via the units attribute rather than slicing
+    # the string form of a float, which used to raise on values like "720.0".
+    units = time_coord.attrs.get('units')
+    calendar_attr = time_coord.attrs.get('calendar', 'standard')
+    if units:
+        try:
+            from xarray.coding.times import decode_cf_datetime
+            decoded = decode_cf_datetime(
+                np.asarray(time_coord.values), units, calendar_attr
+            )
+
+            def _year(value):
+                # cftime objects carry .year; datetime64 needs a cast
+                if hasattr(value, 'year'):
+                    return int(value.year)
+                return int(np.datetime64(value, 'Y').astype(int)) + 1970
+
+            return _year(decoded[0]), _year(decoded[-1])
+        except Exception as exc:
+            _logger.debug(f"Could not decode time units '{units}': {exc}")
+
+    # Last resort: a string-like axis such as '1958-01-01'
+    try:
+        return (int(str(time_coord.values[0])[:4]),
+                int(str(time_coord.values[-1])[:4]))
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            "Could not determine the data year range from the 'time' "
+            f"coordinate (dtype={time_coord.dtype}, units={units!r}). "
+            "Open the dataset with decode_times=True, or pass "
+            "data_start_year explicitly."
+        ) from exc
 
 
 def count_zeros_and_non_missing(values: np.ndarray) -> Tuple[int, int]:

@@ -3,8 +3,8 @@
 Test 07: Operational Mode - Parameter Persistence
 
 This test demonstrates the operational drought monitoring workflow:
-1. Calibrate on historical data (1958-2021) and save parameters
-2. Load parameters and apply to new data (2022-2024) without refitting
+1. Calibrate on historical data (1950-2021) and save parameters
+2. Load parameters and apply to new data (2022-2025) without refitting
 3. Validate consistency between calibration and operational modes
 
 This is crucial for real-world drought monitoring where you establish
@@ -34,10 +34,10 @@ from config import DISTRIBUTION_DISPLAY_NAMES
 
 
 # Test configuration
-CALIBRATION_START = 1958
-CALIBRATION_END = 2021  # Leave 2022-2024 for operational mode
+CALIBRATION_START = 1950
+CALIBRATION_END = 2021  # Leave 2022-2025 for operational mode
 OPERATIONAL_START = 2022
-OPERATIONAL_END = 2024
+OPERATIONAL_END = 2025
 
 TEST_SCALES = [3, 12]
 TEST_DISTRIBUTIONS = ['gamma', 'pearson3']
@@ -74,8 +74,8 @@ def test_spi_operational_mode(precip, scale: int, distribution: str) -> dict:
     Test SPI operational mode workflow.
 
     Steps:
-    1. Calculate SPI on calibration period (1958-2021) and save params
-    2. Load params and calculate SPI on full period (1958-2024)
+    1. Calculate SPI on calibration period (1950-2021) and save params
+    2. Load params and calculate SPI on full period (1950-2025)
     3. Compare with fresh calculation on full period
 
     Returns:
@@ -337,9 +337,9 @@ def create_operational_workflow_plot(spi_results: dict, spei_results: dict):
     # Panel 1: Full time series with calibration/operational shading
     ax1 = axes[0]
     ax1.axvspan(times[0], times[years < OPERATIONAL_START][-1],
-                alpha=0.2, color='blue', label='Calibration Period (1958-2021)')
+                alpha=0.2, color='blue', label='Calibration Period (1950-2021)')
     ax1.axvspan(times[years >= OPERATIONAL_START][0], times[-1],
-                alpha=0.2, color='green', label='Operational Period (2022-2024)')
+                alpha=0.2, color='green', label='Operational Period (2022-2025)')
 
     ax1.plot(times, ts_oper, 'b-', linewidth=0.8, label='SPI (loaded params)')
     ax1.axhline(0, color='gray', linestyle='-', linewidth=0.5)
@@ -352,7 +352,7 @@ def create_operational_workflow_plot(spi_results: dict, spei_results: dict):
     ax1.set_xlim(times[0], times[-1])
     ax1.set_ylim(-3.5, 3.5)
 
-    # Panel 2: Zoom on transition period (2020-2024)
+    # Panel 2: Zoom on transition period (2020-2025)
     ax2 = axes[1]
 
     # Get transition period data
@@ -363,7 +363,7 @@ def create_operational_workflow_plot(spi_results: dict, spei_results: dict):
     trans_years = years[trans_mask]
 
     ax2.axvspan(trans_times[trans_years < OPERATIONAL_START][-1], trans_times[-1],
-                alpha=0.2, color='green', label='New Data (2022-2024)')
+                alpha=0.2, color='green', label='New Data (2022-2025)')
 
     ax2.plot(trans_times, trans_oper, 'b-', linewidth=1.5, marker='o',
              markersize=3, label='Operational (loaded params)')
@@ -431,6 +431,22 @@ def create_parameter_maps(spi_results: dict):
         print_info("  Skipping parameter maps (parameters not in expected format)")
         return
 
+    # Latitude here runs north to south, so imshow(origin='lower') drew every
+    # one of these maps upside down. pcolormesh takes the coordinates, which
+    # keeps the orientation right whichever way the axis is sorted, and it is
+    # what the rest of the suite already uses.
+    ref = spi_res.get('spi_calibration')
+    lat = ref.lat.values if ref is not None and 'lat' in ref.coords else None
+    lon = ref.lon.values if ref is not None and 'lon' in ref.coords else None
+
+    def draw(ax, arr, cmap, **kw):
+        if lat is not None and lon is not None and arr.shape == (lat.size, lon.size):
+            mesh = ax.pcolormesh(lon, lat, arr, cmap=cmap, shading='auto', **kw)
+            ax.set_aspect('equal')
+            return mesh
+        # Fallback without coordinates: row 0 is the northernmost latitude.
+        return ax.imshow(arr, cmap=cmap, origin='upper', **kw)
+
     fig, axes = plt.subplots(2, 3, figsize=(14, 8))
 
     # Show parameters for January (month 0) and July (month 6)
@@ -444,7 +460,7 @@ def create_parameter_maps(spi_results: dict):
         else:
             data = alpha[month_idx] if len(alpha.shape) > 1 else alpha
 
-        im = ax.imshow(data, cmap='YlOrRd', origin='lower')
+        im = draw(ax, data, 'YlOrRd')
         ax.set_title(f'Alpha (shape) - {month_name}')
         plt.colorbar(im, ax=ax, shrink=0.8)
         ax.set_xticks([])
@@ -457,7 +473,7 @@ def create_parameter_maps(spi_results: dict):
         else:
             data = beta[month_idx] if len(beta.shape) > 1 else beta
 
-        im = ax.imshow(data, cmap='YlGnBu', origin='lower')
+        im = draw(ax, data, 'YlGnBu')
         ax.set_title(f'Beta (scale) - {month_name}')
         plt.colorbar(im, ax=ax, shrink=0.8)
         ax.set_xticks([])
@@ -467,7 +483,7 @@ def create_parameter_maps(spi_results: dict):
     ax = axes[0, 2]
     if prob_zero is not None and len(prob_zero.shape) == 3:
         annual_prob_zero = np.nanmean(prob_zero, axis=0)
-        im = ax.imshow(annual_prob_zero * 100, cmap='Purples', origin='lower', vmin=0, vmax=10)
+        im = draw(ax, annual_prob_zero * 100, 'Purples', vmin=0, vmax=10)
         ax.set_title('Prob(Zero) - Annual Mean (%)')
         plt.colorbar(im, ax=ax, shrink=0.8)
     ax.set_xticks([])
@@ -496,7 +512,7 @@ def create_parameter_maps(spi_results: dict):
             verticalalignment='top', fontfamily='monospace',
             bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8))
 
-    plt.suptitle('Distribution Parameters: Calibrated on 1958-2021, Applied to 2022-2024',
+    plt.suptitle('Distribution Parameters: Calibrated on 1950-2021, Applied to 2022-2025',
                  fontsize=12, fontweight='bold')
     plt.tight_layout()
 
@@ -516,14 +532,29 @@ def create_multi_distribution_comparison(spi_results: dict, spei_results: dict):
     # Use GridSpec for better control
     gs = fig.add_gridspec(2, 3, width_ratios=[2, 2, 1.2], hspace=0.3, wspace=0.3)
 
-    colors = {'gamma': '#2166ac', 'pearson3': '#1a9850'}
+    # Blue/orange rather than blue/green. The old pair separated well for
+    # normal vision and deuteranopia but collapsed for tritanopia (CVD dE 9.5),
+    # and at similar lightness the four overlapping lines were hard to tell
+    # apart. Blue/orange scores dE 33.6 normal and 32.7 tritan.
+    colors = {'gamma': '#2a78d6', 'pearson3': '#eb6834'}
     dist_labels = {'gamma': 'Gamma', 'pearson3': 'Pearson III'}
+
+    # Gamma and Pearson III agree to r ~ 0.99 here, so the two curves sit on
+    # top of each other and whichever is drawn last hides the other
+    # completely. Colour alone cannot fix that. So the DISTRIBUTION carries
+    # both colour and dash - Gamma solid underneath, Pearson III dashed on
+    # top - and the blue shows through the gaps in the orange. Width is left
+    # to carry the scale.
+    dist_style = {'gamma': dict(color=colors['gamma'], linestyle='-'),
+                  'pearson3': dict(color=colors['pearson3'],
+                                   linestyle=(0, (4, 2.6)))}
+    scale_width = {3: 1.3, 12: 2.6}
 
     # Row 1: SPI
     # Time series (SPI-3 and SPI-12 overlaid)
     ax1 = fig.add_subplot(gs[0, 0])
 
-    for scale, ls in [(3, '-'), (12, '--')]:
+    for scale in (3, 12):
         for dist in ['gamma', 'pearson3']:
             key = f'spi_{scale}_{dist}'
             if key in spi_results:
@@ -533,23 +564,27 @@ def create_multi_distribution_comparison(spi_results: dict, spei_results: dict):
                 years = np.array([t.astype('datetime64[Y]').astype(int) + 1970 for t in times])
                 mask = years >= 2018
 
-                label = f'SPI-{scale} ({dist_labels[dist]})' if dist == 'gamma' else None
-                ax1.plot(times[mask], ts.values[mask], color=colors[dist],
-                        linewidth=1 if scale == 3 else 1.5, linestyle=ls,
-                        alpha=0.8 if scale == 3 else 1.0, label=label)
+                # Label every line. Previously only the Gamma lines were
+                # labelled, so the legend read "(Gamma)" twice while four
+                # lines were drawn, and the Pearson III curves looked like
+                # Gamma. Their tails diverge, so that misreads badly.
+                label = f'SPI-{scale} ({dist_labels[dist]})'
+                ax1.plot(times[mask], ts.values[mask], label=label,
+                        linewidth=scale_width[scale], solid_capstyle='round',
+                        dash_capstyle='butt', **dist_style[dist])
 
     ax1.axhline(0, color='gray', linestyle='-', linewidth=0.5)
     ax1.axvline(times[years >= OPERATIONAL_START][0], color='red',
                linestyle=':', linewidth=1.5, label='Operational start')
     ax1.set_ylabel('SPI Value')
-    ax1.set_title('SPI Time Series (2018-2024)', fontsize=10)
+    ax1.set_title('SPI Time Series (2018-2025)', fontsize=10)
     ax1.legend(loc='upper left', fontsize=7, ncol=2)
     ax1.set_ylim(-3, 3)
 
     # Row 2: SPEI
     ax2 = fig.add_subplot(gs[1, 0])
 
-    for scale, ls in [(3, '-'), (12, '--')]:
+    for scale in (3, 12):
         for dist in ['gamma', 'pearson3']:
             key = f'spei_{scale}_{dist}'
             if key in spei_results:
@@ -559,16 +594,16 @@ def create_multi_distribution_comparison(spi_results: dict, spei_results: dict):
                 years = np.array([t.astype('datetime64[Y]').astype(int) + 1970 for t in times])
                 mask = years >= 2018
 
-                label = f'SPEI-{scale} ({dist_labels[dist]})' if dist == 'gamma' else None
-                ax2.plot(times[mask], ts.values[mask], color=colors[dist],
-                        linewidth=1 if scale == 3 else 1.5, linestyle=ls,
-                        alpha=0.8 if scale == 3 else 1.0, label=label)
+                label = f'SPEI-{scale} ({dist_labels[dist]})'
+                ax2.plot(times[mask], ts.values[mask], label=label,
+                        linewidth=scale_width[scale], solid_capstyle='round',
+                        dash_capstyle='butt', **dist_style[dist])
 
     ax2.axhline(0, color='gray', linestyle='-', linewidth=0.5)
     ax2.axvline(times[years >= OPERATIONAL_START][0], color='red',
                linestyle=':', linewidth=1.5)
     ax2.set_ylabel('SPEI Value')
-    ax2.set_title('SPEI Time Series (2018-2024)', fontsize=10)
+    ax2.set_title('SPEI Time Series (2018-2025)', fontsize=10)
     ax2.legend(loc='upper left', fontsize=7, ncol=2)
     ax2.set_ylim(-3, 3)
 
@@ -588,9 +623,14 @@ def create_multi_distribution_comparison(spi_results: dict, spei_results: dict):
 
                     # Subsample for performance
                     idx = np.random.choice(np.where(valid)[0], min(1000, valid.sum()), replace=False)
+                    # Every series lies on the 1:1 line by construction, so
+                    # filled dots simply bury each other. Open markers let the
+                    # series underneath stay visible.
                     marker = 'o' if scale == 12 else 's'
-                    ax.scatter(fresh[idx], oper[idx], c=colors[dist], alpha=0.3, s=5,
-                              marker=marker, label=f'{name}-{scale} {dist_labels[dist]}')
+                    ax.scatter(fresh[idx], oper[idx], facecolors='none',
+                              edgecolors=colors[dist], linewidths=0.6,
+                              alpha=0.5, s=14, marker=marker,
+                              label=f'{name}-{scale} {dist_labels[dist]}')
 
         ax.plot([-3, 3], [-3, 3], 'r-', linewidth=1, label='1:1 line')
         ax.set_xlabel('Fresh Calculation')

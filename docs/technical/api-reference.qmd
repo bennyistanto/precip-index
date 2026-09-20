@@ -370,11 +370,21 @@ class ChunkedProcessor:
 
 | Parameter | Type | Required | Default | Description |
 | --------- | ---- | -------- | ------- | ----------- |
-| `chunk_lat` | int | No | 500 | Chunk size in latitude dimension |
-| `chunk_lon` | int | No | 500 | Chunk size in longitude dimension |
-| `n_workers` | int | No | None | Number of parallel workers |
+| `chunk_lat` | int | No | `config.DEFAULT_CHUNK_LAT` | Chunk size in latitude dimension |
+| `chunk_lon` | int | No | `config.DEFAULT_CHUNK_LON` | Chunk size in longitude dimension |
+| `n_workers` | int | No | None | **Deprecated and ignored.** Passing it raises a `DeprecationWarning` |
 | `temp_dir` | str | No | None | Temporary directory for intermediate files |
 | `verbose` | bool | No | True | Print progress messages |
+
+::: {.callout-note}
+## `ChunkedProcessor` processes tiles serially
+
+`n_workers` never had an effect: tiles are walked one at a time in the calling
+process, and the computation underneath is vectorized NumPy/SciPy with no
+worker pool to size. For concurrent tiles use
+`dask_processor.compute_spi_dask` / `compute_spei_dask`, which take a real
+`n_workers` and also return the distribution fitting parameters.
+:::
 
 **Methods:**
 
@@ -457,8 +467,9 @@ def estimate_memory(
     n_time,
     n_lat,
     n_lon,
-    dtype=np.float64,
-    available_memory_gb=None
+    available_memory_gb=None,
+    memory_multiplier=config.MEMORY_MULTIPLIER,
+    safety_factor=config.MEMORY_SAFETY_FACTOR
 ) -> MemoryEstimate
 ```
 
@@ -469,8 +480,9 @@ def estimate_memory(
 | `n_time` | int | Yes | - | Number of time steps |
 | `n_lat` | int | Yes | - | Number of latitude points |
 | `n_lon` | int | Yes | - | Number of longitude points |
-| `dtype` | numpy.dtype | No | float64 | Data type |
 | `available_memory_gb` | float | No | None | Override system memory |
+| `memory_multiplier` | float | No | `config.MEMORY_MULTIPLIER` (12.0) | Peak working set as a multiple of the input array. SPEI callers pass `config.MEMORY_MULTIPLIER_SPEI` (18.0), which also holds PET and the water balance |
+| `safety_factor` | float | No | `config.MEMORY_SAFETY_FACTOR` (0.7) | Fraction of available memory to target |
 
 **Returns:**
 
@@ -491,6 +503,168 @@ mem = estimate_memory(528, 2160, 4320)
 print(f"Input: {mem.input_size_bytes / 1e9:.1f} GB")
 print(f"Peak: {mem.peak_memory_bytes / 1e9:.1f} GB")
 print(f"Fits in memory: {mem.fits_in_memory}")
+```
+
+---
+
+## Module: dask_processor
+
+Concurrent tiled processing for global grids. Unlike `chunked`, this module runs
+several tiles at once on a Dask `LocalCluster`, keeps the distribution fitting
+parameters, and can resume an interrupted run.
+
+Requires `dask[distributed]` and, for Zarr output, `zarr`.
+
+### compute_spi_dask()
+
+```python
+def compute_spi_dask(
+    precip_path,
+    output_path,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    distribution='gamma',
+    output_format='zarr',
+    tile=None,
+    n_workers=None,
+    save_params=True,
+    params_path=None,
+    compress=True,
+    complevel=4,
+    var_name=None,
+    global_attrs=None,
+    memory_limit=None,
+    dashboard=True,
+    resume=True
+) -> str
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `precip_path` | str or Path | Yes | - | Precipitation NetCDF with dims (time, lat, lon) |
+| `output_path` | str or Path | Yes | - | `.zarr` store or `.nc` file, matching `output_format` |
+| `scale` | int | No | 12 | Accumulation scale in time steps |
+| `periodicity` | str | No | 'monthly' | 'monthly' or 'daily' |
+| `calibration_start_year` | int | No | 1991 | Calibration start |
+| `calibration_end_year` | int | No | 2020 | Calibration end |
+| `distribution` | str | No | 'gamma' | Distribution type |
+| `output_format` | str | No | 'zarr' | 'zarr' for lock-free parallel region writes, 'netcdf' for serialized writes |
+| `tile` | int | No | None | Tile edge in grid cells. Planned from available RAM when None |
+| `n_workers` | int | No | None | Concurrent workers. Half the CPU count when None |
+| `save_params` | bool | No | True | Collect and write distribution fitting parameters |
+| `params_path` | str | No | None | Parameter file path, derived from `output_path` when None |
+| `memory_limit` | str | No | None | Per-worker limit, for example `'16GB'` |
+| `dashboard` | bool | No | True | Start the Dask dashboard |
+| `resume` | bool | No | True | Skip tiles already recorded in the run manifest |
+
+### compute_spei_dask()
+
+```python
+def compute_spei_dask(
+    precip_path,
+    pet_path,
+    output_path,
+    scale=12,
+    periodicity='monthly',
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    distribution='pearson3',
+    output_format='zarr',
+    tile=None,
+    n_workers=None,
+    save_params=True,
+    params_path=None,
+    compress=True,
+    complevel=4,
+    precip_var_name=None,
+    pet_var_name=None,
+    global_attrs=None,
+    memory_limit=None,
+    dashboard=True,
+    resume=True
+) -> str
+```
+
+Same as `compute_spi_dask()` with an added `pet_path` (matching grid and time
+axis) and separate `precip_var_name` / `pet_var_name`. The default distribution
+is `'pearson3'`.
+
+### plan_layout()
+
+Pick a tile size such that `n_workers` tiles fit in memory simultaneously.
+
+```python
+def plan_layout(
+    n_time,
+    n_lat,
+    n_lon,
+    n_workers,
+    index='spei',
+    available_memory_gb=None,
+    safety_factor=config.MEMORY_SAFETY_FACTOR,
+    max_tile=config.MAX_DASK_TILE
+) -> DaskLayout
+```
+
+**Returns** a `DaskLayout` dataclass with `tile`, `n_workers`, `n_tiles`,
+`per_tile_gb`, `total_gb` and `available_gb`.
+
+::: {.callout-important}
+## Tile size that is safe serially is not safe concurrently
+
+Peak memory scales with `n_workers`, not with the tile alone. A 1440 x 1440
+SPEI tile over 912 monthly steps peaks near 60 GB, so 40 concurrent workers
+would need roughly 2.4 TB. Always plan the layout before launching a run.
+:::
+
+### zarr_to_netcdf()
+
+Stream a Zarr store out to NetCDF without loading it into memory.
+
+```python
+def zarr_to_netcdf(zarr_path, netcdf_path, compress=True, complevel=4, time_chunk=12) -> str
+```
+
+### Resume behaviour
+
+Each run writes a `.manifest.json` beside the output, holding a signature of the
+run (input paths, scale, calibration window, distribution, tile size) and the
+list of completed tiles. With `resume=True` a rerun with a matching signature
+skips completed tiles and recomputes only the rest. Per-tile fitting parameters
+are staged in a `_tileparams/` directory and assembled when the run finishes.
+
+`resume=False` recreates the output and erases any prior tiles, so use it when
+the code that produced the earlier tiles has changed.
+
+**Example:**
+
+```python
+from dask_processor import compute_spei_dask, plan_layout, zarr_to_netcdf
+
+# 1. Size the run first
+layout = plan_layout(n_time=912, n_lat=4320, n_lon=8640,
+                     n_workers=6, index='spei')
+print(layout)
+
+# 2. Run, keeping the fitting parameters
+compute_spei_dask(
+    'terraclimate_ppt.nc',
+    'terraclimate_pet.nc',
+    'spei_12.zarr',
+    scale=12,
+    distribution='pearson3',
+    tile=layout.tile,
+    n_workers=layout.n_workers,
+    params_path='spei_12_params.nc',
+    resume=True
+)
+
+# 3. Export to NetCDF
+zarr_to_netcdf('spei_12.zarr', 'spei_12.nc')
 ```
 
 ---
@@ -613,6 +787,35 @@ def eto_hargreaves(
 $$PET = 0.0023 \times R_a \times (T_{mean} + 17.8) \times \sqrt{T_{max} - T_{min}}$$
 
 where $R_a$ is extraterrestrial radiation calculated from latitude and day of year.
+
+---
+
+### find_variable()
+
+Resolve the data variable in a Dataset from a list of name patterns. This is the
+single detector used by `indices`, `chunked` and `dask_processor`, so every entry
+point resolves variable names identically.
+
+```python
+def find_variable(ds, patterns, kind='variable', explicit=None) -> str
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+| --------- | ---- | -------- | ------- | ----------- |
+| `ds` | xarray.Dataset | Yes | - | Dataset to search |
+| `patterns` | list of str | Yes | - | Candidate fragments, for example `config.PRECIP_VAR_PATTERNS` |
+| `kind` | str | No | 'variable' | Label used in log messages |
+| `explicit` | str | No | None | Caller-supplied name, returned as-is after checking it exists |
+
+Matching runs most-specific first: exact name, then whole-token, then prefix,
+then substring with the longest pattern first. The ordering matters because a
+plain substring test is unsafe for short patterns: `pr` is inside `pressure` and
+`probability`, and `et` is inside `wetdays` and `net_radiation`.
+
+Raises `KeyError` if `explicit` is absent from the dataset, and `ValueError` if
+nothing matches and the dataset holds several variables.
 
 ---
 

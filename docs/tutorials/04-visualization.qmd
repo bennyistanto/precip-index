@@ -16,7 +16,7 @@ format:
 
 ## Overview
 
-This tutorial demonstrates all visualization capabilities of the `precip-index` package using real TerraClimate data from Bali, Indonesia (1958-2024).
+This tutorial demonstrates all visualization capabilities of the `precip-index` package using real TerraClimate data from Bali, Indonesia (1950-2025).
 
 **What you'll learn:**
 
@@ -133,7 +133,7 @@ The `plot_index()` function creates a time series bar chart with the WMO 11-cate
 
 ```{python}
 fig = plot_index(spi_loc, threshold=threshold,
-                 title=f'SPI-12 at {lat_val:.2f}, {lon_val:.2f} - Bali (1958-2024)')
+                 title=f'SPI-12 at {lat_val:.2f}, {lon_val:.2f} - Bali (1950-2025)')
 plt.tight_layout()
 plt.show()
 ```
@@ -164,9 +164,9 @@ As the threshold becomes more negative, fewer time periods exceed it --- but tho
 ### Focus on Recent Period
 
 ```{python}
-recent_spi = spi_loc.sel(time=slice('2010', '2024'))
+recent_spi = spi_loc.sel(time=slice('2010', '2025'))
 fig = plot_index(recent_spi, threshold=-1.0,
-                 title='SPI-12: Recent Trends (2010-2024)')
+                 title='SPI-12: Recent Trends (2010-2025)')
 plt.tight_layout()
 plt.show()
 ```
@@ -177,7 +177,7 @@ The `plot_events()` function highlights identified events on the time series, sh
 
 ```{python}
 fig = plot_events(spi_loc, events, threshold=threshold,
-                  title=f'Dry Events at {lat_val:.2f}, {lon_val:.2f} - Bali (1958-2024)')
+                  title=f'Dry Events at {lat_val:.2f}, {lon_val:.2f} - Bali (1950-2025)')
 plt.tight_layout()
 plt.show()
 
@@ -455,8 +455,8 @@ Compare historical and recent periods to detect changes in drought frequency and
 print("Comparing historical vs recent periods...")
 comparison = compare_periods(
     spi_12,
-    periods=[(1991, 2020), (2021, 2024)],
-    period_names=['Historical (1991-2020)', 'Recent (2021-2024)'],
+    periods=[(1991, 2020), (2021, 2025)],
+    period_names=['Historical (1991-2020)', 'Recent (2021-2025)'],
     threshold=threshold,
     min_duration=3
 )
@@ -478,11 +478,11 @@ ax1.set_xlabel('Longitude')
 ax1.set_ylabel('Latitude')
 
 # Recent
-comparison.sel(period='Recent (2021-2024)').num_events.plot(
+comparison.sel(period='Recent (2021-2025)').num_events.plot(
     ax=ax2, cmap='YlOrRd', vmin=0, vmax=10,
     cbar_kwargs={'label': 'Events'}
 )
-ax2.set_title('Recent Period (2021-2024)', fontsize=12)
+ax2.set_title('Recent Period (2021-2025)', fontsize=12)
 ax2.set_xlabel('Longitude')
 ax2.set_ylabel('Latitude')
 
@@ -494,7 +494,7 @@ plt.show()
 ### Difference Map
 
 ```{python}
-diff = comparison.sel(period='Recent (2021-2024)') - comparison.sel(period='Historical (1991-2020)')
+diff = comparison.sel(period='Recent (2021-2025)') - comparison.sel(period='Historical (1991-2020)')
 
 fig, ax = plt.subplots(figsize=(12, 6))
 

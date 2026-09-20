@@ -9,6 +9,67 @@ This project adheres to [Calendar Versioning](https://calver.org/) (YYYY.M).
 
 ---
 
+## [2026.9] - September 2026
+
+### Added
+
+**`dask_processor.py`: concurrent global processing**
+
+- `compute_spi_dask()` and `compute_spei_dask()` run tiles in parallel on a
+  local Dask cluster and keep the distribution fitting parameters, which the
+  chunked path could not do for a global grid
+- `plan_layout()` sizes tiles from `n_workers` x per-tile peak, so a run is
+  checked against available RAM before it starts
+- Resume: a run manifest records completed tiles, and an interrupted run picks
+  up where it stopped instead of restarting
+- Zarr region writes for lock-free concurrent output, with `zarr_to_netcdf()`
+  to stream the finished store out
+- Write retry with backoff, which absorbs the transient file locks that
+  antivirus and search indexers cause on Windows
+
+**Utilities**
+
+- `utils.find_variable()`: one variable detector shared by `indices`,
+  `chunked` and `dask_processor`, replacing four inline implementations.
+  Matches exact name, then whole token, then prefix, then substring, so short
+  patterns like `pr` no longer match `pressure`
+- `import src` now works alongside the flat module imports
+
+### Fixed
+
+- **Rolling sum precision.** The windowed sum differenced a float32 cumulative
+  sum. With the SPEI offset of 1000 the running total reaches ~8e5, where
+  float32 spacing is 0.0625, so results depended on how many years of record
+  preceded a cell. Measured on TerraClimate SPEI-12, a 1950-start against a
+  1958-start record differed by mean 9.7e-05 and maximum 1.3e-02; with a
+  float64 accumulator the difference is exactly zero. Output remains float32.
+  The valid-value counter moved from `int16` to `int32`, which `int16` would
+  have overflowed on daily records longer than about 89 years
+- **Fitting threshold cliff.** `MIN_VALUES_FOR_FIT` was 30 while the default
+  calibration window is exactly 30 years, so one missing year voided a cell
+  entirely while Gamma kept returning values from the same data. Lowered to 20,
+  now sourced from `config.py` rather than duplicated in `distributions.py`
+- **Chunked writes.** Each tile read the whole output variable back, modified
+  it and wrote it out again. Tiles now write only their own slice
+- **Eager load at the end of a chunked run**, which materialized the full
+  result in memory after the tiles had already been written to disk
+- Silent `except Exception: pass` blocks in `distributions.py` now log
+
+### Changed
+
+- Pearson III parameters are fitted with vectorized method of moments instead
+  of one SciPy call per cell per calendar period, roughly 12x faster and
+  bit-identical to the loop it replaced
+- `ChunkedProcessor(n_workers=...)` is deprecated and ignored: the class always
+  processed tiles serially. Use `dask_processor` for concurrency
+- New configuration constants: `MEMORY_MULTIPLIER_SPEI`, `MIN_VALUES_FOR_FIT`,
+  `MIN_NONZERO_VALUES`, `MAX_ZERO_PROPORTION`, `DASK_TILE_MULTIPLIER_SPI`,
+  `DASK_TILE_MULTIPLIER_SPEI`, `MAX_DASK_TILE`
+- Removed dead code in `compute.py` whose per-cell branch assigned a
+  placeholder value instead of transforming through the CDF
+
+---
+
 ## [2026.1] - January 2026
 
 ### Initial Release

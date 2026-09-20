@@ -617,17 +617,21 @@ def summarize_events(events_df: pd.DataFrame) -> pd.Series:
 
 
 def get_event_state(
-    index_value: float,
+    index_value: Union[float, np.ndarray, "pd.Series", xr.DataArray],
     threshold: float = -1.0
-) -> Tuple[bool, str, float]:
+) -> Tuple[Union[bool, np.ndarray], Union[str, np.ndarray], Union[float, np.ndarray]]:
     """
-    Get current climate extreme event state from index value.
+    Get current climate extreme event state from index value(s).
 
     Works for both dry (drought) and wet (flood) thresholds.
 
     :param index_value: current SPI/SPEI value
     :param threshold: event threshold (negative for dry, positive for wet)
     :return: tuple of (is_event, category, deviation)
+
+    Accepts a scalar or any array-like. For array input every element of the
+    returned tuple is an array of the same shape, so this stays usable
+    alongside the rest of the module, which is array-oriented throughout.
 
     Example:
         >>> # Drought (dry) event
@@ -636,41 +640,48 @@ def get_event_state(
         >>> # Wet event
         >>> is_event, category, deviation = get_event_state(+1.5, threshold=+1.0)
         >>> print(f"Event: {is_event}, Category: {category}, Deviation: {deviation:.2f}")
+        >>> # Whole series at once
+        >>> is_event, category, deviation = get_event_state(spi.values, threshold=-1.0)
+        >>> is_event.sum()
     """
-    if np.isnan(index_value):
-        return False, "No Data", 0.0
+    scalar_input = np.ndim(index_value) == 0
+    values = np.asarray(index_value, dtype=float)
 
-    # Determine if in event based on threshold direction
+    missing = np.isnan(values)
+    # Fill NaNs with a neutral value so comparisons below stay well-defined;
+    # they are overwritten with the "No Data" result at the end.
+    safe = np.where(missing, threshold, values)
+
     if threshold < 0:
         # Dry events (drought) - below threshold
-        is_event = index_value < threshold
-        deviation = max(0.0, threshold - index_value)
+        is_event = safe < threshold
+        deviation = np.maximum(0.0, threshold - safe)
 
         # Categorize severity (McKee et al., 1993)
-        if index_value >= threshold:
-            category = "No Event"
-        elif index_value >= -1.5:
-            category = "Moderate Drought"
-        elif index_value >= -2.0:
-            category = "Severe Drought"
-        else:
-            category = "Extreme Drought"
+        category = np.where(
+            safe >= threshold, "No Event",
+            np.where(safe >= -1.5, "Moderate Drought",
+                     np.where(safe >= -2.0, "Severe Drought", "Extreme Drought"))
+        )
     else:
         # Wet events - above threshold
-        is_event = index_value > threshold
-        deviation = max(0.0, index_value - threshold)
+        is_event = safe > threshold
+        deviation = np.maximum(0.0, safe - threshold)
 
-        # Categorize severity
-        if index_value <= threshold:
-            category = "No Event"
-        elif index_value <= 1.5:
-            category = "Moderately Wet"
-        elif index_value <= 2.0:
-            category = "Very Wet"
-        else:
-            category = "Extremely Wet"
+        category = np.where(
+            safe <= threshold, "No Event",
+            np.where(safe <= 1.5, "Moderately Wet",
+                     np.where(safe <= 2.0, "Very Wet", "Extremely Wet"))
+        )
 
-    return is_event, category, deviation
+    # Missing data overrides every field
+    is_event = np.where(missing, False, is_event)
+    deviation = np.where(missing, 0.0, deviation)
+    category = np.where(missing, "No Data", category)
+
+    if scalar_input:
+        return bool(is_event), str(category), float(deviation)
+    return is_event, category.astype(object), deviation
 
 
 # =============================================================================

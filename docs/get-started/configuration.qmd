@@ -170,11 +170,25 @@ SPI/SPEI output values are clipped to this range:
 |----------|---------|-------------|
 | `SPEI_WATER_BALANCE_OFFSET` | `1000.0` | Offset added to water balance (P - PET) to ensure positive values for distribution fitting |
 
-### Gamma Fitting
+### Distribution Fitting
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `MIN_VALUES_FOR_GAMMA_FIT` | `4` | Minimum non-NaN values required for fitting |
+| `MIN_VALUES_FOR_GAMMA_FIT` | `4` | Minimum non-NaN values required by the Gamma path |
+| `MIN_VALUES_FOR_FIT` | `20` | Minimum non-NaN values required by Pearson III, Log-Logistic, GEV and Generalized Logistic |
+| `MIN_NONZERO_VALUES` | `10` | Minimum non-zero values for a reliable fit |
+| `MAX_ZERO_PROPORTION` | `0.95` | Above this share of zeros, the cell is treated as unfittable |
+
+::: {.callout-note}
+## Why `MIN_VALUES_FOR_FIT` is 20, not 30
+
+Fitting is per calendar period, so a 30-year calibration window gives a
+30-value sample for each month. A threshold of 30 means a single missing year
+takes that sample below the bar and voids the cell entirely, while Gamma
+(threshold 4) keeps returning values from the same data. At 20 the fit tolerates
+up to 10 missing years. Raise it if you want stricter sampling and can accept
+the gaps.
+:::
 
 ---
 
@@ -188,7 +202,8 @@ For global-scale processing, these constants control chunk sizes and memory usag
 | `DEFAULT_CHUNK_LON` | `500` | Default longitude chunk size |
 | `MIN_CHUNK_SIZE` | `100` | Minimum chunk size (smaller is inefficient) |
 | `MAX_SINGLE_CHUNK_GB` | `2.0` | Maximum array size (GB) for single-chunk processing |
-| `MEMORY_MULTIPLIER` | `12.0` | Peak memory as multiple of input array size |
+| `MEMORY_MULTIPLIER` | `12.0` | Peak memory as multiple of input array size (SPI) |
+| `MEMORY_MULTIPLIER_SPEI` | `18.0` | Same, for SPEI, which also holds PET and the water balance |
 | `MEMORY_SAFETY_FACTOR` | `0.7` | Fraction of available memory to use |
 
 ### Chunk Size Guidelines
@@ -199,6 +214,21 @@ For global-scale processing, these constants control chunk sizes and memory usag
 | 32 GB | 300 x 300 |
 | 64 GB | 400 x 400 |
 | 128 GB | 600 x 600 |
+
+### Dask Tiling
+
+These control `dask_processor.plan_layout()`, which sizes tiles so that
+`n_workers` of them fit in memory at the same time:
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `DASK_TILE_MULTIPLIER_SPI` | `9.0` | Peak working set per SPI tile, as a multiple of one float32 tile array |
+| `DASK_TILE_MULTIPLIER_SPEI` | `12.0` | Same, for SPEI |
+| `MAX_DASK_TILE` | `2048` | Upper bound on the tile edge length |
+
+The Dask multipliers are lower than `MEMORY_MULTIPLIER` because that path works
+in float32 throughout. They are **per worker**: total peak is the per-tile
+figure times `n_workers`.
 
 ---
 
@@ -220,10 +250,19 @@ All configurable constants in `config.py`:
 | `NC_FILL_VALUE` | `-9999.0` | Missing data |
 | `SPEI_WATER_BALANCE_OFFSET` | `1000.0` | SPEI computation |
 | `MIN_VALUES_FOR_GAMMA_FIT` | `4` | Fitting |
+| `MIN_VALUES_FOR_FIT` | `20` | Fitting |
+| `MIN_NONZERO_VALUES` | `10` | Fitting |
+| `MAX_ZERO_PROPORTION` | `0.95` | Fitting |
 | `DEFAULT_CHUNK_LAT` | `500` | Chunked processing |
 | `DEFAULT_CHUNK_LON` | `500` | Chunked processing |
+| `MIN_CHUNK_SIZE` | `100` | Chunked processing |
+| `MAX_SINGLE_CHUNK_GB` | `2.0` | Chunked processing |
 | `MEMORY_MULTIPLIER` | `12.0` | Memory estimation |
+| `MEMORY_MULTIPLIER_SPEI` | `18.0` | Memory estimation |
 | `MEMORY_SAFETY_FACTOR` | `0.7` | Memory estimation |
+| `DASK_TILE_MULTIPLIER_SPI` | `9.0` | Dask tiling |
+| `DASK_TILE_MULTIPLIER_SPEI` | `12.0` | Dask tiling |
+| `MAX_DASK_TILE` | `2048` | Dask tiling |
 
 ---
 

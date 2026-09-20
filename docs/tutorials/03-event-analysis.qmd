@@ -16,7 +16,7 @@ format:
 
 ## Overview
 
-This tutorial demonstrates **run theory** (Yevjevich, 1967) for identifying and analyzing climate extreme events --- both droughts and wet extremes --- using real TerraClimate data from Bali, Indonesia (1958-2024).
+This tutorial demonstrates **run theory** (Yevjevich, 1967) for identifying and analyzing climate extreme events --- both droughts and wet extremes --- using real TerraClimate data from Bali, Indonesia (1950-2025).
 
 **What is Run Theory?**
 
@@ -158,7 +158,7 @@ ax.axhline(y=1.2, color='blue', linestyle='--', linewidth=0.8, alpha=0.5, label=
 ax.fill_between(spi_loc.time, -5, 0, alpha=0.1, color='red', label='Dry')
 ax.fill_between(spi_loc.time, 0, 5, alpha=0.1, color='blue', label='Wet')
 ax.set_ylim(-3, 3)
-ax.set_title(f'SPI-12 at {lat_val:.2f}, {lon_val:.2f} (Central Bali, 1958-2024)')
+ax.set_title(f'SPI-12 at {lat_val:.2f}, {lon_val:.2f} (Central Bali, 1950-2025)')
 ax.set_ylabel('SPI-12')
 ax.legend()
 ax.grid(True, alpha=0.3)
@@ -222,7 +222,7 @@ print(f"Mean inter-arrival: {summary_dry['mean_interarrival']:.1f} months")
 
 ```{python}
 fig = plot_events(spi_loc, events_dry, threshold=threshold_dry,
-                  title=f'Dry Events at {lat_val:.2f}, {lon_val:.2f} (Bali, 1958-2024)')
+                  title=f'Dry Events at {lat_val:.2f}, {lon_val:.2f} (Bali, 1950-2025)')
 plt.tight_layout()
 plt.show()
 ```
@@ -270,7 +270,7 @@ print(f"Mean inter-arrival: {summary_wet['mean_interarrival']:.1f} months")
 
 ```{python}
 fig = plot_events(spi_loc, events_wet, threshold=threshold_wet,
-                  title=f'Wet Events at {lat_val:.2f}, {lon_val:.2f} (Bali, 1958-2024)')
+                  title=f'Wet Events at {lat_val:.2f}, {lon_val:.2f} (Bali, 1950-2025)')
 plt.tight_layout()
 plt.show()
 ```
@@ -466,12 +466,12 @@ plt.tight_layout()
 plt.show()
 ```
 
-### Multi-Year Statistics (2020--2024)
+### Multi-Year Statistics (2020--2025)
 
 ```{python}
-print("Calculating dry event statistics for 2020-2024...")
+print("Calculating dry event statistics for 2020-2025...")
 stats_5yr = calculate_period_statistics(spi_12, threshold=threshold_dry,
-                                         start_year=2020, end_year=2024,
+                                         start_year=2020, end_year=2025,
                                          min_duration=min_duration)
 
 print(f"5-year statistics calculated")
@@ -499,7 +499,7 @@ for ax, var, title, cmap in zip(axes.flat, variables, titles, cmaps):
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
 
-plt.suptitle('Dry Event Statistics Summary - Bali (2020-2024)', fontsize=14, y=0.995)
+plt.suptitle('Dry Event Statistics Summary - Bali (2020-2025)', fontsize=14, y=0.995)
 plt.tight_layout()
 plt.show()
 ```
@@ -524,8 +524,8 @@ ts_dry.to_csv(output_csv / 'drought_timeseries_bali.csv')
 print(f"Time series saved to: {output_csv / 'drought_timeseries_bali.csv'}")
 
 # Save gridded statistics
-stats_5yr.to_netcdf(str(output_netcdf / 'dry_stats_2020-2024_bali.nc'))
-print(f"Gridded statistics saved to: {output_netcdf / 'dry_stats_2020-2024_bali.nc'}")
+stats_5yr.to_netcdf(str(output_netcdf / 'dry_stats_2020-2025_bali.nc'))
+print(f"Gridded statistics saved to: {output_netcdf / 'dry_stats_2020-2025_bali.nc'}")
 ```
 
 ## 9. Summary

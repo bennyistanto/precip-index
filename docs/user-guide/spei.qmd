@@ -290,9 +290,11 @@ spei_12 = spei(precip, temperature=temp, latitude=lat, scale=12)  # ~30 sec
 # Pre-computed PET (faster — PET already available)
 spei_12 = spei(precip, pet=pet, scale=12)  # ~10 sec
 
-# Use Dask for large datasets
-precip_chunked = xr.open_dataset('precip.nc', chunks={'time': 100})['precip']
-spei_12 = spei(precip_chunked, pet=pet, scale=12)  # Parallel
+# Large datasets: use a tiled entry point, not a chunked input.
+# spei() loads its input into memory regardless of how it was opened.
+from dask_processor import compute_spei_dask
+compute_spei_dask('precip.nc', 'pet.nc', 'spei_12.zarr',
+                  scale=12, distribution='pearson3', n_workers=6)
 ```
 
 ## References

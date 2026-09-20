@@ -136,9 +136,12 @@ dmypy.json
 
 # Output directories
 # input/
+input/ago*
+input/cod*
 global/
 # output/
-output/ago
+output/ago*
+output/cod*
 results/
 figures/
 temp/
@@ -147,6 +150,7 @@ temp_md/
 temp_ipynb/
 temp_data/
 # test_output/
+temp_console
 
 # IDE settings
 .vscode/

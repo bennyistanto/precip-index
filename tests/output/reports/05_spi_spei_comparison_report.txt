@@ -1,61 +1,61 @@
 ======================================================================
 SPI vs SPEI Comparison Report
-Generated: 2026-01-29 13:52:56
+Generated: 2026-09-19 23:06:18
 ======================================================================
 
 
 SPI-3 vs SPEI-3 Analysis:
 
-Overall Correlation: r=0.9651
-RMSE: 0.2626
-Mean Difference (SPEI - SPI): 0.0263
+Overall Correlation: r=0.9693
+RMSE: 0.2884
+Mean Difference (SPEI - SPI): 0.0932
 
 Spatial Correlation:
-  Mean pixel correlation: 0.9660
-  Range: [0.8737, 0.9767]
+  Mean pixel correlation: 0.9710
+  Range: [0.8243, 0.9896]
 
 Drought Detection (threshold=-1.0):
 
-SPI-3 drought months: 43473 (17.0%)
-SPEI-3 drought months: 33777 (13.2%)
-Difference: -9696 (-3.8%)
+SPI-3 drought months: 43042 (14.8%)
+SPEI-3 drought months: 33046 (11.4%)
+Difference: -9996 (-3.4%)
 
 Agreement Matrix:
-  Both detect: 31847
-  Only SPI: 11626
-  Only SPEI: 1930
-  Agreement rate: 94.7%
+  Both detect: 30930
+  Only SPI: 12112
+  Only SPEI: 2116
+  Agreement rate: 95.1%
 
 Drought Area Percentage:
 
-SPI-3: mean=17.0%, max=100.0%
-SPEI-3: mean=13.2%, max=100.0%
-Mean difference: -3.8%
+SPI-3: mean=14.8%, max=100.0%
+SPEI-3: mean=11.4%, max=100.0%
+Mean difference: -3.4%
 
 SPI-12 vs SPEI-12 Analysis:
 
-Overall Correlation: r=0.9822
-RMSE: 0.1946
-Mean Difference (SPEI - SPI): 0.0539
+Overall Correlation: r=0.9669
+RMSE: 0.3236
+Mean Difference (SPEI - SPI): 0.1537
 
 Spatial Correlation:
-  Mean pixel correlation: 0.9841
-  Range: [0.8917, 0.9976]
+  Mean pixel correlation: 0.9696
+  Range: [0.8508, 0.9948]
 
 Drought Detection (threshold=-1.0):
 
-SPI-12 drought months: 51113 (20.2%)
-SPEI-12 drought months: 44315 (17.5%)
-Difference: -6798 (-2.7%)
+SPI-12 drought months: 43895 (15.3%)
+SPEI-12 drought months: 35795 (12.5%)
+Difference: -8100 (-2.8%)
 
 Agreement Matrix:
-  Both detect: 42112
-  Only SPI: 9001
-  Only SPEI: 2203
-  Agreement rate: 95.6%
+  Both detect: 33270
+  Only SPI: 10625
+  Only SPEI: 2525
+  Agreement rate: 95.4%
 
 Drought Area Percentage:
 
-SPI-12: mean=20.2%, max=100.0%
-SPEI-12: mean=17.5%, max=100.0%
-Mean difference: -2.7%
+SPI-12: mean=15.3%, max=100.0%
+SPEI-12: mean=12.5%, max=100.0%
+Mean difference: -2.8%

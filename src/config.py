@@ -89,8 +89,31 @@ FITTED_INDEX_VALID_MAX = 3.09
 # Fill value for missing data in NetCDF files
 NC_FILL_VALUE = -9999.0
 
-# Minimum number of non-NaN values required for gamma fitting
+# Minimum number of non-NaN values required for the vectorized gamma fast path
+# in compute.py. Deliberately permissive; gamma has only two parameters.
 MIN_VALUES_FOR_GAMMA_FIT = 4
+
+# Minimum number of valid values required to fit a distribution in
+# distributions.py (Pearson III, Log-Logistic, GEV, Generalized Logistic).
+#
+# This MUST stay below the calibration window length. The WMO standard
+# calibration 1991-2020 yields exactly 30 values per calendar month, so the
+# previous value of 30 left zero tolerance for gaps: a single missing year in
+# any calendar month rejected the fit and turned that month's entire
+# multi-decade series into NaN, while the gamma path (threshold 4) kept it.
+# Measured on a 68-year series, one missing calibration year took Pearson III
+# from 68 valid January values to 0.
+#
+# 20 keeps a three-parameter fit statistically defensible while tolerating up
+# to a third of a 30-year window being absent. Raise it if you calibrate over
+# a longer period and want stricter completeness.
+MIN_VALUES_FOR_FIT = 20
+
+# Minimum number of non-zero values for reliable fitting
+MIN_NONZERO_VALUES = 10
+
+# Maximum proportion of zeros allowed (beyond this, fitting is unreliable)
+MAX_ZERO_PROPORTION = 0.95
 
 # Default calibration period (WMO standard)
 DEFAULT_CALIBRATION_START_YEAR = 1991
@@ -144,9 +167,16 @@ TEMP_VAR_PATTERNS = ['temp', 'tas', 'tasmin', 'tasmax', 't2m', 'tmean', 'tmin', 
 # MEMORY AND PERFORMANCE CONSTANTS
 # =============================================================================
 
-# Memory multiplier: peak memory as multiple of input array size
-# Accounts for scaled_data, parameters, intermediate arrays during computation
+# --- Serial chunked processing (chunked.py, utils.get_optimal_chunk_size) ---
+
+# Memory multiplier: peak memory as multiple of input array size.
+# Accounts for scaled_data, parameters and intermediate arrays during
+# computation, assuming float64 input.
 MEMORY_MULTIPLIER = 12.0
+
+# SPEI additionally holds precipitation, PET and the water balance, so its
+# peak is higher than SPI's for the same grid.
+MEMORY_MULTIPLIER_SPEI = 18.0
 
 # Safety factor: fraction of available memory to use (conservative)
 MEMORY_SAFETY_FACTOR = 0.7
@@ -158,8 +188,24 @@ DEFAULT_CHUNK_LON = 500
 # Minimum chunk size (too small = inefficient)
 MIN_CHUNK_SIZE = 100
 
-# Maximum recommended array size in GB for single-chunk processing
+# Arrays at or below this size are processed in one shot rather than tiled
 MAX_SINGLE_CHUNK_GB = 2.0
+
+# --- Dask tiled processing (dask_processor.py) ---
+
+# Peak working set per tile as a multiple of one float32 tile array. Lower
+# than MEMORY_MULTIPLIER because the Dask path works in float32 throughout.
+# These are multiplied by the worker count, since Dask holds n_workers tiles
+# at once - unlike serial chunking, which holds one.
+#
+# Raised by 1.0 on 2026-09-19: compute._rolling_sum_3d now accumulates its
+# cumulative sum in float64 to avoid catastrophic cancellation, which costs one
+# extra tile-sized array at peak. See that function for the measurement.
+DASK_TILE_MULTIPLIER_SPI = 9.0
+DASK_TILE_MULTIPLIER_SPEI = 12.0
+
+# Upper bound on a Dask tile edge, regardless of available memory
+MAX_DASK_TILE = 2048
 
 
 # =============================================================================

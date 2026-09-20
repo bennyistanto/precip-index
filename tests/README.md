@@ -1,6 +1,6 @@
 # Test Suite for precip-index Package
 
-This directory contains a structured integration test suite for the `precip-index` package using **real TerraClimate data from Bali, Indonesia (1958-2024)**.
+This directory contains a structured integration test suite for the `precip-index` package using **real TerraClimate data from Bali, Indonesia (1950-2025)**.
 
 ## Test Structure
 
@@ -28,17 +28,17 @@ All tests use NetCDF files from the `input/` folder:
 
 | File | Variable | Purpose |
 |------|----------|---------|
-| `terraclimate_bali_ppt_1958_2024.nc` | Precipitation | SPI/SPEI calculation |
-| `terraclimate_bali_tmean_1958_2024.nc` | Mean Temperature | PET calculation |
-| `terraclimate_bali_tmin_1958_2024.nc` | Min Temperature | Hargreaves PET |
-| `terraclimate_bali_tmax_1958_2024.nc` | Max Temperature | Hargreaves PET |
-| `terraclimate_bali_pet_1958_2024.nc` | PET (reference) | SPEI, PET comparison |
+| `terraclimate_bali_ppt_1950_2025.nc` | Precipitation | SPI/SPEI calculation |
+| `terraclimate_bali_tmean_1950_2025.nc` | Mean Temperature | PET calculation |
+| `terraclimate_bali_tmin_1950_2025.nc` | Min Temperature | Hargreaves PET |
+| `terraclimate_bali_tmax_1950_2025.nc` | Max Temperature | Hargreaves PET |
+| `terraclimate_bali_pet_1950_2025.nc` | PET (reference) | SPEI, PET comparison |
 
 **Dataset Information:**
 
-- **Source**: TerraClimate (http://www.climatologylab.org/terraclimate.html)
+- **Source**: TerraClimate v1.1 (http://www.climatologylab.org/terraclimate.html)
 - **Location**: Bali, Indonesia (8-9°S, 114-116°E)
-- **Period**: January 1958 - December 2024 (67 years)
+- **Period**: January 1950 - December 2025 (912 months, 76 years)
 - **Resolution**: ~4km (1/24 degree)
 
 ## Test Files
@@ -181,17 +181,17 @@ python tests/06_visualization.py
 ======================================================================
  PRECIP-INDEX TEST SUITE
 ======================================================================
-Running integration tests with TerraClimate Bali data (1958-2024)
+Running integration tests with TerraClimate Bali data (1950-2025)
 Source: input/ folder
 
 ======================================================================
  CHECKING INPUT DATA
 ======================================================================
-  [OK] Precipitation (required): terraclimate_bali_ppt_1958_2024.nc (0.8 MB)
-  [OK] Temperature mean (required): terraclimate_bali_tmean_1958_2024.nc (1.7 MB)
-  [OK] PET (optional): terraclimate_bali_pet_1958_2024.nc (0.8 MB)
-  [OK] Temperature min (for Hargreaves): terraclimate_bali_tmin_1958_2024.nc (1.7 MB)
-  [OK] Temperature max (for Hargreaves): terraclimate_bali_tmax_1958_2024.nc (1.7 MB)
+  [OK] Precipitation (required): terraclimate_bali_ppt_1950_2025.nc (0.8 MB)
+  [OK] Temperature mean (required): terraclimate_bali_tmean_1950_2025.nc (1.7 MB)
+  [OK] PET (optional): terraclimate_bali_pet_1950_2025.nc (0.8 MB)
+  [OK] Temperature min (for Hargreaves): terraclimate_bali_tmin_1950_2025.nc (1.7 MB)
+  [OK] Temperature max (for Hargreaves): terraclimate_bali_tmax_1950_2025.nc (1.7 MB)
 
 ======================================================================
  RUNNING TESTS
@@ -239,7 +239,7 @@ CALIBRATION_START = 1991
 CALIBRATION_END = 2020
 
 # Data start year
-DATA_START_YEAR = 1958
+DATA_START_YEAR = 1950
 
 # Distributions to test
 TEST_DISTRIBUTIONS = ['gamma', 'pearson3', 'log_logistic']

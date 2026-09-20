@@ -27,11 +27,20 @@ References:
     Drought Index Sensitive to Global Warming: The Standardized Precipitation
     Evapotranspiration Index. Journal of Climate, 23(7), 1696-1718.
 
-Example:
+Both import styles work:
+
+    # Flat modules - what the notebooks, tests and docs use
     >>> import sys
     >>> sys.path.insert(0, 'src')
     >>> from indices import spi, spei, save_fitting_params, load_fitting_params
-    >>>
+
+    # Package namespace - put the repository root on sys.path instead
+    >>> import sys
+    >>> sys.path.insert(0, '.')
+    >>> import src
+    >>> src.spi, src.compute_spei_dask, src.ChunkedProcessor
+
+Example:
     >>> # Calculate SPI-12 for both dry and wet extremes
     >>> spi_12, params = spi(precip_da, scale=12, return_params=True)
     >>>
@@ -42,13 +51,37 @@ Example:
     >>> spei_12 = spei(precip_da, pet=pet_da, scale=12)
 """
 
-from .config import __version__
+import os as _os
+import sys as _sys
+
+# ---------------------------------------------------------------------------
+# Import bootstrap
+# ---------------------------------------------------------------------------
+# The submodules in this directory import each other by flat, absolute name
+# (``from config import ...``, ``from utils import ...``), and every notebook,
+# test and doc example does ``sys.path.insert(0, '.../src')`` before importing
+# them that way. There is no packaging metadata, so this directory is not an
+# installed package.
+#
+# Previously this file used relative imports (``from .config import ...``),
+# which meant ``import src`` always failed with
+# ``ModuleNotFoundError: No module named 'config'`` - the submodules could not
+# resolve their own flat imports. Everything below was therefore unreachable.
+#
+# Putting this directory on sys.path first makes ``import src`` work while
+# leaving the flat-import style used everywhere else untouched. Converting the
+# submodules to relative imports instead would break every existing caller.
+_MODULE_DIR = _os.path.dirname(_os.path.abspath(__file__))
+if _MODULE_DIR not in _sys.path:
+    _sys.path.insert(0, _MODULE_DIR)
+
+from config import __version__
 
 __author__ = "Benny Istanto"
 __email__ = "bistanto@worldbank.org"
 
 # Core index functions
-from .indices import (
+from indices import (
     spi,
     spi_multi_scale,
     spei,
@@ -56,20 +89,27 @@ from .indices import (
 )
 
 # Parameter I/O
-from .indices import (
+from indices import (
     save_fitting_params,
     load_fitting_params,
 )
 
 # Output utilities
-from .indices import (
+from indices import (
     save_index_to_netcdf,
     classify_drought,
     get_drought_area_percentage,
 )
 
+# Whole-grid convenience wrappers and memory estimation
+from indices import (
+    spi_global,
+    spei_global,
+    estimate_memory_requirements,
+)
+
 # Configuration
-from .config import (
+from config import (
     Periodicity,
     FITTED_INDEX_VALID_MIN,
     FITTED_INDEX_VALID_MAX,
@@ -82,7 +122,7 @@ from .config import (
 )
 
 # Utility functions
-from .utils import (
+from utils import (
     calculate_pet,
     eto_thornthwaite,
     ensure_cf_compliant,
@@ -90,7 +130,7 @@ from .utils import (
 )
 
 # Climate extremes analysis (run theory - works for both dry and wet events)
-from .runtheory import (
+from runtheory import (
     identify_runs,
     identify_events,  # Works for both dry (negative threshold) and wet (positive threshold)
     calculate_timeseries,
@@ -105,7 +145,7 @@ from .runtheory import (
 )
 
 # Visualization functions
-from .visualization import (
+from visualization import (
     generate_location_filename,
     plot_index,
     plot_events,
@@ -115,14 +155,38 @@ from .visualization import (
 )
 
 # Low-level compute functions (for advanced users)
-from .compute import (
+from compute import (
     sum_to_scale,
     gamma_parameters,
     transform_fitted_gamma,
     compute_index_parallel,
     compute_index_dask,
+    compute_index_dask_to_zarr,
     compute_spi_1d,
     compute_spei_1d,
+)
+
+# Chunked processing for grids larger than RAM (serial tiles)
+# Only numpy/xarray are imported at module level here, so this does not pull
+# in dask; dask is required when the tiling functions actually run.
+from chunked import (
+    ChunkedProcessor,
+    ChunkInfo,
+    MemoryEstimate,
+    estimate_memory,
+    estimate_memory_from_data,
+    iter_chunks,
+    compute_spi_global,
+    compute_spei_global,
+)
+
+# Dask processing (parallel tiles, keeps distribution fitting parameters)
+from dask_processor import (
+    DaskLayout,
+    plan_layout,
+    compute_spi_dask,
+    compute_spei_dask,
+    zarr_to_netcdf,
 )
 
 __all__ = [
@@ -140,6 +204,10 @@ __all__ = [
     "save_index_to_netcdf",
     "classify_drought",
     "get_drought_area_percentage",
+    # Whole-grid wrappers and memory estimation
+    "spi_global",
+    "spei_global",
+    "estimate_memory_requirements",
     # Configuration
     "Periodicity",
     "FITTED_INDEX_VALID_MIN",
@@ -179,6 +247,22 @@ __all__ = [
     "transform_fitted_gamma",
     "compute_index_parallel",
     "compute_index_dask",
+    "compute_index_dask_to_zarr",
     "compute_spi_1d",
     "compute_spei_1d",
+    # Chunked processing (serial tiles)
+    "ChunkedProcessor",
+    "ChunkInfo",
+    "MemoryEstimate",
+    "estimate_memory",
+    "estimate_memory_from_data",
+    "iter_chunks",
+    "compute_spi_global",
+    "compute_spei_global",
+    # Dask processing (parallel tiles, keeps fitting parameters)
+    "DaskLayout",
+    "plan_layout",
+    "compute_spi_dask",
+    "compute_spei_dask",
+    "zarr_to_netcdf",
 ]

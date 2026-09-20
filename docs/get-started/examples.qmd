@@ -15,7 +15,7 @@ import xarray as xr
 from indices import spi, save_index_to_netcdf
 
 # Load precipitation data
-ds = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
+ds = xr.open_dataset('input/terraclimate_bali_ppt_1950_2025.nc')
 precip = ds['ppt']
 
 # Calculate SPI-12
@@ -40,8 +40,8 @@ Calculate SPEI using temperature to derive PET:
 from indices import spei
 
 # Load data
-ds_ppt = xr.open_dataset('input/terraclimate_bali_ppt_1958_2024.nc')
-ds_temp = xr.open_dataset('input/terraclimate_bali_tmean_1958_2024.nc')
+ds_ppt = xr.open_dataset('input/terraclimate_bali_ppt_1950_2025.nc')
+ds_temp = xr.open_dataset('input/terraclimate_bali_tmean_1950_2025.nc')
 
 precip = ds_ppt['ppt']
 temp = ds_temp['tmean']
@@ -107,19 +107,19 @@ Calculate event statistics for a region and time period:
 from runtheory import calculate_period_statistics
 import matplotlib.pyplot as plt
 
-# Calculate statistics for 2020-2024
+# Calculate statistics for 2020-2025
 stats = calculate_period_statistics(
     spi_12,
     threshold=-1.2,
     start_year=2020,
-    end_year=2024,
+    end_year=2025,
     min_duration=2
 )
 
 # Plot number of dry events
 fig, ax = plt.subplots(figsize=(10, 6))
 stats.num_events.plot(ax=ax, cmap='YlOrRd')
-ax.set_title('Number of Dry Events (2020-2024)')
+ax.set_title('Number of Dry Events (2020-2025)')
 plt.tight_layout()
 plt.savefig('output/dry_events_map.png', dpi=150)
 ```
@@ -132,12 +132,12 @@ Analyze both dry (drought) and wet (flood) events:
 # Dry (drought) events
 dry_events = identify_events(spi_point, threshold=-1.2, min_duration=3)
 dry_stats = calculate_period_statistics(spi_12, threshold=-1.2,
-                                        start_year=2000, end_year=2024)
+                                        start_year=2000, end_year=2025)
 
 # Flood/wet events
 wet_events = identify_events(spi_point, threshold=+1.2, min_duration=3)
 wet_stats = calculate_period_statistics(spi_12, threshold=+1.2,
-                                        start_year=2000, end_year=2024)
+                                        start_year=2000, end_year=2025)
 
 print(f"Dry events: {len(dry_events)} events, avg duration {dry_events['duration'].mean():.1f} months")
 print(f"Wet events: {len(wet_events)} events, avg duration {wet_events['duration'].mean():.1f} months")
@@ -192,14 +192,14 @@ spi_24 = spi_multi['spi_gamma_24_month'] # Long-term
 # Compare at a point
 loc = dict(lat=precip.lat[10], lon=precip.lon[15], method='nearest')
 comparison = {
-    'SPI-1': float(spi_1.sel(loc, time='2024-12').values),
-    'SPI-3': float(spi_3.sel(loc, time='2024-12').values),
-    'SPI-6': float(spi_6.sel(loc, time='2024-12').values),
-    'SPI-12': float(spi_12.sel(loc, time='2024-12').values),
-    'SPI-24': float(spi_24.sel(loc, time='2024-12').values),
+    'SPI-1': float(spi_1.sel(loc, time='2025-12').values),
+    'SPI-3': float(spi_3.sel(loc, time='2025-12').values),
+    'SPI-6': float(spi_6.sel(loc, time='2025-12').values),
+    'SPI-12': float(spi_12.sel(loc, time='2025-12').values),
+    'SPI-24': float(spi_24.sel(loc, time='2025-12').values),
 }
 
-print("December 2024 conditions:")
+print("December 2025 conditions:")
 for scale, value in comparison.items():
     print(f"{scale}: {value:+.2f}")
 ```
