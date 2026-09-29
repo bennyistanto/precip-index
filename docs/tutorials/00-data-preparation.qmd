@@ -1,0 +1,662 @@
+---
+title: "Preparing Your Data"
+subtitle: "From raw climate datasets to SPI/SPEI-ready inputs"
+---
+
+## Overview
+
+Global climate datasets come from various providers, each with their own conventions for file formats, dimension ordering, variable naming, and temporal structure. Before calculating SPI or SPEI, your data must meet the [input contract](../get-started/data-model.qmd) expected by this package.
+
+This tutorial provides practical guidance on preparing common datasets for SPI/SPEI calculation.
+
+---
+
+## What Makes Data "Ready"?
+
+The package expects:
+
+| Requirement | Expected | Common issues |
+|-------------|----------|---------------|
+| **Format** | NetCDF (`.nc`) | GeoTIFF time series, GRIB |
+| **Dimensions** | `(time, lat, lon)` | Wrong order, missing time |
+| **Coordinates** | Named `time`, `lat`, `lon` | `latitude`, `longitude`, `x`, `y` |
+| **Time** | datetime64 with regular intervals | Integer indices, irregular spacing |
+| **Units** | mm/month (precipitation) | mm/day, kg/m²/s |
+| **Values** | Non-negative, NaN for missing | Fill values like -9999, negative values |
+
+---
+
+## Common Data Sources
+
+| Dataset | Provider | Resolution | Format | Ready for SPI? |
+|---------|----------|------------|--------|----------------|
+| [CHIRPS](https://www.chc.ucsb.edu/data/chirps) | CHC/UCSB | 0.05° daily/monthly, **latitude-banded, not global** | NetCDF, GeoTIFF | Monthly NetCDF: Yes |
+| [TerraClimate](https://www.climatologylab.org/terraclimate.html) | Climatology Lab | ~4km monthly | NetCDF | Yes (with minor fixes) |
+| [ERA5-Land](https://cds.climate.copernicus.eu/) | ECMWF/Copernicus | 0.1° hourly, daily, monthly | NetCDF, GRIB | Requires aggregation |
+| [GPM IMERG](https://gpm.nasa.gov/data/imerg) | NASA | 0.1° half-hourly, daily, monthly | NetCDF (HDF5) | Requires aggregation |
+
+---
+
+## Typical Preparation Steps
+
+### 1. Convert to NetCDF (if needed)
+
+Many datasets ship as one GeoTIFF per timestep. Stacking them into a NetCDF with
+a real time axis is mechanical, and there is one detail that silently ruins the
+result if you miss it.
+
+::: {.callout-warning}
+## The half-pixel shift
+
+A GeoTIFF's geotransform describes the **outer corner** of the top-left pixel.
+A NetCDF coordinate variable describes the **centre** of each cell.
+
+Copy the geotransform origin straight into a coordinate array and the entire
+grid sits half a pixel off. On a 4 km grid that is 2 km. Nothing raises, no
+check fails, and the data simply does not line up with anything else you
+compare it against.
+
+```python
+res_x, res_y = transform.a, transform.e        # res_y is negative
+lon = transform.c + np.arange(nx) * res_x + res_x / 2     # + half a pixel
+lat = transform.f + np.arange(ny) * res_y + res_y / 2     # + half a pixel
+```
+
+Verified on a deliberately awkward grid: an origin at 100.0 E with 0.05 degree
+cells must give a first cell centre of **100.025**, not 100.0.
+:::
+
+The second trap is consistency. If one raster in the folder sits on a different
+grid, a naive loop writes it into the stack anyway and you get a time series
+that jumps in space.
+
+Use `scripts/tiff2nc.py`, which handles both:
+
+```python
+from scripts.tiff2nc import tiffs_to_netcdf
+
+tiffs_to_netcdf(
+    "geotiff/",
+    "chirps_monthly_1981_2025.nc",
+    var_name="precip",
+    date_pattern=r"(\d{8})",      # one capture group
+    date_format="%Y%m%d",
+    units="mm",
+    standard_name="precipitation_amount",
+    lat_order="descending",        # keep the GeoTIFF's native row order
+)
+```
+
+```
+files     : 540  1981-01 .. 2025-12
+grid      : 2400 x 7200  res 0.050000 x 0.050000  crs EPSG:4326
+lon       : -179.975000 .. 179.975000  (cell centres)
+lat       : 59.975000 .. -59.975000  (descending)
+```
+
+::: {.callout-note collapse="true"}
+## What the script does beyond the half-pixel fix
+
+- **Grid validation.** Every file's size and geotransform is compared against
+  the first. A mismatch raises rather than being written into the stack.
+- **Per-file nodata.** The nodata value is read from each raster and converted,
+  instead of assuming a single sentinel across the folder.
+- **Explicit date parsing.** The timestamp is pulled with a regex you supply and
+  parsed with `strptime`. A filename that does not match raises. Files are then
+  sorted by the parsed date, not by string order, and duplicate timestamps are
+  rejected.
+- **Latitude order is a choice you make.** `descending` copies rows as they are;
+  `ascending` flips both the coordinate and the data together. Neither is more
+  correct, but a mismatch between the two is a silent north-south flip, so the
+  script never leaves it implicit.
+- **CF metadata.** `Conventions`, a `crs` grid-mapping variable carrying the
+  source WKT and EPSG code, coordinate `standard_name` / `units` / `axis`, and
+  computed `geospatial_*` bounds as global attributes, which is where ACDD puts
+  them.
+- **Chunking** set for time-series access rather than left to the default.
+:::
+
+::: {.callout-tip}
+## Alternative: GDAL and CDO
+
+```bash
+# One GeoTIFF -> NetCDF, then concatenate along time
+gdal_translate -of netCDF -co "FORMAT=NC4" input.tif output.nc
+cdo -z zip_5 mergetime *.nc stacked.nc
+```
+
+Faster for a one-off, and `gdal_translate` gets the cell centres right. What you
+give up is the time axis: GDAL writes no meaningful `time` coordinate from a
+filename, so you still have to set units, calendar and values yourself. For a
+handful of files that is fine; for a 540-file stack the Python route is less
+work overall.
+:::
+
+---
+
+### 2. Rename Coordinates
+
+Renaming is the easy half. The half that matters is that a file calling its axis
+`y` almost always also lacks `standard_name`, `units` and `axis`, and those are
+what tell any other tool which way is north.
+
+```python
+import xarray as xr
+from scripts.nc_fixups import standardise_names
+
+ds = standardise_names(xr.open_dataset("input.nc"))
+```
+
+That maps the usual aliases (`latitude`/`longitude`, `x`/`y`, `nav_lat`, `t`,
+`TIME`, ...) to `time`, `lat`, `lon`, then fills in the CF attributes **without
+overwriting** anything the file already states. It also normalises longitude
+from 0..360 to -180..180 and re-sorts, because the two conventions slice
+differently and mixing them is a common source of empty selections.
+
+To rename the data variable too:
+
+```python
+ds = standardise_names(ds, var_renames={"precipitation": "precip"})
+```
+
+::: {.callout-tip}
+## Alternative: NCO
+
+```bash
+ncrename -d latitude,lat -d longitude,lon -v latitude,lat -v longitude,lon in.nc out.nc
+ncatted -a units,lat,o,c,"degrees_north" -a axis,lat,o,c,"Y" out.nc
+```
+
+`ncrename` needs both the dimension (`-d`) and the variable (`-v`); doing only
+one leaves the file inconsistent. Note you then have to add the CF attributes by
+hand with `ncatted`, which is the part people skip.
+:::
+
+---
+
+### 3. Reorder Dimensions
+
+The package expects `(time, lat, lon)`, and will transpose internally if it gets
+something else. Doing it yourself is still worth it for anything you intend to
+read more than once.
+
+```python
+from scripts.nc_fixups import order_dims
+
+ds = order_dims(ds)                 # every 3-D variable -> (time, lat, lon)
+```
+
+::: {.callout-important}
+## A transpose is not free once it reaches disk
+
+`transpose` reorders the logical view immediately, but the bytes on disk keep
+their original chunking. Reading a transposed view can therefore be far slower
+than reading the original, because every logical row now spans many physical
+chunks.
+
+If you transpose, **write the result out**. Do not leave it lazy and read from
+it repeatedly.
+:::
+
+::: {.callout-tip}
+## Alternative: NCO and CDO
+
+```bash
+ncpdq -a time,lat,lon input.nc output.nc      # NCO, rewrites the file
+cdo -z zip_5 copy input.nc output.nc          # CDO, also rechunks
+```
+
+`ncpdq -a` is the right tool here and is usually faster than the Python route
+for a large file, because it streams.
+:::
+
+---
+
+### 4. Convert Units
+
+```python
+from scripts.nc_fixups import convert_precip_units
+
+ds = convert_precip_units(ds, "precip", source_units="kg m-2 s-1")
+```
+
+Handles rates per second, per hour and per day, plus metres to millimetres, and
+updates the `units` attribute and `history` so the file records what happened.
+
+::: {.callout-warning}
+## Never use an average month length
+
+Rate-to-total conversions must multiply by the **actual** length of each month.
+
+| Month | Days | Error from a fixed 30.44 |
+|:---|---:|---:|
+| February, common year | 28 | **+8.71%** |
+| February, leap year | 29 | +4.97% |
+| April | 30 | +1.47% |
+| July | 31 | −1.81% |
+
+That is a 10.5 percentage-point systematic swing, and it is not noise: it is
+locked to the calendar, so it lands directly on the seasonal cycle a drought
+index exists to measure.
+
+```python
+days = ds.time.dt.days_in_month     # correct, and leap-year aware
+```
+
+Verified: converting 1 mm/day for February 2020 gives **29.0 mm**, not 30.44.
+:::
+
+::: {.callout-note}
+## Check the units, do not assume them
+
+`convert_precip_units` raises if the variable has no `units` attribute and you
+did not supply one. That is deliberate. The same variable name ships in
+different units depending on the product and the access route, and a silent
+wrong guess here scales the entire dataset.
+:::
+
+::: {.callout-tip}
+## Alternative: CDO
+
+```bash
+cdo -z zip_5 -setattribute,precip@units=mm -mulc,86400 in.nc out.nc   # mm/s -> mm/day
+cdo -z zip_5 monsum in.nc monthly.nc                                  # daily -> monthly total
+```
+
+`cdo monsum` sums each month correctly, including leap years, so for the
+daily-to-monthly step it is both simpler and safer than hand arithmetic. The
+`-mulc` route, though, is a fixed multiplier and cannot know the month length:
+use it only for genuinely constant conversions such as metres to millimetres.
+:::
+
+---
+
+### 5. Replace Zeros (only if you must)
+
+Some fitting routines cannot take a zero, because the Gamma distribution is
+undefined there. The usual workaround is to substitute a small positive value.
+
+```python
+from scripts.nc_fixups import replace_zeros
+
+ds = replace_zeros(ds, "precip", value=0.001)
+```
+
+::: {.callout-important}
+## You probably do not need this with `precip-index`
+
+This package fits a **mixed distribution**: it counts the zeros, carries their
+probability separately as `prob_zero`, and fits the continuous part to the
+non-zero values. That is the statistically correct treatment of a variable with
+an atom at zero.
+
+Substituting 0.001 throws that away. It moves mass from the atom into the
+continuous part and biases the fitted parameters, which matters most in exactly
+the dry climates where zeros are common and where a drought index is most used.
+
+Reach for this only when handing data to a tool that demands strictly positive
+input.
+:::
+
+::: {.callout-warning}
+## Get the `where` the right way round, and keep NaN as NaN
+
+`da.where(cond, other)` keeps values where `cond` is **True**. So the condition
+must describe what you want to keep, which reads backwards to most people:
+
+```python
+da.where(da != 0, 0.001)     # correct: keeps non-zeros, replaces zeros
+da.where(da == 0, 0.001)     # wrong: keeps ONLY the zeros, replaces everything else
+```
+
+NaN survives the correct form, because `NaN != 0` evaluates True. Demonstrated
+on `[0.0, 1.5, NaN, 0.0, 3.2]`:
+
+| Expression | Result |
+|:---|:---|
+| `da.where(da != 0, 0.001)` | `[0.001, 1.5, nan, 0.001, 3.2]` |
+| `xr.where(da == 0, 0.001, da)` | `[0.001, 1.5, nan, 0.001, 3.2]` |
+| `da.where(da == 0, 0.001)` | `[0.0, 0.001, 0.001, 0.0, 0.001]` |
+
+The first two are equivalent and both preserve the missing value. The third
+destroys the data.
+:::
+
+---
+
+### 6. Handle Missing Values
+
+```python
+from scripts.nc_fixups import clean_missing
+
+ds = clean_missing(ds, "precip")
+```
+
+```
+precip: 21,048,332 of 34,040,217 missing (61.8%)
+  never observed : 24,792,188 cells
+  gaps in time   : 1,204 cells
+```
+
+Order matters, and the function fixes it: the value the file **declares**
+first, then a list of common sentinels, then physical bounds. Applying a
+`>= 0` filter before the sentinels leaves a `-9999` in place if you later only
+test for exact matches; applying it afterwards costs nothing.
+
+::: {.callout-note collapse="true"}
+## Why the split between "never observed" and "gaps in time" matters
+
+A cell that is missing for the whole record is ocean, or outside the product's
+footprint. It costs nothing: the index skips it.
+
+A cell missing a scattered handful of months is different. It still gets fitted,
+but on a shorter sample than its neighbours, and the fit silently becomes less
+reliable. `precip-index` requires `MIN_VALUES_FOR_FIT` (20) values per calendar
+month, so a cell with 11 or more missing years drops out entirely, while one
+with 9 missing years is fitted on 21 values and looks identical in the output to
+a cell fitted on 30.
+
+The second number in that report is the one to watch, and it is the one a plain
+"NaN count" hides completely.
+:::
+
+::: {.callout-tip}
+## Alternative: NCO
+
+```bash
+# Declare a fill value and convert a sentinel to it
+ncatted -a _FillValue,precip,o,f,-9999.0 in.nc
+ncap2 -s 'where(precip < 0) precip = precip@_FillValue;' in.nc out.nc
+```
+
+`ncap2` is the right tool for conditional rewrites on a file too large to open
+in memory. The syntax is unforgiving; test on a subset first.
+:::
+
+---
+
+### 7. Subset to Region of Interest
+
+Processing global data is slow. Subset first if you only need a region.
+
+#### By bounding box
+
+```python
+# slice() follows the STORED order of the axis, not numerical order. Get it
+# backwards and you silently get zero rows, not an error. TerraClimate and
+# most gridded products store latitude north-to-south.
+south, north = -10, 0
+if float(ds.lat[0]) > float(ds.lat[-1]):      # descending, north first
+    ds_region = ds.sel(lat=slice(north, south), lon=slice(110, 120))
+else:                                          # ascending, south first
+    ds_region = ds.sel(lat=slice(south, north), lon=slice(110, 120))
+
+assert ds_region.sizes['lat'] > 0, "empty selection: latitude order is reversed"
+```
+
+#### By shapefile
+
+A one-line `rio.clip` works, and it will quietly cost you the edge of your
+domain. Use `scripts/nc_clip.py`, which keeps every cell the polygon touches,
+streams the time axis so a global file fits in memory, and writes CF-compliant
+output:
+
+```python
+from scripts.nc_clip import clip_netcdf
+
+clip_netcdf(
+    "wld_cli_terraclimate_ppt_1950_2025.nc",
+    "WB_GAD_ADM0_AGO.shp",
+    "ago_cli_terraclimate_ppt_1950_2025.nc",
+    all_touched=True,     # keep the boundary ring
+    crop=True,            # shrink to the mask extent
+    time_batch=24,        # time steps held in memory at once
+)
+```
+
+```
+shapefile : WB_GAD_ADM0_AGO.shp  (1 features, EPSG:4326)
+input     : ppt float32 (816, 332, 303)
+mask      : 60,725 cells (+1,015, 1.7% from all_touched)
+output    : (816, 330, 301)  cropped
+wrote     : ago_cli_terraclimate_ppt_1950_2025.nc  (66.2 MB)
+```
+
+Or from the command line:
+
+```bash
+python scripts/nc_clip.py input.nc boundary.shp output.nc
+```
+
+::: {.callout-important}
+## Keep the pixels the polygon touches
+
+The default rasterisation rule keeps a cell only if its **centre** falls inside
+the polygon. Every cell the boundary merely crosses is discarded, so you lose a
+ring one cell wide around the whole domain.
+
+Measured against the World Bank ADM0 boundaries on the TerraClimate grid:
+
+| Area | Centre-only | `all_touched` | Gained | Perimeter/area |
+|:---|---:|---:|---:|---:|
+| DR Congo | 109,413 | 110,688 | **+1.2%** | 0.54 |
+| Angola | 59,710 | 60,726 | **+1.7%** | 0.77 |
+| Bali | 266 | 331 | **+24.4%** | 13.30 |
+
+The loss scales with the perimeter-to-area ratio, not with size. For a large
+compact country it is a rounding error. For an island, an archipelago or any
+long thin basin it is not: a quarter of Bali disappears.
+
+In every case 99-100% of the recovered cells sit directly against the retained
+mask, which is to say they are exactly the coast and the border. That is usually
+where the population is, and it is where a drought index gets used.
+
+Do not take the table on trust for your own area. Measure it:
+
+```bash
+python scripts/measure_all_touched.py my_boundary.shp --res terraclimate
+```
+:::
+
+::: {.callout-note}
+## What "CF-compliant output" means here
+
+`clip_netcdf` writes `Conventions = "CF-1.8"` and, on the way, repairs what a
+naive clip usually drops:
+
+- coordinate variables get `standard_name`, `units` and `axis`
+- a `crs` grid-mapping variable is written, and the data variable references it
+  through `grid_mapping`
+- `geospatial_lat_min` / `_max` / `_resolution` and the longitude equivalents
+  describe the **clipped** extent, not the original
+- the clip is appended to `history`, with the shapefile name and the rules used
+- any `scale_factor`, `add_offset` or `missing_value` inherited from packed
+  source data is dropped, because the output is real numbers
+
+It also refuses rather than guesses: no CRS on the shapefile, no overlap with
+the grid, or a polygon too small to select a single cell each raise instead of
+silently producing an empty file.
+:::
+
+### 8. Ensure Regular Time Intervals
+
+SPI/SPEI requires regular time spacing:
+
+```python
+import pandas as pd
+
+# Check time spacing
+times = pd.to_datetime(ds.time.values)
+diffs = times.diff()[1:]
+print(f"Time intervals: {diffs.unique()}")
+
+# Resample to regular monthly if irregular.
+# Precipitation accumulates, so it sums. Temperature averages.
+precip_monthly = ds['precip'].resample(time='MS').sum()
+temp_monthly = ds['temp'].resample(time='MS').mean()
+```
+
+---
+
+## Validation Checklist
+
+Before running SPI/SPEI, verify your prepared data:
+
+```python
+import xarray as xr
+
+ds = xr.open_dataset('prepared_data.nc')
+precip = ds['precip']
+
+# 1. Dimensions
+print(f"Dimensions: {precip.dims}")
+assert set(precip.dims) == {'time', 'lat', 'lon'}, "Missing dimensions"
+
+# 2. Coordinate names
+assert 'time' in ds.coords, "Missing time coordinate"
+assert 'lat' in ds.coords, "Missing lat coordinate"
+assert 'lon' in ds.coords, "Missing lon coordinate"
+
+# 3. Time range (need ≥30 years)
+years = precip.time.dt.year
+n_years = int(years.max()) - int(years.min()) + 1   # inclusive
+print(f"Period: {int(years.min())}-{int(years.max())} ({n_years} years)")
+
+# 4. Values
+print(f"Value range: [{precip.min().values:.2f}, {precip.max().values:.2f}]")
+assert precip.min() >= 0, "Negative precipitation values found"
+
+# 5. Missing data
+missing_pct = float(precip.isnull().mean() * 100)
+print(f"Missing: {missing_pct:.1f}%")
+
+# 6. Units check (typical monthly precip: 0-500 mm/month)
+mean_val = float(precip.mean())
+print(f"Mean: {mean_val:.1f} mm/month")
+if mean_val < 10:
+    print("⚠️  Mean seems low — check if units are mm/day instead of mm/month")
+if mean_val > 500:
+    print("⚠️  Mean seems high — check units")
+
+print("✓ Data appears ready for SPI/SPEI calculation")
+```
+
+### CF compliance
+
+The checks above say the data is usable. These say the file describes itself, so
+that the next person, or you in a year, does not have to guess.
+
+```python
+import xarray as xr
+
+ds = xr.open_dataset('prepared_data.nc', decode_cf=False)
+var = ds['precip']
+problems = []
+
+# Conventions
+if not str(ds.attrs.get('Conventions', '')).startswith('CF-'):
+    problems.append("no Conventions attribute (expected e.g. 'CF-1.8')")
+
+# Coordinate variables
+for name, want_axis, want_units in (('lat', 'Y', 'degrees_north'),
+                                    ('lon', 'X', 'degrees_east')):
+    if name not in ds.coords:
+        problems.append(f"missing coordinate {name}")
+        continue
+    a = ds[name].attrs
+    if a.get('units') != want_units:
+        problems.append(f"{name}.units is {a.get('units')!r}, expected {want_units!r}")
+    if a.get('axis') != want_axis:
+        problems.append(f"{name}.axis is {a.get('axis')!r}, expected {want_axis!r}")
+    if 'standard_name' not in a:
+        problems.append(f"{name} has no standard_name")
+
+# Time needs units and a calendar to be unambiguous
+t = ds['time'].attrs
+if 'units' not in t:
+    problems.append("time has no units (e.g. 'days since 1900-01-01')")
+if 'calendar' not in t:
+    problems.append("time has no calendar (defaults to 'standard', say so explicitly)")
+
+# Grid mapping
+gm = var.attrs.get('grid_mapping')
+if gm is None:
+    problems.append("variable has no grid_mapping attribute")
+elif gm not in ds.variables:
+    problems.append(f"grid_mapping points at {gm!r}, which does not exist")
+
+# The variable itself
+if 'units' not in var.attrs:
+    problems.append("variable has no units")
+for leftover in ('scale_factor', 'add_offset', '_Unsigned'):
+    if leftover in var.attrs:
+        problems.append(f"variable still carries {leftover}: unpack before use")
+
+if problems:
+    print("CF issues:")
+    for p in problems:
+        print(f"  - {p}")
+else:
+    print("✓ CF metadata complete")
+```
+
+Note `decode_cf=False`. With decoding on, xarray moves `scale_factor`,
+`add_offset` and `_FillValue` out of `.attrs` and into `.encoding`, so a check
+written against `.attrs` will report a packed file as clean.
+
+::: {.callout-tip}
+## Checking against the real standard
+
+The checks above cover what matters for this package. For a full audit, the
+[CF Conventions compliance checker](https://compliance.checker.ioos.us/) tests a
+file against the published standard, including the controlled vocabulary of
+`standard_name` values, which is longer than anyone remembers.
+:::
+
+---
+
+## Dataset-Specific Guides
+
+Each dataset has unique characteristics. See the detailed preparation guides:
+
+::: {.grid-container}
+::: {.feature-card}
+### TerraClimate
+
+Monthly precipitation and PET at ~4 km, 1950-present. Download, unpack the
+packed integers, and merge into one series.
+
+[TerraClimate Guide](00b-terraclimate.qmd){.btn .btn-primary}
+:::
+:::
+
+Guides for CHIRPS, ERA5-Land and GPM IMERG are not written yet. The general
+steps above apply to all of them; the dataset-specific traps are what the
+guides add.
+
+---
+
+## Quick Reference: Dataset Fixes
+
+| Dataset | Key preparation steps |
+|---------|----------------------|
+| **CHIRPS monthly NetCDF** | Ready to use |
+| **CHIRPS GeoTIFF series** | Combine into single NetCDF with time dimension |
+| **TerraClimate** | Ready to use (variable `ppt` auto-detected) |
+| **ERA5-Land** | Check the units attribute before converting. Do not assume: the same variable name is distributed in different units by different products and access routes |
+| **IMERG monthly** | Ready to use (variable `precipitation` auto-detected) |
+| **IMERG half-hourly/daily** | Aggregate to monthly; convert mm/hr → mm/month |
+
+::: {.callout-tip}
+## Use monthly products when available
+ERA5-Land and IMERG both offer pre-aggregated monthly products. These are much easier to work with — no temporal aggregation needed, just unit conversion (if any).
+:::
+
+---
+
+## See Also
+
+- [Data Model & Outputs](../get-started/data-model.qmd) — Full input contract specification
+- [Quick Start](../get-started/quick-start.qmd) — Calculate SPI/SPEI once data is ready
+- [Calculate SPI](01-calculate-spi.qmd) — Detailed SPI tutorial
+- [Calculate SPEI](02-calculate-spei.qmd) — Detailed SPEI tutorial

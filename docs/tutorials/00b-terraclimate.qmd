@@ -1,0 +1,350 @@
+---
+title: "Preparing TerraClimate"
+subtitle: "Monthly precipitation and PET, from yearly downloads to a single SPI/SPEI-ready file"
+---
+
+## What TerraClimate is
+
+TerraClimate is a global monthly climate and climatic water balance dataset at
+**1/24 degree, about 4 km**, running from **1950 to the present**. It is built by
+climatically aided interpolation: high-resolution climatological normals from
+WorldClim are combined with coarser time-varying fields from reanalysis, so it
+keeps the spatial detail of the normals and the year-to-year variability of the
+reanalysis.
+
+For SPI and SPEI you need two of its variables:
+
+| Variable | What it is | Units |
+|:---|:---|:---|
+| `ppt` | Accumulated precipitation | mm |
+| `pet` | Reference evapotranspiration, ASCE Penman-Monteith | mm |
+
+The files carry their own provenance. Version 1.1 records `source: WorldClim
+v2.1, ERA5` and this reference:
+
+> Abatzoglou, J.T., Hegewisch, K.C., Yin, C. and D.A. Kalashinkov, 2026,
+> TerraClimate v1.1, An Updated Global Climate and Climatic Water Balance
+> Dataset with Climate Scenarios. Scientific Data.
+
+The dataset [landing page](https://www.climatologylab.org/terraclimate.html)
+cites the original v1 paper, Abatzoglou et al. 2018, for the method. Cite the
+version you actually used, and read it out of the file rather than trusting your
+notes:
+
+```python
+import xarray as xr
+with xr.open_dataset("TerraClimate_ppt_2024.nc") as ds:
+    print(ds.attrs["version"], "|", ds.attrs["references"])
+```
+
+::: {.callout-note}
+## The scripts on this page
+
+The helper functions used below live in `docs/tutorials/scripts/tc_prepare.py`,
+and the packing check is `docs/tutorials/scripts/check_packing.py`. The imports
+shown assume you are working from `docs/tutorials/`; adjust the path or copy the
+module next to your own code.
+:::
+
+### Naming convention
+
+One file per variable per year, always:
+
+```
+TerraClimate_{variable}_{yyyy}.nc
+```
+
+So `TerraClimate_ppt_1950.nc` through `TerraClimate_ppt_2025.nc`, and the same
+for `pet`. Each yearly file holds twelve monthly steps on the full
+4,320 x 8,640 global grid.
+
+---
+
+## Step 1: Download
+
+### Individually
+
+Browse the [THREDDS
+catalog](http://thredds.northwestknowledge.net:8080/thredds/catalog/TERRACLIMATE_ALL/data/catalog.html)
+and click through. Note that this server is plain HTTP on port 8080, so some
+clients that force HTTPS will fail to reach it.
+
+### In bulk
+
+Direct downloads come from `climate.northwestknowledge.net` over HTTPS.
+
+::: {.panel-tabset}
+
+#### Windows (cmd)
+
+```bat
+for /L %y in (1950, 1, 2025) do C:\apps\gnuwin64\wget.exe ^
+  "https://climate.northwestknowledge.net/TERRACLIMATE-DATA/TerraClimate_ppt_%y.nc" -c
+
+for /L %y in (1950, 1, 2025) do C:\apps\gnuwin64\wget.exe ^
+  "https://climate.northwestknowledge.net/TERRACLIMATE-DATA/TerraClimate_pet_%y.nc" -c
+```
+
+If you do not have `wget`, install it with `winget install GnuWin32.Wget` or
+take the binary from [GnuWin](https://sourceforge.net/projects/gnuwin64/).
+
+In a `.bat` file use `%%y` instead of `%y`.
+
+#### Linux / macOS
+
+```bash
+for y in $(seq 1950 2025); do
+  for v in ppt pet; do
+    wget -c "https://climate.northwestknowledge.net/TERRACLIMATE-DATA/TerraClimate_${v}_${y}.nc"
+  done
+done
+```
+
+#### Python
+
+Resumes part-downloads, skips files already complete, and fails loudly on a
+truncated file instead of leaving one to break the merge later.
+
+```python
+from pathlib import Path
+from scripts.tc_prepare import download_year
+
+for var in ("ppt", "pet"):
+    for year in range(1950, 2026):
+        download_year(var, year, Path("raw"))
+```
+
+:::
+
+::: {.callout-tip}
+## Use `-c`, not `--no-check-certificate`
+
+`-c` resumes a partial download, and the server supports it: it returns
+`Accept-Ranges: bytes`. Restarting a 150 MB file from zero because the
+connection dropped at 90% is the main thing that makes this step painful.
+
+You may see `--no-check-certificate` in older recipes for this host. It disables
+certificate verification, which is a real security downgrade. Try without it
+first; HTTPS to this host verifies correctly as of this writing.
+:::
+
+### How much you are downloading
+
+Measured from the server's `Content-Length` headers:
+
+| | Per year | 76 years (1950-2025) |
+|:---|---:|---:|
+| `ppt` | ~152 MB | **~11.6 GB** |
+| `pet` | ~108 MB | **~8.2 GB** |
+| Both | | **~19.8 GB** |
+
+---
+
+## Step 2: Unpack
+
+This is the step that is easy to skip and expensive to get wrong.
+
+TerraClimate is distributed as [packed
+data](https://cfconventions.org/Data/cf-conventions/cf-conventions-1.7/build/ch08.html):
+the values on disk are integers, and the CF attributes `scale_factor` and
+`add_offset` tell a reader how to turn them back into millimetres. It is a
+sensible way to ship a large dataset, and it is not a sensible way to keep one
+you are about to compute on.
+
+Here is what the two variables actually look like upstream, read from the
+THREDDS metadata by `scripts/check_packing.py`:
+
+| File | dtype | `scale_factor` | `_FillValue` |
+|:---|:---|---:|---:|
+| `TerraClimate_ppt_1950.nc` | `int32` | 0.1 | −2147483648 |
+| `TerraClimate_ppt_1990.nc` | `int32` | 0.1 | −2147483648 |
+| `TerraClimate_ppt_2024.nc` | `int32` | 0.1 | −2147483648 |
+| `TerraClimate_pet_1950.nc` | `int16` | 0.1 | −32768 |
+| `TerraClimate_pet_2024.nc` | `int16` | 0.1 | −32768 |
+
+Two things to take from that table.
+
+**The packing is stable across years within a variable.** Both `ppt` and `pet`
+use the same scale factor in every year checked, so concatenating them will not
+silently rescale part of your series. That is worth confirming rather than
+assuming, because it is not guaranteed by anything, and the failure would be
+invisible.
+
+**The two variables are packed differently from each other.** `ppt` is `int32`
+with a fill of −2147483648; `pet` is `int16` with a fill of −32768. Any code
+that hardcodes one fill value, or that does arithmetic on the raw integers, is
+wrong for one of them.
+
+### Why this matters in practice
+
+If a reader applies `scale_factor` but not the fill mask, the ocean does not
+become NaN. It becomes a number:
+
+| Variable | Fill, unpacked naively | Looks like |
+|:---|---:|:---|
+| `ppt` | −214,748,364.8 mm | Obviously broken |
+| `pet` | **−3,276.8 mm** | Plausible enough to survive a sanity check |
+
+The `pet` case is the dangerous one. A range check that rejects absurd
+magnitudes will catch the precipitation error and wave the PET error through,
+and you will find out much later when a water balance somewhere is wrong by
+3,276 mm.
+
+xarray does the right thing by default, `mask_and_scale=True`. Plenty of other
+tools do not, and neither does anything that reads the integers directly.
+Unpacking once, at the start, removes the question from every later step.
+
+### Doing it
+
+::: {.panel-tabset}
+
+#### NCO
+
+```bash
+# one file
+ncpdq --unpack TerraClimate_ppt_1950.nc ppt/TerraClimate_ppt_1950.nc
+
+# all files, Linux/macOS
+for f in TerraClimate_ppt_*.nc; do ncpdq --unpack "$f" "ppt/$f"; done
+
+# all files, Windows cmd
+for %f in (TerraClimate_ppt_*.nc) do ncpdq --unpack "%f" "ppt\%f"
+```
+
+#### Python
+
+```python
+from pathlib import Path
+from scripts.tc_prepare import unpack_file
+
+for src in sorted(Path("raw").glob("TerraClimate_ppt_*.nc")):
+    unpack_file(src, Path("unpacked") / src.name)
+```
+
+:::
+
+The Python version writes `float32` with a single `_FillValue` of −9999 and
+strips the packing attributes, so downstream code never sees them again.
+
+::: {.callout-note}
+## Why `float32` and not `float64`
+
+The source is quantised at 0.1 mm. A float32 round-trip of these values is
+accurate to **1.2e-05 mm**, four orders of magnitude finer than the data's own
+precision, so `float64` stores no additional information about the world.
+
+It does double your disk and your memory. For the full global series that is
+136 GB against 272 GB per variable before compression. Unless you have a
+specific reason, write `float32`.
+:::
+
+---
+
+## Step 3: Merge the years
+
+SPI and SPEI need one continuous series per variable, not 76 files.
+
+::: {.panel-tabset}
+
+#### CDO
+
+```bash
+cdo -z zip_5 mergetime TerraClimate_ppt_*.nc wld_cli_terraclimate_ppt_1950_2025.nc
+```
+
+#### Python
+
+```python
+from pathlib import Path
+from scripts.tc_prepare import merge_years
+
+files = sorted(Path("unpacked").glob("TerraClimate_ppt_*.nc"))
+merge_years(files, Path("wld_cli_terraclimate_ppt_1950_2025.nc"), var="ppt")
+```
+
+:::
+
+Both work. The Python route is worth the extra line because it controls two
+things `cdo mergetime` decides for you: the output dtype, and the on-disk chunk
+shape.
+
+::: {.callout-important}
+## Chunk for how you will read it
+
+A NetCDF chunk is the smallest unit that can be read. If the file is chunked one
+month at a time across the full width of the world, then reading the full
+history of one small area means touching every chunk in the file.
+
+That is the layout `mergetime` tends to produce, and it is the opposite of what
+SPI and SPEI want, because they read a complete time series per pixel.
+
+`merge_years` defaults to a chunk that spans the whole time axis and is small
+spatially, which makes a per-pixel series a single read. The trade-off is that
+producing it requires rewriting the data rather than concatenating it, so the
+merge takes longer and needs working space.
+:::
+
+---
+
+## Step 4: Check before you compute
+
+```python
+import numpy as np
+import xarray as xr
+
+ds = xr.open_dataset("wld_cli_terraclimate_ppt_1950_2025.nc")
+ppt = ds["ppt"]
+
+print(f"dims   : {ppt.dims} {ppt.shape}")
+print(f"dtype  : {ppt.dtype}")
+print(f"time   : {str(ppt.time.values[0])[:10]} to {str(ppt.time.values[-1])[:10]}"
+      f"  ({ppt.sizes['time']} steps)")
+print(f"units  : {ppt.attrs.get('units')}")
+
+# The packing must be gone, not merely applied.
+leftovers = [a for a in ("scale_factor", "add_offset", "_Unsigned")
+             if a in ppt.encoding or a in ppt.attrs]
+print(f"packing attributes left: {leftovers or 'none'}")
+
+# Ocean must be NaN, not a large negative number.
+sample = ppt.isel(time=-1).values
+print(f"finite cells : {np.isfinite(sample).sum():,} of {sample.size:,}")
+print(f"min / max    : {np.nanmin(sample):.1f} / {np.nanmax(sample):.1f} mm")
+assert np.nanmin(sample) >= 0, "negative precipitation: fill value leaked through"
+```
+
+For the global v1.1 series that prints 912 monthly steps from 1950-01 to
+2025-12, and 12.5 million finite cells out of 37.3 million, which is the 33.6%
+of the grid that is land.
+
+---
+
+## Smaller areas
+
+Everything above produces the **global** grid. If your area of interest is a
+bounding box, a country or a custom shapefile, subset after unpacking and before
+merging, which saves both time and disk.
+
+See [Preparing Your Data](00-data-preparation.qmd) for subsetting, coordinate
+naming, and the rest of the input contract.
+
+---
+
+## What you should have
+
+```
+wld_cli_terraclimate_ppt_1950_2025.nc     ppt, float32, (912, 4320, 8640)
+wld_cli_terraclimate_pet_1950_2025.nc     pet, float32, (912, 4320, 8640)
+```
+
+Both unpacked, both NaN over ocean, both on the same grid and time axis. That is
+the input contract for `spei()`, and for the global routes described in
+[Implementation](../technical/implementation.qmd).
+
+---
+
+## See Also
+
+- [Preparing Your Data](00-data-preparation.qmd) - the general input contract
+- [Data Model & Outputs](../get-started/data-model.qmd) - full input specification
+- [Calculate SPEI](02-calculate-spei.qmd) - using these files
