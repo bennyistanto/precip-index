@@ -1,0 +1,369 @@
+---
+title: "Preparing CHIRPS"
+subtitle: "Monthly precipitation v3.0, from either the NetCDF or the GeoTIFF distribution"
+---
+
+## What CHIRPS is
+
+CHIRPS is a quasi-global precipitation dataset from the Climate Hazards Center
+at UC Santa Barbara, blending satellite estimates with station observations. It
+runs from 1981 to the present at 0.05 degrees, and for SPI it is the usual
+choice where rainfall is the only variable you need.
+
+::: {.callout-important}
+## CHIRPS is not global
+
+The grid covers **60S to 60N**, not pole to pole. Measured from the v3.0 monthly
+GeoTIFF: 2400 rows by 7200 columns, bounds `lat -60.0 .. 60.0`,
+`lon -180.0 .. 180.0`.
+
+Anything above 60N or below 60S is outside the product, not missing from it.
+Plan your analysis domain accordingly, and do not compare a CHIRPS "global mean"
+with one from a genuinely global dataset such as TerraClimate.
+:::
+
+| | |
+|:--|:--|
+| Version | v3.0 |
+| Spatial resolution | 0.05 degrees, ~5 km |
+| Grid | 2400 x 7200 = 17.3 million cells |
+| Coverage | 60S-60N, all longitudes |
+| Temporal resolution | Monthly (daily and pentad also published) |
+| Record | 1981 to present |
+| Units | mm/month |
+| Source | [data.chc.ucsb.edu/products/CHIRPS/v3.0](https://data.chc.ucsb.edu/products/CHIRPS/v3.0/) |
+
+For SPI you need one variable, precipitation, so there is no PET step and no
+water balance. That makes CHIRPS considerably less work than TerraClimate.
+
+---
+
+## Two distributions, same data
+
+CHC publishes monthly CHIRPS in two forms. Both give the same numbers; they
+differ in how much you download and how much preparation each needs.
+
+| | NetCDF | GeoTIFF |
+|:--|:--|:--|
+| Layout | One file for everything, or one per year | One file per month |
+| Size | 8.9 GB whole, or ~197 MB per year | 23.1 MB per month |
+| Full record 1981-2025 | ~8.9 GB | ~12.5 GB (540 files) |
+| Coordinates | `latitude` / `longitude` | n/a, needs building |
+| Missing data | Declared via `_FillValue` | **Not declared.** Uses -9999 |
+| Packed integers | No | No |
+| Work to prepare | Rename coordinates | Stack, build a time axis, mask -9999 |
+
+**Use the NetCDF unless you have a reason not to.** The GeoTIFF route exists
+because some pipelines already work in tiles, or because you want a handful of
+months rather than the whole record.
+
+::: {.callout-note}
+## The scripts on this page
+
+Helpers live in `docs/tutorials/scripts/`. Imports below assume you are working
+from `docs/tutorials/`; adjust the path or copy the modules next to your code.
+:::
+
+---
+
+## Route A: NetCDF
+
+### Download
+
+::: {.panel-tabset}
+
+#### By year
+
+Preferred. Resumable, restartable, and you can start work before the whole
+record has arrived.
+
+```bash
+for y in $(seq 1981 2025); do
+  wget -c "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/netcdf/by_year/chirps-v3.0.${y}.monthly.nc"
+done
+```
+
+```bat
+for /L %y in (1981, 1, 2025) do wget -c ^
+  "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/netcdf/by_year/chirps-v3.0.%y.monthly.nc"
+```
+
+#### Single file
+
+One 8.9 GB download covering the whole record. Simple, but a dropped connection
+at 80% costs you everything unless your client resumes.
+
+```bash
+wget -c "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/netcdf/chirps-v3.0.monthly.nc"
+```
+
+#### Python
+
+```python
+from pathlib import Path
+from scripts.tc_prepare import download_year   # generic, not TerraClimate-only
+
+BASE = ("https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/"
+        "global/netcdf/by_year")
+
+out = Path("raw")
+for year in range(1981, 2026):
+    download_year("chirps-v3.0", year, out, base=BASE)
+```
+
+`download_year` builds `{base}/{var}_{year}.nc`, so for CHIRPS pass the stem and
+rename, or call it as a template. For a one-off, `wget -c` is less fuss.
+
+:::
+
+### Prepare
+
+CHIRPS NetCDF is already unpacked, already in mm/month, and already on a regular
+monthly axis. Two things need attention.
+
+**The coordinates are `latitude` and `longitude`**, not `lat` and `lon`. The
+package auto-detects either, but standardising once keeps everything downstream
+simple.
+
+**Merging the yearly files** needs the time axis sorted and checked.
+
+```python
+from pathlib import Path
+import xarray as xr
+from scripts.nc_fixups import standardise_names, clean_missing, write_cf_metadata
+
+files = sorted(Path("raw").glob("chirps-v3.0.*.monthly.nc"))
+ds = xr.open_mfdataset(files, combine="by_coords", engine="netcdf4")
+
+ds = standardise_names(ds)          # latitude -> lat, longitude -> lon, CF attrs
+ds = clean_missing(ds, "precip")    # -9999 and friends -> NaN
+ds = write_cf_metadata(
+    ds,
+    title="CHIRPS v3.0 monthly precipitation",
+    institution="Climate Hazards Center, UC Santa Barbara",
+    source="CHIRPS v3.0",
+    references="Funk et al. (2015), Scientific Data 2, 150066",
+)
+
+ds["precip"] = ds["precip"].astype("float32")
+ds.to_netcdf(
+    "wld_cli_chirps3_precip_1981_2025.nc",
+    encoding={"precip": {"dtype": "float32", "_FillValue": -9999.0,
+                         "zlib": True, "complevel": 5,
+                         "chunksizes": (ds.sizes["time"], 128, 128)}},
+)
+```
+
+::: {.callout-tip}
+## Alternative: CDO
+
+```bash
+cdo -z zip_5 mergetime chirps-v3.0.*.monthly.nc wld_cli_chirps3_precip_1981_2025.nc
+ncrename -d latitude,lat -d longitude,lon -v latitude,lat -v longitude,lon out.nc
+```
+
+Faster, and fine here because CHIRPS needs no unpacking. You give up control of
+the output chunking, which matters if you will read per-pixel time series: see
+[Preparing Your Data](00-data-preparation.qmd) on chunking for how you read.
+:::
+
+---
+
+## Route B: GeoTIFF
+
+One file per month, named `chirps-v3.0.{yyyy}.{mm}.tif` with a zero-padded
+month.
+
+### Download
+
+```bash
+for y in $(seq 1981 2025); do
+  for m in 01 02 03 04 05 06 07 08 09 10 11 12; do
+    wget -c "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/tifs/chirps-v3.0.${y}.${m}.tif"
+  done
+done
+```
+
+```bat
+for /L %y in (1981, 1, 2025) do for %m in (01 02 03 04 05 06 07 08 09 10 11 12) do ^
+  wget -c "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/tifs/chirps-v3.0.%y.%m.tif"
+```
+
+540 files, about 12.5 GB.
+
+### The trap in this route
+
+::: {.callout-warning}
+## The GeoTIFFs use -9999 and do not declare it
+
+Read straight from the remote file:
+
+```
+declared nodata : None
+dtype           : float32
+
+location                        lon     lat          value
+mid Pacific ocean           -140.00    0.00     -9999.0000
+south Atlantic ocean         -25.00  -40.00     -9999.0000
+Amazon, land                 -60.00   -3.00       347.3873
+Sahara, land                  10.00   23.00         0.3212
+above the band (Arctic)       0.00    59.50     -9999.0000
+```
+
+Because no nodata tag is set, **every reader treats -9999 as a measurement**.
+Nothing errors. You get an ocean of negative rainfall, a global mean that is
+meaningless, and if it reaches a distribution fit, a result that is confidently
+wrong.
+
+So pass the sentinel explicitly:
+
+```python
+tiffs_to_netcdf(..., nodata=-9999.0)
+```
+:::
+
+The second trap is the half-pixel shift, covered in
+[Preparing Your Data](00-data-preparation.qmd#convert-to-netcdf-if-needed).
+CHIRPS makes it concrete: the geotransform origin is exactly `-180.0, 60.0`,
+which is the **corner** of the first pixel. Its **centre** is
+`-179.975, 59.975`. Copy the origin into a coordinate array and every cell is
+2.5 km out of position.
+
+### Convert
+
+```python
+from scripts.tiff2nc import tiffs_to_netcdf
+
+tiffs_to_netcdf(
+    "tifs/",
+    "wld_cli_chirps3_precip_1981_2025.nc",
+    var_name="precip",
+    glob="chirps-v3.0.*.tif",
+    date_pattern=r"chirps-v3\.0\.(\d{4}\.\d{2})\.tif",
+    date_format="%Y.%m",
+    units="mm",
+    standard_name="precipitation_amount",
+    long_name="monthly precipitation",
+    nodata=-9999.0,               # not declared in the file
+    lat_order="descending",       # keep the GeoTIFF row order
+)
+```
+
+The date pattern captures `1981.01` and `%Y.%m` parses it, so the files sort by
+real date rather than by filename. `tiffs_to_netcdf` also verifies every raster
+shares the first file's grid, which matters across a 540-file download where one
+partial file would otherwise be stacked in silently.
+
+::: {.callout-tip}
+## Alternative: GDAL
+
+```bash
+gdalbuildvrt -separate chirps.vrt chirps-v3.0.*.tif
+gdal_translate -of netCDF -a_nodata -9999 chirps.vrt chirps.nc
+```
+
+Quick, and it gets the cell centres right. What you do not get is a time
+coordinate: the bands come out as `band1..band540` with no dates attached, so
+you still have to build the time axis yourself before any index code will read
+it.
+:::
+
+---
+
+## Check before you compute
+
+```python
+import numpy as np
+import xarray as xr
+
+ds = xr.open_dataset("wld_cli_chirps3_precip_1981_2025.nc")
+p = ds["precip"]
+
+print(f"dims    : {p.dims} {p.shape}")
+print(f"time    : {str(p.time.values[0])[:10]} to {str(p.time.values[-1])[:10]}")
+print(f"units   : {p.attrs.get('units')}")
+print(f"lat     : {float(p.lat.min()):.3f} .. {float(p.lat.max()):.3f}")
+
+last = p.isel(time=-1).values
+print(f"finite  : {np.isfinite(last).sum():,} of {last.size:,}")
+print(f"range   : {np.nanmin(last):.2f} .. {np.nanmax(last):.2f} mm")
+
+# The check that catches the GeoTIFF trap.
+assert np.nanmin(last) >= 0, "negative rainfall: the -9999 sentinel got through"
+# And the one that catches a truncated stack.
+expected = (2025 - 1981 + 1) * 12
+assert p.sizes["time"] == expected, f"{p.sizes['time']} steps, expected {expected}"
+```
+
+A correct CHIRPS v3.0 monthly series over 1981-2025 has **540 time steps** on a
+**2400 x 7200** grid, with latitude spanning -59.975 to 59.975.
+
+---
+
+## Calculate SPI
+
+CHIRPS needs no PET, so it goes straight into SPI:
+
+```python
+from indices import spi
+
+spi_12 = spi(
+    ds["precip"],
+    scale=12,
+    periodicity="monthly",
+    calibration_start_year=1991,
+    calibration_end_year=2020,
+    distribution="gamma",
+)
+```
+
+At global scale use the tiled routes rather than loading the array:
+
+```python
+from dask_processor import compute_spi_dask, plan_layout
+
+layout = plan_layout(n_time=540, n_lat=2400, n_lon=7200, n_workers=6, index="spi")
+print(layout)
+
+compute_spi_dask(
+    "wld_cli_chirps3_precip_1981_2025.nc",
+    "wld_cli_chirps3_spi_gamma_12_month.zarr",
+    scale=12, distribution="gamma",
+    tile=layout.tile, n_workers=layout.n_workers,
+    params_path="chirps3_spi_gamma_12_params.nc",
+)
+```
+
+::: {.callout-note}
+## Gamma and zeros
+
+CHIRPS has many exact zeros in arid regions and in the dry season. Gamma is
+undefined at zero, and this package handles that by fitting a mixed
+distribution and carrying the zero probability separately as `prob_zero`.
+
+Do **not** pre-substitute a small value such as 0.001. See
+[Preparing Your Data](00-data-preparation.qmd#replace-zeros-only-if-you-must)
+for why that biases the fit.
+:::
+
+---
+
+## Subsetting
+
+For a country or basin, clip before computing. The boundary rule matters:
+see [Preparing Your Data](00-data-preparation.qmd#by-shapefile).
+
+```python
+from scripts.nc_clip import clip_netcdf
+
+clip_netcdf("wld_cli_chirps3_precip_1981_2025.nc", "boundary.shp",
+            "cod_cli_chirps3_precip_1981_2025.nc", all_touched=True)
+```
+
+---
+
+## See Also
+
+- [Preparing Your Data](00-data-preparation.qmd) - the general input contract
+- [Preparing TerraClimate](00b-terraclimate.qmd) - for SPEI, which also needs PET
+- [Calculate SPI](01-calculate-spi.qmd) - using these files
