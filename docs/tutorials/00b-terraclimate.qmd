@@ -12,12 +12,23 @@ WorldClim are combined with coarser time-varying fields from reanalysis, so it
 keeps the spatial detail of the normals and the year-to-year variability of the
 reanalysis.
 
-For SPI and SPEI you need two of its variables:
+Two of its variables matter here, and **which you need depends on the index**:
 
-| Variable | What it is | Units |
-|:---|:---|:---|
-| `ppt` | Accumulated precipitation | mm |
-| `pet` | Reference evapotranspiration, ASCE Penman-Monteith | mm |
+| Variable | What it is | Units | SPI | SPEI |
+|:---|:---|:---|:--:|:--:|
+| `ppt` | Accumulated precipitation | mm | required | required |
+| `pet` | Reference evapotranspiration, ASCE Penman-Monteith | mm | not used | required |
+
+::: {.callout-tip}
+## Only want SPI? Download `ppt` and stop
+
+SPI is computed from precipitation alone. If SPEI is not on your list, skip
+`pet` entirely: you download **11.6 GB instead of 19.8 GB**, and steps 2 and 3
+below halve.
+
+The rest of this page applies unchanged. Wherever it says "both variables",
+read "your one variable".
+:::
 
 The files carry their own provenance. Version 1.1 records `source: WorldClim
 v2.1, ERA5` and this reference:
@@ -85,6 +96,8 @@ for /L %y in (1950, 1, 2025) do C:\apps\gnuwin64\wget.exe ^
   "https://climate.northwestknowledge.net/TERRACLIMATE-DATA/TerraClimate_pet_%y.nc" -c
 ```
 
+The second loop fetches `pet` and is only needed for SPEI. Skip it for SPI.
+
 If you do not have `wget`, install it with `winget install GnuWin32.Wget` or
 take the binary from [GnuWin](https://sourceforge.net/projects/gnuwin64/).
 
@@ -93,8 +106,9 @@ In a `.bat` file use `%%y` instead of `%y`.
 #### Linux / macOS
 
 ```bash
-for y in $(seq 1950 2025); do
-  for v in ppt pet; do
+# For SPI only, drop pet from this list.
+for v in ppt pet; do
+  for y in $(seq 1950 2025); do
     wget -c "https://climate.northwestknowledge.net/TERRACLIMATE-DATA/TerraClimate_${v}_${y}.nc"
   done
 done
@@ -109,7 +123,9 @@ truncated file instead of leaving one to break the merge later.
 from pathlib import Path
 from scripts.tc_prepare import download_year
 
-for var in ("ppt", "pet"):
+VARIABLES = ("ppt", "pet")     # ("ppt",) is enough for SPI
+
+for var in VARIABLES:
     for year in range(1950, 2026):
         download_year(var, year, Path("raw"))
 ```
@@ -132,11 +148,11 @@ first; HTTPS to this host verifies correctly as of this writing.
 
 Measured from the server's `Content-Length` headers:
 
-| | Per year | 76 years (1950-2025) |
-|:---|---:|---:|
-| `ppt` | ~152 MB | **~11.6 GB** |
-| `pet` | ~108 MB | **~8.2 GB** |
-| Both | | **~19.8 GB** |
+| | Per year | 76 years (1950-2025) | Needed for |
+|:---|---:|---:|:---|
+| `ppt` | ~152 MB | **~11.6 GB** | SPI and SPEI |
+| `pet` | ~108 MB | **~8.2 GB** | SPEI only |
+| Both | | **~19.8 GB** | SPEI |
 
 ---
 
@@ -332,19 +348,85 @@ naming, and the rest of the input contract.
 
 ## What you should have
 
+For SPEI, two files:
+
 ```
 wld_cli_terraclimate_ppt_1950_2025.nc     ppt, float32, (912, 4320, 8640)
 wld_cli_terraclimate_pet_1950_2025.nc     pet, float32, (912, 4320, 8640)
 ```
 
-Both unpacked, both NaN over ocean, both on the same grid and time axis. That is
-the input contract for `spei()`, and for the global routes described in
-[Implementation](../technical/implementation.qmd).
+For SPI, just the first. Either way: unpacked, NaN over ocean, and if you have
+both, on the same grid and the same time axis.
+
+That is the input contract for `spi()` and `spei()`, and for the global routes
+described in [Implementation](../technical/implementation.qmd).
+
+---
+
+## TerraClimate or CHIRPS for SPI?
+
+Both will give you SPI. They differ in ways that are measurable, and the choice
+is usually decided by the first two rows:
+
+| | TerraClimate v1.1 | CHIRPS v3.0 |
+|:--|:--|:--|
+| Record starts | **1950** | 1981 |
+| Coverage | All land, lat -89.98 to 89.98 | **60S-60N only** |
+| Resolution | 1/24 degree, ~4 km | 0.05 degree, ~5 km |
+| Grid | 4,320 x 8,640 | 2,400 x 7,200 |
+| Release unit | One file per **year** | One file per **month** |
+| **Latency** | **The current year is absent entirely** | **10-13 days after month end** |
+| Download for SPI | ~11.6 GB | ~8.9 GB |
+| Packed on disk | Yes, unpack first | No |
+| Construction | WorldClim normals + ERA5 reanalysis | Infrared satellite estimates with station data |
+
+The length of record matters for a 30-year calibration: 1950 leaves 46 years
+outside the baseline where 1981 leaves 15. And if your area is above 60N or
+below 60S, CHIRPS does not cover it at all.
+
+Latency pulls the other way, and it pulls hard.
+
+::: {.callout-important}
+## TerraClimate is not an operational monitoring dataset
+
+TerraClimate is released one file per calendar year, and the current year is
+not published at all while it is running. Checked on **2026-09-29**:
+
+| | Newest available |
+|:--|:--|
+| TerraClimate | **2025** (`TerraClimate_ppt_2026.nc` returns 404) |
+| CHIRPS | **August 2026**, published 11 September, 10 days after month end |
+
+That is a **13-month** difference in how current your index can be, today.
+
+CHIRPS publication latency measured over the last four months: 11, 13, 13 and
+10 days after the month ends. Reproduce with
+`scripts/check_latency.py`.
+
+So:
+
+- **Monitoring a current drought** needs CHIRPS, or another
+  low-latency product. TerraClimate cannot answer "what is happening now".
+- **Studying the historical record**, fitting distributions, computing
+  climatologies or looking at multi-decade trends, is where TerraClimate's
+  extra 31 years earns its place.
+- **SPEI at all** needs TerraClimate or an equivalent PET source, since CHIRPS
+  publishes precipitation only.
+
+A common arrangement is both: TerraClimate for the baseline and the long
+record, CHIRPS for the near-real-time update.
+:::
+
+There is no need to choose permanently. The two are on different grids, so
+compare them as separate runs rather than trying to merge them. See
+[Preparing CHIRPS](00a-chirps.qmd) for that route.
 
 ---
 
 ## See Also
 
 - [Preparing Your Data](00-data-preparation.qmd) - the general input contract
+- [Preparing CHIRPS](00a-chirps.qmd) - precipitation only, if you need SPI rather than SPEI
 - [Data Model & Outputs](../get-started/data-model.qmd) - full input specification
-- [Calculate SPEI](02-calculate-spei.qmd) - using these files
+- [Calculate SPI](01-calculate-spi.qmd) - using `ppt` alone
+- [Calculate SPEI](02-calculate-spei.qmd) - using `ppt` and `pet` together
