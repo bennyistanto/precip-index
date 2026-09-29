@@ -39,6 +39,11 @@ website:
             href: get-started/examples.qmd
       - text: "Tutorials"
         menu:
+          - text: "Preparing Your Data"
+            href: tutorials/00-data-preparation.qmd
+          - text: "Preparing TerraClimate"
+            href: tutorials/00b-terraclimate.qmd
+          - text: "---"
           - text: "Calculate SPI"
             href: tutorials/01-calculate-spi.qmd
           - text: "Calculate SPEI"
@@ -76,13 +81,10 @@ website:
       style: "floating"
       background: light
       contents:
-        # - section: "Data Preparation"
-        #   contents:
-        #     - tutorials/00-data-preparation.qmd
-        #     - tutorials/00a-chirps.qmd
-        #     - tutorials/00b-terraclimate.qmd
-        #     - tutorials/00c-era5-land.qmd
-        #     - tutorials/00d-imerg.qmd
+        - section: "Data Preparation"
+          contents:
+            - tutorials/00-data-preparation.qmd
+            - tutorials/00b-terraclimate.qmd
         - text: "---"
         - tutorials/01-calculate-spi.qmd
         - tutorials/02-calculate-spei.qmd
