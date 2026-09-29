@@ -621,6 +621,15 @@ Each dataset has unique characteristics. See the detailed preparation guides:
 
 ::: {.grid-container}
 ::: {.feature-card}
+### CHIRPS
+
+Monthly precipitation at ~5 km, 1981-present, 60S-60N. NetCDF or GeoTIFF,
+and the GeoTIFF trap that comes with it.
+
+[CHIRPS Guide](00a-chirps.qmd){.btn .btn-primary}
+:::
+
+::: {.feature-card}
 ### TerraClimate
 
 Monthly precipitation and PET at ~4 km, 1950-present. Download, unpack the
@@ -630,9 +639,8 @@ packed integers, and merge into one series.
 :::
 :::
 
-Guides for CHIRPS, ERA5-Land and GPM IMERG are not written yet. The general
-steps above apply to all of them; the dataset-specific traps are what the
-guides add.
+Guides for ERA5-Land and GPM IMERG are not written yet. The general steps above
+apply to both; the dataset-specific traps are what the guides add.
 
 ---
 
