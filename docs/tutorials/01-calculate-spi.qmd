@@ -39,6 +39,21 @@ This tutorial demonstrates how to calculate the **Standardized Precipitation Ind
 10. Area percentage analysis (dry and wet)
 11. Save results to NetCDF
 
+::: {.callout-note}
+## Before you start: getting the input
+
+This tutorial begins from a prepared NetCDF. If you do not have one yet:
+
+- **[Preparing Your Data](00-data-preparation.qmd)** - the input contract, and
+  the general steps: converting from GeoTIFF, renaming coordinates, units,
+  missing values, clipping to an area of interest
+- **[Preparing CHIRPS](00a-chirps.qmd)** - precipitation only, 1981-present,
+  the usual choice for SPI
+- **[Preparing TerraClimate](00b-terraclimate.qmd)** - if you also want SPEI later
+
+The Bali file used below was prepared exactly that way.
+:::
+
 ## 1. Setup and Imports
 
 ```{python}
