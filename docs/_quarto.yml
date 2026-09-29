@@ -41,6 +41,8 @@ website:
         menu:
           - text: "Preparing Your Data"
             href: tutorials/00-data-preparation.qmd
+          - text: "Preparing CHIRPS"
+            href: tutorials/00a-chirps.qmd
           - text: "Preparing TerraClimate"
             href: tutorials/00b-terraclimate.qmd
           - text: "---"
@@ -84,6 +86,7 @@ website:
         - section: "Data Preparation"
           contents:
             - tutorials/00-data-preparation.qmd
+            - tutorials/00a-chirps.qmd
             - tutorials/00b-terraclimate.qmd
         - text: "---"
         - tutorials/01-calculate-spi.qmd
