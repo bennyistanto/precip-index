@@ -49,6 +49,21 @@ This tutorial demonstrates how to calculate the **Standardized Precipitation Eva
 
 SPEI is more sensitive to temperature increases and climate change impacts.
 
+::: {.callout-note}
+## Before you start: getting the input
+
+SPEI needs precipitation **and** either PET or temperature, both on the same
+grid and time axis. If you do not have them yet:
+
+- **[Preparing TerraClimate](00b-terraclimate.qmd)** - ships `ppt` and `pet`
+  together, which is why it is the usual source for SPEI
+- **[Preparing Your Data](00-data-preparation.qmd)** - the input contract, and
+  the general preparation steps
+
+[Preparing CHIRPS](00a-chirps.qmd) covers precipitation only, so it is enough
+for SPI but not for SPEI on its own.
+:::
+
 ## 1. Setup and Imports
 
 ```{python}
