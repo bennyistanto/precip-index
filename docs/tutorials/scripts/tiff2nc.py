@@ -78,6 +78,7 @@ def tiffs_to_netcdf(
     calendar: str = "standard",
     lat_order: str = "descending",
     dtype: str = "float32",
+    nodata: Optional[float] = None,
     fill_value: float = -9999.0,
     complevel: int = 5,
     chunks: Optional[Sequence[int]] = None,
@@ -96,6 +97,12 @@ def tiffs_to_netcdf(
         copies rows as they are. `"ascending"` flips both the coordinate and
         the data. Neither is more correct; pick one and be consistent, because
         a mismatch between the two is a silent north-south flip.
+    nodata
+        Value in the source rasters meaning "missing", used when the file does
+        not declare one. **CHIRPS GeoTIFFs are exactly this case**: they carry
+        no nodata tag but use -9999, so without this every ocean cell arrives
+        as -9999 mm of rain. If the file does declare a nodata value, that one
+        is used and this is ignored.
     fill_value
         Written as `_FillValue`. Source nodata is converted to it.
     """
@@ -118,9 +125,15 @@ def tiffs_to_netcdf(
     with rasterio.open(dated[0][1]) as r0:
         transform, width, height = r0.transform, r0.width, r0.height
         crs = r0.crs
+        declared_nodata = r0.nodata
         if transform.b or transform.d:
             raise ValueError("rotated/sheared rasters are not supported")
         lon, lat = cell_centres(transform, width, height)
+
+    if declared_nodata is None and nodata is None and report:
+        print("warning   : the source declares no nodata value. If it uses a "
+              "sentinel such as -9999,")
+        print("            pass nodata=-9999 or it will be read as real data.")
 
     flip = lat_order == "ascending"
     if flip:
@@ -218,10 +231,12 @@ def tiffs_to_netcdf(
                     raise ValueError(
                         f"{path.name}: geotransform differs from the first file")
                 arr = r.read(1).astype("float64")
-                nodata = r.nodata
+                file_nodata = r.nodata
 
-            if nodata is not None and not np.isnan(nodata):
-                arr = np.where(arr == nodata, np.nan, arr)
+            # A value the file declares wins; otherwise use the override.
+            nd = file_nodata if file_nodata is not None else nodata
+            if nd is not None and not np.isnan(nd):
+                arr = np.where(arr == nd, np.nan, arr)
             if flip:
                 arr = np.flipud(arr)
 
@@ -256,7 +271,10 @@ if __name__ == "__main__":
     ap.add_argument("--units", default="mm")
     ap.add_argument("--lat-order", default="descending",
                     choices=["descending", "ascending"])
+    ap.add_argument("--nodata", type=float, default=None,
+                    help="sentinel meaning missing, when the file declares none "
+                         "(CHIRPS GeoTIFFs need --nodata -9999)")
     a = ap.parse_args()
     tiffs_to_netcdf(a.src_dir, a.output, a.var_name, glob=a.glob,
                     date_pattern=a.date_pattern, date_format=a.date_format,
-                    units=a.units, lat_order=a.lat_order)
+                    units=a.units, lat_order=a.lat_order, nodata=a.nodata)
