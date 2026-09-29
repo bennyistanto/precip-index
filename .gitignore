@@ -149,6 +149,7 @@ tmp/
 temp_md/
 temp_ipynb/
 temp_data/
+temp_py/
 # test_output/
 temp_console
 
