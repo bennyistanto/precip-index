@@ -30,11 +30,37 @@ with one from a genuinely global dataset such as TerraClimate.
 | Coverage | 60S-60N, all longitudes |
 | Temporal resolution | Monthly (daily and pentad also published) |
 | Record | 1981 to present |
+| Latency | ~10-13 days after the month ends |
 | Units | mm/month |
 | Source | [data.chc.ucsb.edu/products/CHIRPS/v3.0](https://data.chc.ucsb.edu/products/CHIRPS/v3.0/) |
 
 For SPI you need one variable, precipitation, so there is no PET step and no
 water balance. That makes CHIRPS considerably less work than TerraClimate.
+
+::: {.callout-tip}
+## This is the low-latency option
+
+CHIRPS publishes monthly, roughly a fortnight after the month ends. Measured
+publication dates for the last four complete months, checked 2026-09-29:
+
+| Month | Published | Days after month end |
+|:--|:--|--:|
+| May 2026 | 12 June 2026 | 11 |
+| June 2026 | 14 July 2026 | 13 |
+| July 2026 | 14 August 2026 | 13 |
+| August 2026 | 11 September 2026 | 10 |
+
+The `by_year` NetCDF is rewritten as each month lands, so `chirps-v3.0.2026.monthly.nc`
+held 8 months when checked, at 131.3 MB against ~195 MB for a complete year.
+
+For comparison, TerraClimate releases one file per calendar year and the current
+year is absent entirely: on the same date its newest data was 2025. If you are
+monitoring an ongoing drought rather than studying the record, that difference
+decides it. See [Preparing TerraClimate](00b-terraclimate.qmd#terraclimate-or-chirps-for-spi).
+
+There is no preliminary monthly CHIRPS at this path: a request for the
+current month returns 404 until the final product is published.
+:::
 
 ---
 
@@ -300,65 +326,42 @@ A correct CHIRPS v3.0 monthly series over 1981-2025 has **540 time steps** on a
 
 ---
 
-## Calculate SPI
+## What you should have
 
-CHIRPS needs no PET, so it goes straight into SPI:
-
-```python
-from indices import spi
-
-spi_12 = spi(
-    ds["precip"],
-    scale=12,
-    periodicity="monthly",
-    calibration_start_year=1991,
-    calibration_end_year=2020,
-    distribution="gamma",
-)
+```
+wld_cli_chirps3_precip_1981_2025.nc    precip, float32, (540, 2400, 7200)
 ```
 
-At global scale use the tiled routes rather than loading the array:
+Unpacked (CHIRPS never was packed), in mm/month, NaN over ocean and outside the
+60S-60N band, coordinates named `lat` and `lon`, and 540 monthly steps.
 
-```python
-from dask_processor import compute_spi_dask, plan_layout
-
-layout = plan_layout(n_time=540, n_lat=2400, n_lon=7200, n_workers=6, index="spi")
-print(layout)
-
-compute_spi_dask(
-    "wld_cli_chirps3_precip_1981_2025.nc",
-    "wld_cli_chirps3_spi_gamma_12_month.zarr",
-    scale=12, distribution="gamma",
-    tile=layout.tile, n_workers=layout.n_workers,
-    params_path="chirps3_spi_gamma_12_params.nc",
-)
-```
+That is the input contract for `spi()`. CHIRPS needs no PET and no water
+balance, so there is nothing further to prepare.
 
 ::: {.callout-note}
-## Gamma and zeros
+## One CHIRPS-specific thing to carry forward
 
-CHIRPS has many exact zeros in arid regions and in the dry season. Gamma is
-undefined at zero, and this package handles that by fitting a mixed
-distribution and carrying the zero probability separately as `prob_zero`.
-
-Do **not** pre-substitute a small value such as 0.001. See
-[Preparing Your Data](00-data-preparation.qmd#replace-zeros-only-if-you-must)
-for why that biases the fit.
+CHIRPS has many exact zeros, in arid regions and in the dry season everywhere.
+Gamma is undefined at zero. This package handles that for you by fitting a mixed
+distribution and carrying the zero probability separately, so **do not**
+pre-substitute a small value such as 0.001 - see
+[Preparing Your Data](00-data-preparation.qmd#replace-zeros-only-if-you-must).
 :::
 
 ---
 
-## Subsetting
+## Next step
 
-For a country or basin, clip before computing. The boundary rule matters:
-see [Preparing Your Data](00-data-preparation.qmd#by-shapefile).
+Your data is ready. The calculation itself, including calibration periods,
+multi-scale SPI, distribution choice and saving fitting parameters for
+operational reuse, is [Calculate SPI](01-calculate-spi.qmd).
 
-```python
-from scripts.nc_clip import clip_netcdf
+For the whole global grid rather than a region, the tiled and concurrent routes
+are described in [Implementation](../technical/implementation.qmd#dask-run-phase-by-phase).
 
-clip_netcdf("wld_cli_chirps3_precip_1981_2025.nc", "boundary.shp",
-            "cod_cli_chirps3_precip_1981_2025.nc", all_touched=True)
-```
+To clip to a country or basin first, see
+[Preparing Your Data](00-data-preparation.qmd#by-shapefile). The boundary rule
+matters more than it looks.
 
 ---
 
@@ -366,4 +369,5 @@ clip_netcdf("wld_cli_chirps3_precip_1981_2025.nc", "boundary.shp",
 
 - [Preparing Your Data](00-data-preparation.qmd) - the general input contract
 - [Preparing TerraClimate](00b-terraclimate.qmd) - for SPEI, which also needs PET
+- [Data Model & Outputs](../get-started/data-model.qmd) - full input specification
 - [Calculate SPI](01-calculate-spi.qmd) - using these files
